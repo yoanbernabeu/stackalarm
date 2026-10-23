@@ -1,13 +1,13 @@
 # stackalarm
 
-**Ask your AI agent "anything today?" and get a straight answer about your project's security.**
+**Type `/stackalarm` in your AI agent and get a straight answer about your project's security today.**
 
-stackalarm is an agent skill and the CLI it relies on. Open a project in Claude Code, Codex, Cursor or another agent, ask whether there is anything to worry about, and the agent tells you what in this week's security news affects *this* repository, how urgent it is, and what to change.
+stackalarm is an agent skill and the CLI it relies on. Open a project in Claude Code, Codex, Cursor or another agent, run the skill, and the agent tells you what in this week's security news affects *this* repository, how urgent it is, and what to change.
 
 An example, on a Symfony project with a self-hosted GitLab, in October 2026:
 
 ```
-> anything today?
+> /stackalarm
 
 Verdict: yes, act today. Two critical PHP flaws (unauthenticated RCE, public exploit)
 affect the 8.3 branch this project runs on, and the self-hosted GitLab needs a patch.
@@ -74,11 +74,17 @@ Optional, for faster and fuller results: set `GITHUB_TOKEN` (or `GH_TOKEN`) to r
 
 ## Use
 
-Open a project in your agent and ask, in your own words:
+Open a project in your agent and **call the skill explicitly**:
 
-- *"Anything today?"* or *"Est-ce qu'il y a des trucs aujourd'hui ?"*
-- *"Are we affected by the Node flaw from this week?"*
-- *"Quick security check before I deploy."*
+```
+/stackalarm
+/stackalarm before the Friday deploy
+/stackalarm are we affected by PHP2Shell?
+```
+
+In agents without slash commands, ask for it by name: *"use the stackalarm skill"*.
+
+Why explicitly: agents tend to answer "any security flaws to fix?" on their own with `npm audit` or `composer audit`, which only see library advisories and know nothing of this week's runtime flaws or announced releases. And a vague question such as "anything today?" may wake up another skill (your calendar…). The skill description also lets the agent pick it on its own for security questions, but calling it is the reliable way.
 
 The agent answers with a verdict, the findings grouped by urgency (act now, prepare, good to know), what it checked and what it could not. It never pushes, deploys or touches a server: what lives outside the repository is explained for you to do.
 

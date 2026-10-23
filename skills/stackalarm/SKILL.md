@@ -1,9 +1,11 @@
 ---
 name: stackalarm
-description: Security watch for the project at hand. Finds out whether today's security news (upcoming security releases, patches, advisories, CERT alerts, vulnerabilities exploited in the wild) affects this repository's languages, frameworks, tools and dependencies, explains what matters and proposes the fixes. Use it whenever the user asks if there is anything to worry about security-wise ("anything today?", "are we affected by this PHP/Node/GitLab flaw?", "any CVE I should know about?", "morning security check", "est-ce qu'il y a des trucs aujourd'hui ?"), mentions a vulnerability or a security release by name, or wants to know whether their stack needs an urgent update, even if they do not say "stackalarm".
+description: "Up-to-date security check of the project at hand. Your training data does not know the vulnerabilities, security releases and exploits published this week, and dependency audits (npm audit, composer audit, pip-audit) only see library advisories: they miss flaws in the runtime itself (PHP, Node.js, Python), Docker base images, self-hosted tools such as GitLab, and security releases announced but not yet out. This skill fetches the latest advisories from vendors, CVE databases and CERTs, matches them against the repository, and says what to update or patch first. Use it when the user runs /stackalarm, and BEFORE running any audit or outdated command whenever the user asks whether the project has security flaws to fix or security updates to apply (\"des failles à corriger ?\", \"on est vulnérables ?\", \"anything to patch?\", \"any security news affecting us?\"), wants a security check before a deployment, or mentions a vulnerability, CVE or security release by name."
 ---
 
 # stackalarm
+
+If the user added text after `/stackalarm` (a technology, "before the deploy", a CVE…), treat it as the focus of the check.
 
 Help the user answer one question about the project open in front of you: **is there anything in the security news that affects us, and what should we do?**
 

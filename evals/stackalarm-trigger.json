@@ -1,0 +1,20 @@
+[
+ {"query": "est-ce qu'il y a des mises à jour ou des failles à corriger ?", "should_trigger": true},
+ {"query": "y a des failles de sécu sur ce projet en ce moment ? j'ai l'impression qu'on est un peu à la traîne sur les versions", "should_trigger": true},
+ {"query": "on a des dépendances vulnérables ? je veux savoir ce qu'il faut patcher en priorité cette semaine", "should_trigger": true},
+ {"query": "check sécu rapide avant la mise en prod de vendredi stp, je veux pas déployer un truc troué", "should_trigger": true},
+ {"query": "j'ai vu passer sur linkedin un truc sur une faille PHP critique, php2shell je crois, on est touchés sur ce projet ?", "should_trigger": true},
+ {"query": "are there any security updates I need to apply to this repo? the client is asking after the news this week", "should_trigger": true},
+ {"query": "is our docker base image still safe? anything to patch in the stack before I rebuild?", "should_trigger": true},
+ {"query": "fais-moi le point sécurité du projet : CVE, versions obsolètes, ce qui est urgent et ce qui peut attendre", "should_trigger": true},
+ {"query": "anything in the security news this week that affects our stack?", "should_trigger": true},
+ {"query": "est-ce que notre gitlab ou notre php doivent être mis à jour en urgence ?", "should_trigger": true},
+ {"query": "mets à jour symfony de 7.3 à 7.4 et corrige les dépréciations qui remontent dans le profiler", "should_trigger": false},
+ {"query": "lance composer update puis fais passer la suite phpunit, il y a 3 tests rouges depuis hier", "should_trigger": false},
+ {"query": "écris un article de blog sur l'importance de la veille sécurité pour les devs", "should_trigger": false},
+ {"query": "ajoute une protection CSRF sur le formulaire de contact dans src/Controller/ContactController.php", "should_trigger": false},
+ {"query": "fais une revue de sécurité de ma MR !482 : injection SQL, XSS, contrôle d'accès sur les nouveaux endpoints", "should_trigger": false},
+ {"query": "merge les MR renovate en attente sur farmpilot", "should_trigger": false},
+ {"query": "explique-moi ce qu'est une CVE et comment se calcule le score CVSS, c'est pour une formation", "should_trigger": false},
+ {"query": "configure dependabot pour ce dépôt avec des mises à jour hebdomadaires groupées", "should_trigger": false}
+]

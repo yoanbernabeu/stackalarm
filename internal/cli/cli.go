@@ -81,6 +81,7 @@ type newsReport struct {
 	Keywords    []string       `json:"keywords"`
 	Items       []news.Item    `json:"items"`
 	Failures    []news.Failure `json:"failures"`
+	Warnings    []string       `json:"warnings"`
 }
 
 func (a *App) newsCommand() *cobra.Command {
@@ -107,13 +108,18 @@ or --keyword values. Run "stackalarm sources" to see the available tags.`,
 			if format != "text" && format != "json" {
 				return fmt.Errorf("--format %q: use text or json", format)
 			}
-			tags = lower(tags)
+			// An unknown tag is searched as a keyword in the general sources rather
+			// than failing: agents guess tags, and a guess should still help.
+			var warnings []string
 			known := source.Tags(a.Sources)
-			for _, t := range tags {
-				if !slices.Contains(known, t) {
-					return fmt.Errorf("unknown tag %q; known tags: %s (use --keyword to search general sources for anything else)", t, strings.Join(known, ", "))
+			tags = slices.DeleteFunc(lower(tags), func(t string) bool {
+				if slices.Contains(known, t) {
+					return false
 				}
-			}
+				keywords = append(keywords, t)
+				warnings = append(warnings, fmt.Sprintf("no source is tagged %q: searched as a keyword in the general sources instead (known tags: %s)", t, strings.Join(known, ", ")))
+				return true
+			})
 			f := *a.Fetcher
 			f.Now = a.Now
 			f.GitHubToken = cmp.Or(a.Getenv("GITHUB_TOKEN"), a.Getenv("GH_TOKEN"))
@@ -126,7 +132,7 @@ or --keyword values. Run "stackalarm sources" to see the available tags.`,
 			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window)})
 			report := newsReport{
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords),
-				Items: res.Items, Failures: res.Failures,
+				Items: res.Items, Failures: res.Failures, Warnings: nonNil(warnings),
 			}
 			if format == "json" {
 				enc := json.NewEncoder(a.Out)
@@ -149,6 +155,9 @@ func (a *App) printNews(r newsReport) {
 	scope := "all sources"
 	if len(r.Tags) > 0 {
 		scope = strings.Join(r.Tags, ", ")
+	}
+	for _, w := range r.Warnings {
+		fmt.Fprintln(a.Err, "Warning:", w)
 	}
 	fmt.Fprintf(a.Out, "Security news since %s (%s)\n\n", r.Since.Format("2006-01-02 15:04 MST"), scope)
 	if len(r.Items) == 0 {

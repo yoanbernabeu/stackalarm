@@ -70,10 +70,17 @@ func TestNewsText(t *testing.T) {
 	}
 }
 
-func TestNewsRejectsUnknownTag(t *testing.T) {
-	app, _, errOut := newTestApp(t, "news", "--tag", "cobol")
-	if code := app.Execute(context.Background()); code != 1 || !strings.Contains(errOut.String(), `unknown tag "cobol"`) {
+func TestNewsSearchesUnknownTagAsKeyword(t *testing.T) {
+	app, out, errOut := newTestApp(t, "news", "--tag", "php", "--tag", "COBOL", "--format", "json")
+	if code := app.Execute(context.Background()); code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	var r newsReport
+	if err := json.Unmarshal(out.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(r.Tags, ",") != "php" || strings.Join(r.Keywords, ",") != "cobol" || len(r.Warnings) != 1 || !strings.Contains(r.Warnings[0], `"cobol"`) {
+		t.Fatalf("report: %+v", r)
 	}
 }
 

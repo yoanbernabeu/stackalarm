@@ -1,0 +1,54 @@
+{
+  "skill_name": "stackalarm",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "est-ce qu'il y a des trucs aujourd'hui ?",
+      "expected_output": "PHP2Shell (CVE-2026-109618/109619) flagged as possibly affected: Dockerfile php:8.3-fpm is a floating branch tag; asks for or explains how to check the production PHP version; proposes pinning/bumping to 8.3.36; checks Symfony advisories and runs composer audit.",
+      "files": [
+        "fixtures/symfony-app"
+      ],
+      "assertions": [
+        "Mentions the PHP2Shell vulnerabilities (CVE-2026-109618 and/or CVE-2026-109619)",
+        "Treats the project as possibly affected because php:8.3-fpm is a floating branch tag (does not claim it is safe)",
+        "Recommends PHP 8.3.36 (or newer 8.3 patch) as the fix",
+        "Explains how to check the PHP version actually running in production (php -v on the server, docker exec, image digest...)",
+        "Ran composer audit, or says explicitly why it could not",
+        "States what was checked and what could not be checked",
+        "Did not modify any project file"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "on est concernés par la faille Node de cette semaine ?",
+      "expected_output": "Yes: node:22.23.3 is below 22.23.4; Brotli RCE (CVE-2026-111497) reachable because server.js uses fetch() on a user-supplied URL (also relevant to the TLS hostname bypass items); proposes bumping the image to 22.23.4; npm audit result reported.",
+      "files": [
+        "fixtures/express-api"
+      ],
+      "assertions": [
+        "Answers yes: node:22.23.3 is below the fixed 22.23.4",
+        "Mentions the Brotli decoder RCE (CVE-2026-111497)",
+        "Links exposure to server.js calling fetch() on a user-supplied URL",
+        "Recommends bumping the image to node:22.23.4-alpine (same variant)",
+        "Ran npm audit, or says explicitly why it could not",
+        "Did not modify any project file"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "petit check sécu du matin stp",
+      "expected_output": "Nothing urgent: PHP 8.4.27 is already patched against PHP2Shell; the GitLab critical releases do not apply because the project is on gitlab.com; says what was checked.",
+      "files": [
+        "fixtures/up-to-date"
+      ],
+      "assertions": [
+        "Verdict says there is nothing urgent to do",
+        "States PHP 8.4.27 already contains the PHP2Shell fixes",
+        "States the GitLab critical releases do not apply because the project is hosted on gitlab.com",
+        "Raises no false urgent alert (no 'act now' item)",
+        "States what was checked",
+        "Did not modify any project file"
+      ]
+    }
+  ]
+}

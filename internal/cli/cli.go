@@ -111,8 +111,8 @@ Run "stackalarm sources" to see the available tags.`,
 			if err != nil {
 				return fmt.Errorf("--since %q: %w", since, err)
 			}
-			if format != "text" && format != "json" {
-				return fmt.Errorf("--format %q: use text or json", format)
+			if format != "text" && format != "json" && format != "summary" {
+				return fmt.Errorf("--format %q: use text, summary or json", format)
 			}
 			// An unknown tag is searched as a keyword in the general sources rather
 			// than failing: agents guess tags, and a guess should still help.
@@ -148,6 +148,10 @@ Run "stackalarm sources" to see the available tags.`,
 				enc.SetIndent("", "  ")
 				return enc.Encode(report)
 			}
+			if format == "summary" {
+				a.printSummary(report)
+				return nil
+			}
 			a.printNews(report)
 			return nil
 		},
@@ -156,7 +160,7 @@ Run "stackalarm sources" to see the available tags.`,
 	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (frankenphp, express…)")
 	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "package names from the lockfile, repeatable: GitHub Advisory Database sources then return only their advisories")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
-	cmd.Flags().StringVar(&format, "format", "text", "output format: text or json")
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents) or json")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")
 	return cmd
 }
@@ -190,6 +194,31 @@ func (a *App) printNews(r newsReport) {
 		for _, f := range r.Failures {
 			fmt.Fprintf(a.Out, "  %s: %s\n", f.Source, f.Error)
 		}
+	}
+}
+
+// printSummary writes one line per item, fields separated by " | ", then the
+// failures, truncations and warnings: compact for agents, easy to grep.
+func (a *App) printSummary(r newsReport) {
+	for _, it := range r.Items {
+		score := "-"
+		if it.Score > 0 {
+			score = fmt.Sprintf("%.1f", it.Score)
+		}
+		line := strings.Join([]string{it.Published.Format("2006-01-02"), string(it.Stage), it.Source, score, it.Title, it.URL}, " | ")
+		if len(it.AlsoIn) > 0 {
+			line += " | also in " + strings.Join(it.AlsoIn, ",")
+		}
+		fmt.Fprintln(a.Out, line)
+	}
+	for _, f := range r.Failures {
+		fmt.Fprintf(a.Out, "FAILED | %s | %s\n", f.Source, f.Error)
+	}
+	for _, t := range r.Truncated {
+		fmt.Fprintf(a.Out, "TRUNCATED | %s | %d older entries left out\n", t.Source, t.Dropped)
+	}
+	for _, w := range r.Warnings {
+		fmt.Fprintf(a.Out, "WARNING | %s\n", w)
 	}
 }
 

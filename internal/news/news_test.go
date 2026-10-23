@@ -389,3 +389,26 @@ func TestReleasedTitleInHeadsUpFeedIsARelease(t *testing.T) {
 		t.Fatalf("stages: %v", stages)
 	}
 }
+
+func TestCVEsAreMergedAcrossGitHubAndCVEDatabases(t *testing.T) {
+	gh := `[{"ghsa_id":"GHSA-x","cve_id":"CVE-2026-110264","html_url":"https://github.com/a","summary":"GitLab RCE","severity":"critical","published_at":"2026-10-21T19:00:00Z"}]`
+	ghs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(gh)) }))
+	defer ghs.Close()
+	nvd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(nvdBody)) }))
+	defer nvd.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: http.DefaultClient, GitHubAPI: ghs.URL, Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{
+		{ID: "gitlab-advisories", Type: source.TypeGitHubAdvisories, Repo: "gitlab/x", Tags: []string{"gitlab"}, Stage: source.StageAdvisory},
+		{ID: "nvd", Type: source.TypeNVD, URL: nvd.URL, Tags: []string{"general"}, Stage: source.StageAdvisory},
+	}, Query{Tags: []string{"gitlab"}, Since: now.Add(-7 * 24 * time.Hour)})
+	var n int
+	for _, it := range res.Items {
+		if strings.Contains(it.Title, "CVE-2026-110264") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("CVE-2026-110264 appears %d times: %+v", n, res.Items)
+	}
+}

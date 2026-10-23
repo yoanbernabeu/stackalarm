@@ -116,7 +116,7 @@ Every item has a **stage**: `heads-up` (a security release is announced ahead), 
 | `--keyword`, `-k` | | word searched in general sources (CERTs, CVE databases, exploits, press), repeatable |
 | `--package`, `-p` | | package names from the lockfile: the GitHub Advisory Database sources return only their advisories, repeatable |
 | `--since` | `7d` | `24h`, `7d`, `2w`… |
-| `--format` | `text` | `text` or `json` |
+| `--format` | `text` | `text`, `summary` (one line per item, compact for agents) or `json` |
 | `--no-cache` | | responses are otherwise reused for an hour (in your user cache directory) |
 
 ## Privacy

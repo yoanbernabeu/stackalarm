@@ -42,15 +42,17 @@ Then run `stackalarm sources --format json` to see which tags exist, and map the
 ## 2. Gather the news
 
 ```
-stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --since 7d --format json
+stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --since 7d --format summary
 ```
+
+`--format summary` prints one line per item (date, stage, source, score, title, link, other databases listing the same CVE), then the failed and truncated sources: read it to triage. Use `--format json` when you need the summaries of the entries, or open the link of the ones that matter.
 
 - With an ecosystem tag (`npm`, `composer`, `pip`, `go`, `rubygems`, `rust`…), pass the package names you read in the lockfile with `--package` (direct dependencies and the security-sensitive transitive ones, up to about fifty names): the GitHub Advisory Database sources then return only their advisories instead of the whole ecosystem.
 - Default to `--since 7d`: a vulnerable version is still a problem days after the advisory. When the user asks about "today", still look at seven days, but put what is new in the last 24 hours first.
 - Each item has a `stage`: `heads-up` (a security release is announced), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert, public exploit, exploitation in the wild), `news` (press and research: useful context, never enough on its own to call the project affected). An upcoming heads-up is always worth mentioning, even when nothing is broken yet.
 - The same vulnerability often shows up in several sources (vendor, NVD, EUVD, CERTs, press). Merge them into one finding and keep the most official link. A public exploit (Exploit-DB) or an `Exploited in the wild` entry raises the urgency.
 - CVE database items carry a `score` (CVSS). Searching a common word such as `php` returns many CVEs of plugins and libraries the project does not use, and the per-ecosystem GitHub Advisory Database lists packages from the whole ecosystem: keep only those that match what you found in the project, including transitive dependencies from the lockfile (a library pulled by another one counts).
-- An item with `also_in` was found in several CVE databases: it is one finding, not several.
+- An item with `also_in` (or "also in" in the summary) was found in several vulnerability databases: it is one finding, not several.
 - Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear. `truncated` means a source had more entries than shown; narrow with more precise keywords if it matters.
 - Some sources are in French (`language: fr`). Read them as they are.
 

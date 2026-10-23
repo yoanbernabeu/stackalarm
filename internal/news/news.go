@@ -34,7 +34,7 @@ type Item struct {
 	Summary   string       `json:"summary,omitempty"`
 	Score     float64      `json:"score,omitempty"` // CVSS base score, for CVE databases
 	Language  string       `json:"language,omitempty"`
-	AlsoIn    []string     `json:"also_in,omitempty"` // other CVE databases listing the same CVE
+	AlsoIn    []string     `json:"also_in,omitempty"` // other databases listing the same CVE
 
 	cve string // CVE id of a CVE database entry, used to merge duplicates
 }
@@ -140,7 +140,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 					Source: s.ID, Tags: s.Tags, Stage: stage, Title: e.Title, URL: absolute(s.URL, e.URL),
 					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language,
 				}
-				if s.Type.IsSearch() {
+				if mergeable(s.Type) {
 					item.cve = cveID.FindString(e.Title)
 				}
 				res.Items = append(res.Items, item)
@@ -159,11 +159,22 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 
 var (
 	releasedTitle = regexp.MustCompile(`(?i)\breleased\b`)
-	cveID         = regexp.MustCompile(`^CVE-\d{4}-\d+`)
+	cveID         = regexp.MustCompile(`CVE-\d{4}-\d+`)
 )
 
-// mergeDuplicateCVEs keeps one entry per CVE across the CVE databases (the
-// NVD and the EUVD list the same records), noting where else it appears.
+// mergeable tells whether the entries of a source are vulnerability records
+// that other databases may repeat. Alerts (KEV, exploited lists) and feeds are
+// never merged: their own wording carries information.
+func mergeable(t source.Type) bool {
+	switch t {
+	case source.TypeNVD, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase:
+		return true
+	}
+	return false
+}
+
+// mergeDuplicateCVEs keeps one entry per CVE across the vulnerability
+// databases (GitHub advisories, NVD, EUVD), noting where else it appears.
 func mergeDuplicateCVEs(items []Item) []Item {
 	first := map[string]int{}
 	out := items[:0]

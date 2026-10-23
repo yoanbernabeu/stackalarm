@@ -91,3 +91,13 @@ func TestSources(t *testing.T) {
 		t.Fatalf("got:\n%s", out)
 	}
 }
+
+func TestNewsSummary(t *testing.T) {
+	app, out, errOut := newTestApp(t, "news", "--tag", "php", "--format", "summary")
+	if code := app.Execute(context.Background()); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if !strings.Contains(out.String(), "2026-10-21 | release | php-releases | - | PHP 8.3.36 security release | https://x/1") {
+		t.Fatalf("got:\n%s", out)
+	}
+}

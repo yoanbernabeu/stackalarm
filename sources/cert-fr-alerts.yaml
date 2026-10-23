@@ -1,0 +1,7 @@
+id: cert-fr-alerts
+name: CERT-FR alerts (critical, rare)
+type: feed
+url: https://www.cert.ssi.gouv.fr/alerte/feed/
+tags: [general]
+stage: alert
+language: fr

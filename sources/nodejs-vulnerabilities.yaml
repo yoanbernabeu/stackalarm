@@ -1,0 +1,6 @@
+id: nodejs-vulnerabilities
+name: Node.js vulnerability reports (announced about a week ahead, then released)
+type: feed
+url: https://nodejs.org/en/feed/vulnerability.xml
+tags: [node]
+stage: heads-up

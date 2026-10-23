@@ -1,0 +1,7 @@
+id: django-weblog
+name: Django weblog, security releases
+type: feed
+url: https://www.djangoproject.com/rss/weblog/
+tags: [django]
+stage: release
+keywords: [security]

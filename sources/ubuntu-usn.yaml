@@ -1,0 +1,6 @@
+id: ubuntu-usn
+name: Ubuntu Security Notices
+type: feed
+url: https://ubuntu.com/security/notices/rss.xml
+tags: [ubuntu]
+stage: advisory

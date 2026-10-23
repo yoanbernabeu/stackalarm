@@ -1,0 +1,7 @@
+id: laravel-blog
+name: Laravel blog, security posts
+type: feed
+url: https://blog.laravel.com/feed
+tags: [laravel]
+stage: advisory
+keywords: [security, CVE, vulnerability]

@@ -1,0 +1,6 @@
+id: laravel-advisories
+name: Laravel framework security advisories (GitHub)
+type: github-advisories
+repo: laravel/framework
+tags: [laravel]
+stage: advisory

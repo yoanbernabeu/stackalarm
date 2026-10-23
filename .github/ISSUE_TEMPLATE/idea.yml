@@ -1,0 +1,9 @@
+name: Idea
+description: Suggest an improvement to the CLI or the skill
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like, and why?
+    validations: {required: true}

@@ -1,0 +1,7 @@
+id: php-news
+name: PHP news and security advisories (php.net)
+type: feed
+url: https://www.php.net/feed.atom
+tags: [php]
+stage: advisory
+keywords: [security, vulnerability, CVE]

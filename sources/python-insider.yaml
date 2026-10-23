@@ -1,0 +1,7 @@
+id: python-insider
+name: Python Insider (release announcements)
+type: feed
+url: https://pythoninsider.blogspot.com/feeds/posts/default
+tags: [python]
+stage: release
+keywords: [security, CVE]

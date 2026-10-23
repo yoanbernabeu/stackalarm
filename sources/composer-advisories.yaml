@@ -1,0 +1,6 @@
+id: composer-advisories
+name: Composer security advisories (GitHub)
+type: github-advisories
+repo: composer/composer
+tags: [php, composer]
+stage: advisory

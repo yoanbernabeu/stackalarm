@@ -1,0 +1,6 @@
+id: php-src-advisories
+name: php-src security advisories (GitHub)
+type: github-advisories
+repo: php/php-src
+tags: [php]
+stage: advisory

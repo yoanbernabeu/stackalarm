@@ -1,0 +1,7 @@
+id: cert-fr-advisories
+name: CERT-FR advisories
+type: feed
+url: https://www.cert.ssi.gouv.fr/avis/feed/
+tags: [general]
+stage: advisory
+language: fr

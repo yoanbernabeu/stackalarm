@@ -1,0 +1,6 @@
+id: debian-dsa
+name: Debian Security Advisories
+type: feed
+url: https://www.debian.org/security/dsa
+tags: [debian]
+stage: advisory

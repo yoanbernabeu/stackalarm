@@ -1,0 +1,6 @@
+id: gitlab-security-releases
+name: GitLab patch and critical security releases
+type: feed
+url: https://about.gitlab.com/security-releases.xml
+tags: [gitlab]
+stage: release

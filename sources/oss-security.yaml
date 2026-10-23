@@ -1,0 +1,6 @@
+id: oss-security
+name: oss-security mailing list (often the first public heads-up)
+type: feed
+url: https://seclists.org/rss/oss-sec.rss
+tags: [general]
+stage: heads-up

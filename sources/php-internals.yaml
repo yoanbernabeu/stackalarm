@@ -1,0 +1,7 @@
+id: php-internals
+name: PHP internals announcements (PHP Foundation Discourse)
+type: feed
+url: https://discourse.thephp.foundation/c/php-internals/5.rss
+tags: [php]
+stage: heads-up
+keywords: [security]

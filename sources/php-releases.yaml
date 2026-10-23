@@ -1,0 +1,6 @@
+id: php-releases
+name: PHP releases (php.net)
+type: feed
+url: https://www.php.net/releases/feed.php
+tags: [php]
+stage: release

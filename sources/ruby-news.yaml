@@ -1,0 +1,7 @@
+id: ruby-news
+name: Ruby news (ruby-lang.org)
+type: feed
+url: https://www.ruby-lang.org/en/feeds/news.rss
+tags: [ruby]
+stage: advisory
+keywords: [security, CVE, vulnerability]

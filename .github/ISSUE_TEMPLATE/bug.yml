@@ -1,0 +1,20 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: {required: true}
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      render: shell
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: stackalarm --version
+    validations: {required: true}

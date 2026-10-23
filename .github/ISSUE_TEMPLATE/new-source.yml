@@ -1,0 +1,58 @@
+name: New source
+description: Propose a source to watch (a feed, a GitHub repository with security advisories…)
+title: "New source: "
+labels: [new-source]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! A maintainer turns this issue into `sources/<id>.yaml`. Pull requests are not accepted: everything goes through issues.
+        Prefer official sources (the project itself, a CERT). Check that the URL answers before submitting.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: Django weblog, security releases
+    validations: {required: true}
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - feed (RSS or Atom)
+        - github-advisories (a GitHub repository that publishes security advisories)
+    validations: {required: true}
+  - type: input
+    id: location
+    attributes:
+      label: Feed URL, or GitHub repository (owner/name)
+      placeholder: https://www.djangoproject.com/rss/weblog/
+    validations: {required: true}
+  - type: input
+    id: tags
+    attributes:
+      label: Tags
+      description: Lowercase technology names. Reuse existing tags when possible (`stackalarm sources`). Use `general` for a source that covers every technology.
+      placeholder: django
+    validations: {required: true}
+  - type: dropdown
+    id: stage
+    attributes:
+      label: What does it reveal first?
+      options:
+        - heads-up (security releases announced ahead)
+        - release (releases with security fixes)
+        - advisory (detailed advisories, CVEs)
+        - alert (CERT alerts, exploitation in the wild)
+    validations: {required: true}
+  - type: input
+    id: keywords
+    attributes:
+      label: Keywords (optional)
+      description: When the feed mixes security and other news, only entries containing one of these words are kept.
+      placeholder: security, CVE
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this source?
+      description: What would it have caught? A link to a past security announcement helps.

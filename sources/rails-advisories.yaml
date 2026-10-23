@@ -1,0 +1,6 @@
+id: rails-advisories
+name: Ruby on Rails security advisories (GitHub)
+type: github-advisories
+repo: rails/rails
+tags: [rails]
+stage: advisory

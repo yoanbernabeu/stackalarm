@@ -1,0 +1,6 @@
+id: symfony-advisories
+name: Symfony security advisories (GitHub)
+type: github-advisories
+repo: symfony/symfony
+tags: [symfony]
+stage: advisory

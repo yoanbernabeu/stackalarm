@@ -1,0 +1,20 @@
+name: Close pull requests
+
+# Contributions go through issues only (see CONTRIBUTING.md).
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr close "$PR" --repo "$REPO" --comment "Thanks for your interest! stackalarm takes contributions through issues only: please open one with the matching template (new source, bug or idea), and a maintainer will take it from there. See CONTRIBUTING.md."

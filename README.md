@@ -1,30 +1,90 @@
 # stackalarm
 
-**Security news for your stack, gathered for you and your AI agent.**
+**Ask your AI agent "anything today?" and get a straight answer about your project's security.**
 
-Open a project, ask your agent *"anything today?"*, and get a straight answer: what in this week's security news affects this repository, how urgent it is, and what to change.
+stackalarm is an agent skill and the CLI it relies on. Open a project in Claude Code, Codex, Cursor or another agent, ask whether there is anything to worry about, and the agent tells you what in this week's security news affects *this* repository, how urgent it is, and what to change.
 
-Why: AI now turns a security patch into a working exploit in hours. In October 2026, the PHP team announced a critical release one day ahead ("PHP2Shell", CVE-2026-109618 and CVE-2026-109619); teams that caught the heads-up on Tuesday had a day to prepare, the others learned about it from their logs. stackalarm reads the places where those signals appear, so you do not have to.
+An example, on a Symfony project with a self-hosted GitLab, in October 2026:
+
+```
+> anything today?
+
+Verdict: yes, act today. Two critical PHP flaws (unauthenticated RCE, public exploit)
+affect the 8.3 branch this project runs on, and the self-hosted GitLab needs a patch.
+
+🔴 Act now
+- PHP, CVE-2026-109618 / CVE-2026-109619 (CVSS 9.2): the Dockerfile uses php:8.3-fpm,
+  a floating tag, so production is possibly affected depending on when the image was
+  built. Rebuild with --pull, redeploy, check `php -v` shows 8.3.36.
+  Until then: session.upload_progress.enabled=0.
+- GitLab, CVE-2026-110264 (CVSS 10): the remote points to a self-hosted instance.
+  Fixed in 19.5.1, 19.4.3, 19.3.6… Which version does gitlab.acme.internal run?
+
+🟠 Prepare
+- Symfony 7.3 no longer gets security fixes; CVE-2026-108082 is only fixed in 7.4.
+
+Checked: php, symfony, composer, gitlab tags, CERTs, NVD, EUVD, KEV, web search, composer audit.
+Not checked: the PHP version running in production, the full lockfile.
+
+Shall I pin `FROM php:8.3.36-fpm` in the Dockerfile?
+```
+
+## Why
+
+AI now turns a security patch into a working exploit in hours. In October 2026, the PHP team announced a critical release one day ahead ("PHP2Shell"); teams that caught the heads-up on Tuesday evening had a night to prepare, the others learned about it from their logs. Watching dozens of feeds by hand is not realistic. Reading them and matching them against a codebase is exactly what an agent is good at, provided it knows where to look.
 
 ## How it works
 
-- **The CLI** gathers security news from 80 sources, filtered by technology tags. It does no project analysis.
+Neither half is useful alone.
+
+- **The skill is the analyst.** It reads the project (manifests, lockfiles, Dockerfiles, CI, git remotes) to find the technologies and their versions, runs the CLI, and completes it with a web search and your ecosystem's dependency audits (`composer audit`, `npm audit`, `pip-audit`, `govulncheck`…). It decides what actually applies, says how sure it is (exact version, branch or range), asks the one question that would change the verdict, explains, and offers to fix what lives in the repository, one change at a time, after asking.
+- **The CLI is its eyes.** It reads 80 sources first-hand, so the agent sees an announcement minutes after it is published, before search engines index it:
   - Projects and vendors: release feeds, security announcements and advisories (PHP, Node.js, Python, Ruby, GitLab, Symfony, Laravel, Django, Rails, WordPress, Drupal, Microsoft, Cisco, Fortinet, Palo Alto…) and the GitHub Advisory Database per ecosystem.
-  - CVE databases: NIST NVD (US) and ENISA EUVD (EU), searched for your technologies.
+  - CVE databases: NIST NVD (US) and ENISA EUVD (EU), searched for the project's technologies.
   - Governments and CERTs: CISA (KEV catalog and advisories), CERT/CC, CERT-FR, CERT-EU, NCSC UK, CERT-Bund, NCSC-NL, CERT Polska, Canadian Centre for Cyber Security, JPCERT/CC, JVN.
   - Exploits and research: Exploit-DB, Zero Day Initiative, Full Disclosure, oss-security, Project Zero, SANS ISC, watchTowr, and the security press.
-- **The agent skill** does the thinking: it reads your project, picks the tags and versions, runs the CLI, completes it with a web search (technologies without a source, affected versions, exploitation reports) and your ecosystem's dependency audits, decides what actually applies, explains it, and offers to fix what lives in the repository, one change at a time, after asking.
+
+The CLI does no project analysis, and the skill does not scrape feeds: each does what it is best at.
 
 ## Install
 
+Both parts, in two commands.
+
+**1. The CLI**
+
 ```sh
-go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest
-npx skills add yoanbernabeu/stackalarm      # the skill, for Claude Code, Codex, Cursor and others
+brew install yoanbernabeu/tap/stackalarm
 ```
+
+or, on Linux and macOS:
+
+```sh
+curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh
+```
+
+On Windows, download the zip from the [releases](https://github.com/yoanbernabeu/stackalarm/releases). With Go: `go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest`.
+
+**2. The skill**, for Claude Code, Codex, Cursor and other agents:
+
+```sh
+npx skills add yoanbernabeu/stackalarm
+```
+
+Optional, for faster and fuller results: set `GITHUB_TOKEN` (or `GH_TOKEN`) to raise the GitHub API rate limit, and `NVD_API_KEY` ([free](https://nvd.nist.gov/developers/request-an-api-key)) to search the NVD faster (without a key, it allows one request every 6 seconds).
 
 ## Use
 
-With the skill, just ask your agent. On its own, the CLI works too:
+Open a project in your agent and ask, in your own words:
+
+- *"Anything today?"* or *"Est-ce qu'il y a des trucs aujourd'hui ?"*
+- *"Are we affected by the Node flaw from this week?"*
+- *"Quick security check before I deploy."*
+
+The agent answers with a verdict, the findings grouped by urgency (act now, prepare, good to know), what it checked and what it could not. It never pushes, deploys or touches a server: what lives outside the repository is explained for you to do.
+
+## The CLI on its own
+
+The agent calls the CLI for you, but you can read the raw news too:
 
 ```sh
 stackalarm news --tag php --tag gitlab --since 7d
@@ -37,6 +97,7 @@ Security news since 2026-10-16 09:19 UTC (php)
 
 2026-10-21  release   php-releases             PHP 8.3.36 released!
 2026-10-21  alert     cert-fr-alerts           [Màj] Multiples vulnérabilités dans PHP (21 octobre 2026)
+2026-10-21  alert     exploit-db               [remote] PHP2Shell (CVE-2026-109618) - PHP core versions after v5.4 - RCE
 2026-10-20  heads-up  php-internals            [PHP-DEV] Upcoming Critical PHP Security Release
 …
 ```
@@ -45,21 +106,19 @@ Every item has a **stage**: `heads-up` (a security release is announced ahead), 
 
 | Option | Default | |
 |---|---|---|
-| `--tag`, `-t` | all sources | technology to watch, repeatable |
+| `--tag`, `-t` | all sources | technology to watch, repeatable; an unknown tag is searched as a keyword |
 | `--keyword`, `-k` | | word searched in general sources (CERTs, CVE databases, exploits, press), repeatable |
 | `--since` | `7d` | `24h`, `7d`, `2w`… |
 | `--format` | `text` | `text` or `json` |
 | `--no-cache` | | responses are otherwise reused for an hour (in your user cache directory) |
 
-Set `GITHUB_TOKEN` (or `GH_TOKEN`) to raise the GitHub API rate limit, and `NVD_API_KEY` ([free](https://nvd.nist.gov/developers/request-an-api-key)) to search the NVD faster: without a key, it allows one request every 6 seconds, one per tag or keyword.
-
 ## Privacy
 
-stackalarm downloads public feeds and queries public APIs. The only thing it sends is the tags and keywords you pass, as search terms to the CVE databases (NVD, EUVD); nothing about your project, and no telemetry. The skill runs your own audit tools locally.
+The CLI downloads public feeds and queries public APIs. The only thing it sends is the tags and keywords it is given, as search terms to the CVE databases (NVD, EUVD): nothing about your project, and no telemetry. The skill runs your own audit tools locally, and its web searches go through your agent.
 
 ## Contributing
 
-Contributions go through **issues only**; pull requests are closed automatically. The most useful contribution is a new source: open a [New source](../../issues/new?template=new-source.yml) issue. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions go through **issues only**; pull requests are closed automatically. The most useful contribution is a new source: open a [New source](../../issues/new?template=new-source.yml) issue. Ideas for the skill are welcome too. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

@@ -1,0 +1,58 @@
+version: 2
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - main: ./cmd/stackalarm
+    binary: stackalarm
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  use: github
+
+release:
+  github:
+    owner: yoanbernabeu
+    name: stackalarm
+  prerelease: auto
+
+homebrew_casks:
+  - repository:
+      owner: yoanbernabeu
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/yoanbernabeu/stackalarm
+    description: "Security news for your stack, gathered for you and your AI agent"
+    license: MIT
+    binaries: [stackalarm]
+    hooks:
+      post:
+        # The binary is not notarized: lift the quarantine so macOS runs it.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/stackalarm"]
+          end

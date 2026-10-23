@@ -16,7 +16,9 @@ Why this matters: since AI turned patches into working exploits within hours, th
 Run `stackalarm --version`. If it is missing, tell the user how to install it and stop there, rather than installing it yourself:
 
 ```
-go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest
+brew install yoanbernabeu/tap/stackalarm
+# or
+curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh
 ```
 
 ## 1. Map the project

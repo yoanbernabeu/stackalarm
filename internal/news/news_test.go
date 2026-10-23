@@ -329,3 +329,63 @@ func TestSearchResultsMustContainTheTerm(t *testing.T) {
 		t.Fatalf("only the Node.js entry must remain: %+v", res.Items)
 	}
 }
+
+func TestPackagesNarrowTheAdvisoryDatabase(t *testing.T) {
+	var affects string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		affects = r.URL.Query().Get("affects")
+		w.Write([]byte(ghsa))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), GitHubAPI: srv.URL, Now: func() time.Time { return now }}
+	f.Fetch(context.Background(), []source.Source{{ID: "ghsa-npm", Type: source.TypeGitHubAdvisoryDatabase, Ecosystem: "npm", Tags: []string{"npm"}, Stage: source.StageAdvisory}},
+		Query{Tags: []string{"npm"}, Packages: []string{"dompurify", "picomatch"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if affects != "dompurify,picomatch" {
+		t.Fatalf("affects = %q", affects)
+	}
+}
+
+func TestDuplicateCVEsAreMerged(t *testing.T) {
+	nvd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(nvdBody)) }))
+	defer nvd.Close()
+	euvd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(euvdSearch)) }))
+	defer euvd.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: http.DefaultClient, Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{
+		{ID: "nvd", Type: source.TypeNVD, URL: nvd.URL, Tags: []string{"general"}, Stage: source.StageAdvisory},
+		{ID: "euvd-search", Type: source.TypeEUVDSearch, URL: euvd.URL, Tags: []string{"general"}, Stage: source.StageAdvisory},
+	}, Query{Keywords: []string{"gitlab"}, Since: now.Add(-7 * 24 * time.Hour)})
+	var found int
+	for _, it := range res.Items {
+		if strings.HasPrefix(it.Title, "CVE-2026-110264") {
+			found++
+			if len(it.AlsoIn) != 1 {
+				t.Errorf("also_in: %v", it.AlsoIn)
+			}
+		}
+	}
+	if found != 1 {
+		t.Fatalf("CVE-2026-110264 appears %d times, want 1", found)
+	}
+}
+
+func TestReleasedTitleInHeadsUpFeedIsARelease(t *testing.T) {
+	feed := `<rss><channel>
+<item><title>[PHP-DEV] Upcoming Critical PHP Security Release</title><pubDate>Tue, 20 Oct 2026 19:32:00 +0000</pubDate></item>
+<item><title>[PHP-DEV] PHP 8.3.36 Released</title><pubDate>Wed, 21 Oct 2026 13:40:00 +0000</pubDate></item>
+</channel></rss>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(feed)) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "php-internals", Type: source.TypeFeed, URL: srv.URL, Tags: []string{"php"}, Stage: source.StageHeadsUp}}, Query{Since: now.Add(-7 * 24 * time.Hour)})
+	stages := map[string]source.Stage{}
+	for _, it := range res.Items {
+		stages[it.Title] = it.Stage
+	}
+	if stages["[PHP-DEV] PHP 8.3.36 Released"] != source.StageRelease || stages["[PHP-DEV] Upcoming Critical PHP Security Release"] != source.StageHeadsUp {
+		t.Fatalf("stages: %v", stages)
+	}
+}

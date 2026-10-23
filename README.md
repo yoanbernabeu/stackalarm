@@ -94,7 +94,7 @@ The agent calls the CLI for you, but you can read the raw news too:
 
 ```sh
 stackalarm news --tag php --tag gitlab --since 7d
-stackalarm news --tag node --keyword express --format json
+stackalarm news --tag node --tag npm --package express,dompurify --format json
 stackalarm sources                          # the sources and their tags
 ```
 
@@ -114,6 +114,7 @@ Every item has a **stage**: `heads-up` (a security release is announced ahead), 
 |---|---|---|
 | `--tag`, `-t` | all sources | technology to watch, repeatable; an unknown tag is searched as a keyword |
 | `--keyword`, `-k` | | word searched in general sources (CERTs, CVE databases, exploits, press), repeatable |
+| `--package`, `-p` | | package names from the lockfile: the GitHub Advisory Database sources return only their advisories, repeatable |
 | `--since` | `7d` | `24h`, `7d`, `2w`… |
 | `--format` | `text` | `text` or `json` |
 | `--no-cache` | | responses are otherwise reused for an hour (in your user cache directory) |

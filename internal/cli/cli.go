@@ -89,6 +89,7 @@ type newsReport struct {
 func (a *App) newsCommand() *cobra.Command {
 	var (
 		tags, keywords []string
+		packages       []string
 		since, format  string
 		noCache        bool
 	)
@@ -103,7 +104,7 @@ mention one of the tags or --keyword values. The CVE databases (NVD, EUVD) are
 searched for each tag and keyword, and only when there is one: without a key,
 the NVD allows one request every 6 seconds (set NVD_API_KEY to go faster).
 Run "stackalarm sources" to see the available tags.`,
-		Example: "  stackalarm news --tag php --tag symfony --since 7d\n  stackalarm news --tag node --keyword express --format json",
+		Example: "  stackalarm news --tag php --tag symfony --since 7d\n  stackalarm news --tag node --tag npm --package express,dompurify --format json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			window, err := news.ParseSince(since)
@@ -137,7 +138,7 @@ Run "stackalarm sources" to see the available tags.`,
 				}
 			}
 			now := a.Now().UTC()
-			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window)})
+			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages})
 			report := newsReport{
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords),
 				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Warnings: nonNil(warnings),
@@ -153,6 +154,7 @@ Run "stackalarm sources" to see the available tags.`,
 	}
 	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "technology to watch, repeatable (php, node, gitlab…)")
 	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (frankenphp, express…)")
+	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "package names from the lockfile, repeatable: GitHub Advisory Database sources then return only their advisories")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")

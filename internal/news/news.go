@@ -34,6 +34,9 @@ type Item struct {
 	Summary   string       `json:"summary,omitempty"`
 	Score     float64      `json:"score,omitempty"` // CVSS base score, for CVE databases
 	Language  string       `json:"language,omitempty"`
+	AlsoIn    []string     `json:"also_in,omitempty"` // other CVE databases listing the same CVE
+
+	cve string // CVE id of a CVE database entry, used to merge duplicates
 }
 
 // Failure is a source that could not be read. It is always reported: a
@@ -65,6 +68,9 @@ type Query struct {
 	Tags     []string  // empty: every source
 	Keywords []string  // extra words that select entries of general sources
 	Since    time.Time // entries published before are dropped
+	// Packages narrow the GitHub Advisory Database sources to these package
+	// names (the agent reads them from the lockfile). Empty: the whole ecosystem.
+	Packages []string
 }
 
 // Fetcher reads sources over HTTP, with a small on-disk cache.
@@ -97,7 +103,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 			continue // nothing to search for
 		}
 		wg.Go(func() {
-			entries, err := f.read(ctx, s, terms, q.Since, nvd)
+			entries, err := f.read(ctx, s, terms, q, nvd)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil { // a search may fail for one word and succeed for others
@@ -126,10 +132,18 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				entries = entries[:MaxPerSource]
 			}
 			for _, e := range entries {
-				res.Items = append(res.Items, Item{
-					Source: s.ID, Tags: s.Tags, Stage: s.Stage, Title: e.Title, URL: absolute(s.URL, e.URL),
+				stage := s.Stage
+				if stage == source.StageHeadsUp && releasedTitle.MatchString(e.Title) {
+					stage = source.StageRelease // a heads-up feed also announces the release itself
+				}
+				item := Item{
+					Source: s.ID, Tags: s.Tags, Stage: stage, Title: e.Title, URL: absolute(s.URL, e.URL),
 					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language,
-				})
+				}
+				if s.Type.IsSearch() {
+					item.cve = cveID.FindString(e.Title)
+				}
+				res.Items = append(res.Items, item)
 			}
 		})
 	}
@@ -137,9 +151,35 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	slices.SortFunc(res.Items, func(a, b Item) int {
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))
 	})
+	res.Items = mergeDuplicateCVEs(res.Items)
 	slices.SortFunc(res.Failures, func(a, b Failure) int { return cmp.Compare(a.Source, b.Source) })
 	slices.SortFunc(res.Truncated, func(a, b Truncation) int { return cmp.Compare(a.Source, b.Source) })
 	return res
+}
+
+var (
+	releasedTitle = regexp.MustCompile(`(?i)\breleased\b`)
+	cveID         = regexp.MustCompile(`^CVE-\d{4}-\d+`)
+)
+
+// mergeDuplicateCVEs keeps one entry per CVE across the CVE databases (the
+// NVD and the EUVD list the same records), noting where else it appears.
+func mergeDuplicateCVEs(items []Item) []Item {
+	first := map[string]int{}
+	out := items[:0]
+	for _, it := range items {
+		if it.cve != "" {
+			if i, seen := first[it.cve]; seen {
+				if out[i].Source != it.Source && !slices.Contains(out[i].AlsoIn, it.Source) {
+					out[i].AlsoIn = append(out[i].AlsoIn, it.Source)
+				}
+				continue
+			}
+			first[it.cve] = len(out)
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 // absolute resolves a link found in a feed against the feed URL.
@@ -248,7 +288,8 @@ func (g *gate) wait(ctx context.Context) error {
 	return nil
 }
 
-func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, since time.Time, nvd *gate) ([]entry, error) {
+func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Query, nvd *gate) ([]entry, error) {
+	since := q.Since
 	github := cmp.Or(f.GitHubAPI, "https://api.github.com")
 	now := f.Now().UTC()
 	switch s.Type {
@@ -257,6 +298,9 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, sin
 	case source.TypeGitHubAdvisoryDatabase:
 		u := github + "/advisories?type=reviewed&per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
 			"&published=" + neturl.QueryEscape(">="+since.UTC().Format(time.DateOnly))
+		if len(q.Packages) > 0 {
+			u += "&affects=" + neturl.QueryEscape(strings.Join(q.Packages, ","))
+		}
 		return f.readOne(ctx, u, "github", parseGitHubAdvisoryDatabase)
 	case source.TypeKEV:
 		return f.readOne(ctx, s.URL, "", parseKEV)

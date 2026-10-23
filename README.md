@@ -9,7 +9,7 @@ Why: AI now turns a security patch into a working exploit in hours. In October 2
 ## How it works
 
 - **The CLI** gathers security news from official sources (project announcements, release feeds, GitHub security advisories, CERT-FR, CERT-EU, oss-security, CISA KEV), filtered by technology tags. It does no project analysis.
-- **The agent skill** does the thinking: it reads your project, picks the tags and versions, runs the CLI and your ecosystem's dependency audits, decides what actually applies, explains it, and offers to fix what lives in the repository, one change at a time, after asking.
+- **The agent skill** does the thinking: it reads your project, picks the tags and versions, runs the CLI, completes it with a web search (technologies without a source, affected versions, exploitation reports) and your ecosystem's dependency audits, decides what actually applies, explains it, and offers to fix what lives in the repository, one change at a time, after asking.
 
 ## Install
 

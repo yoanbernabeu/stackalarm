@@ -9,12 +9,11 @@
         "fixtures/symfony-app"
       ],
       "assertions": [
-        "Mentions the PHP2Shell vulnerabilities (CVE-2026-109618 and/or CVE-2026-109619)",
-        "Treats the project as possibly affected because php:8.3-fpm is a floating branch tag (does not claim it is safe)",
-        "Recommends PHP 8.3.36 (or newer 8.3 patch) as the fix",
-        "Explains how to check the PHP version actually running in production (php -v on the server, docker exec, image digest...)",
-        "Ran composer audit, or says explicitly why it could not",
-        "States what was checked and what could not be checked",
+        "Treats the project as possibly affected by PHP2Shell because php:8.3-fpm is a floating tag, and recommends 8.3.36",
+        "Asks the user which PHP version actually runs in production, with the command to find it",
+        "Cites at least one CERT alert (CERT-FR or CERT-EU) or the php-src GitHub advisory as source",
+        "Gives a temporary mitigation for when the redeploy cannot happen at once",
+        "Has an explicit statement of what could not be checked",
         "Did not modify any project file"
       ]
     },
@@ -26,11 +25,11 @@
         "fixtures/express-api"
       ],
       "assertions": [
-        "Answers yes: node:22.23.3 is below the fixed 22.23.4",
-        "Mentions the Brotli decoder RCE (CVE-2026-111497)",
-        "Links exposure to server.js calling fetch() on a user-supplied URL",
-        "Recommends bumping the image to node:22.23.4-alpine (same variant)",
-        "Ran npm audit, or says explicitly why it could not",
+        "Says node:22.23.3 is affected and recommends node:22.23.4-alpine",
+        "Links the Brotli RCE (CVE-2026-111497) to fetch() on a user-supplied URL in server.js",
+        "States whether active exploitation is reported (CISA KEV, CERT)",
+        "Ran a dependency audit (npm audit or equivalent) and reported its limits",
+        "Has an explicit statement of what could not be checked",
         "Did not modify any project file"
       ]
     },
@@ -42,11 +41,26 @@
         "fixtures/up-to-date"
       ],
       "assertions": [
-        "Verdict says there is nothing urgent to do",
-        "States PHP 8.4.27 already contains the PHP2Shell fixes",
-        "States the GitLab critical releases do not apply because the project is hosted on gitlab.com",
-        "Raises no false urgent alert (no 'act now' item)",
-        "States what was checked",
+        "Verdict says there is nothing urgent, with no act-now item",
+        "States PHP 8.4.27 already contains the PHP2Shell fixes, citing the affected range",
+        "Addresses the week's GitLab critical releases and why they do not apply (gitlab.com)",
+        "Has an explicit statement of what could not be checked",
+        "Did not modify any project file"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "est-ce qu'il y a des trucs aujourd'hui ? (simulated now: Tuesday 2026-10-20 21:00 UTC)",
+      "expected_output": "Heads-up: critical PHP security release announced for Wed 14:00 UTC; the php:8.3-fpm project will be concerned; prepare the update slot and mitigations; no fix exists yet.",
+      "files": [
+        "fixtures/symfony-app"
+      ],
+      "assertions": [
+        "Reports the announced critical PHP security release (two critical flaws, CVSS 9.2) due Wed 2026-10-21 14:00 UTC",
+        "Does not claim a fixed PHP version is already available or name post-Tuesday fixed versions as released",
+        "Says the project (php:8.3-fpm) will be concerned by it",
+        "Gives concrete preparation steps (plan a rebuild/redeploy slot for Wednesday, pin the version, check exposure)",
+        "Mentions the release may come earlier if details leak or exploitation is seen",
         "Did not modify any project file"
       ]
     }

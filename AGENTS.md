@@ -15,6 +15,7 @@ internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, KEV), 
 internal/source/    the source format and its validation
 sources/            one YAML file per source, embedded in the binary
 skills/stackalarm/  the agent skill (published on skills.sh)
+evals/              test prompts and assertions for the skill (kept out of the skill folder)
 ```
 
 ## Adding a source (from a "New source" issue)

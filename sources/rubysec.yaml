@@ -1,0 +1,6 @@
+id: rubysec
+name: RubySec advisory database
+type: feed
+url: "https://rubysec.com/atom.xml"
+tags: [ruby]
+stage: advisory

@@ -1,0 +1,7 @@
+id: kubernetes-blog
+name: Kubernetes blog, security posts
+type: feed
+url: "https://kubernetes.io/feed.xml"
+tags: [kubernetes]
+stage: advisory
+keywords: [security, CVE, vulnerability]

@@ -1,0 +1,6 @@
+id: the-hacker-news
+name: The Hacker News
+type: feed
+url: "https://feeds.feedburner.com/TheHackersNews"
+tags: [general]
+stage: news

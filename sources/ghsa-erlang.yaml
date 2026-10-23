@@ -1,0 +1,6 @@
+id: ghsa-erlang
+name: GitHub Advisory Database, reviewed erlang advisories
+type: github-advisory-database
+ecosystem: erlang
+tags: [erlang, elixir]
+stage: advisory

@@ -1,0 +1,6 @@
+id: ghsa-go
+name: GitHub Advisory Database, reviewed go advisories
+type: github-advisory-database
+ecosystem: go
+tags: [go]
+stage: advisory

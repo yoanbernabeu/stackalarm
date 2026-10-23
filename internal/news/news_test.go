@@ -2,9 +2,12 @@ package news
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -159,5 +162,148 @@ func TestParseSince(t *testing.T) {
 		if _, err := ParseSince(bad); err == nil {
 			t.Errorf("%q: want an error", bad)
 		}
+	}
+}
+
+const nvdBody = `{"vulnerabilities":[
+{"cve":{"id":"CVE-2026-110264","published":"2026-10-21T18:00:00.000","descriptions":[{"lang":"en","value":"Integer overflow in GitLab regex compiler allows RCE."}],
+ "metrics":{"cvssMetricV31":[{"cvssData":{"baseScore":10.0,"baseSeverity":"CRITICAL"}}]}}},
+{"cve":{"id":"CVE-2026-105711","published":"2026-10-22T01:16:57.340","descriptions":[{"lang":"en","value":"Low issue in GitLab."}],
+ "metrics":{"cvssMetricV31":[{"cvssData":{"baseScore":3.5}}]}}},
+{"cve":{"id":"CVE-2026-1","published":"2026-10-22T02:00:00.000","descriptions":[{"lang":"en","value":"Fresh GitLab CVE, not scored yet."}],"metrics":{}}}
+]}`
+
+const euvdSearch = `{"items":[
+{"id":"EUVD-2026-1","description":"GitLab RCE","datePublished":"Oct 21, 2026, 6:00:19 PM","baseScore":"10.0","aliases":"CVE-2026-110264\nGHSA-x\n"},
+{"id":"EUVD-2026-2","description":"minor","datePublished":"Oct 21, 2026, 6:00:19 PM","baseScore":"2.0","aliases":""}],"total":2}`
+
+const euvdExploited = `[{"id":"EUVD-2026-85370","description":"Plex Media Server flaw","datePublished":"Sep 23, 2026, 4:07:10 PM",
+"baseScore":5.5,"aliases":"CVE-2026-96656\n","exploitedSince":"Oct 20, 2026, 12:00:00 AM"}]`
+
+func TestCVEDatabaseParsers(t *testing.T) {
+	entries, err := parseNVD([]byte(nvdBody))
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("nvd: low scores dropped, unscored kept: %+v %v", entries, err)
+	}
+	if !strings.HasPrefix(entries[0].Title, "CVE-2026-110264 [10.0]: Integer overflow") || entries[0].URL != "https://nvd.nist.gov/vuln/detail/CVE-2026-110264" {
+		t.Fatalf("nvd entry: %+v", entries[0])
+	}
+
+	entries, err = parseEUVD([]byte(euvdSearch))
+	if err != nil || len(entries) != 1 || entries[0].Title != "CVE-2026-110264 (EUVD-2026-1) [10.0]: GitLab RCE" || entries[0].Published.Hour() != 18 {
+		t.Fatalf("euvd search: %+v %v", entries, err)
+	}
+
+	entries, err = parseEUVD([]byte(euvdExploited))
+	if err != nil || len(entries) != 1 || !strings.HasPrefix(entries[0].Title, "Exploited in the wild: CVE-2026-96656") ||
+		!entries[0].Published.Equal(time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("euvd exploited (kept despite its score, dated by exploitation): %+v %v", entries, err)
+	}
+}
+
+func TestSearchSources(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		queries []string
+	)
+	record := func(q string) { mu.Lock(); queries = append(queries, q); mu.Unlock() }
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/nvd":
+			record("nvd:" + r.URL.Query().Get("keywordSearch"))
+			if r.Header.Get("apiKey") != "k" {
+				t.Errorf("missing NVD key")
+			}
+			if r.URL.Query().Get("keywordSearch") == "broken" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte(nvdBody))
+		case "/advisories":
+			record("ghad:" + r.URL.Query().Get("ecosystem") + ":" + r.URL.Query().Get("published"))
+			w.Write([]byte(ghsa))
+		}
+	}))
+	defer srv.Close()
+	sources := []source.Source{
+		{ID: "nvd", Type: source.TypeNVD, URL: srv.URL + "/nvd", Tags: []string{"general"}, Stage: source.StageAdvisory},
+		{ID: "ghsa-composer", Type: source.TypeGitHubAdvisoryDatabase, Ecosystem: "composer", Tags: []string{"php"}, Stage: source.StageAdvisory},
+	}
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), GitHubAPI: srv.URL, NVDAPIKey: "k", Now: func() time.Time { return now }}
+
+	res := f.Fetch(context.Background(), sources, Query{Since: now.Add(-7 * 24 * time.Hour)})
+	if len(queries) != 1 || queries[0] != "ghad:composer:>=2026-10-16" {
+		t.Fatalf("without words, search sources are skipped: %v", queries)
+	}
+
+	queries = nil
+	res = f.Fetch(context.Background(), sources, Query{Tags: []string{"php"}, Keywords: []string{"GitLab", "broken"}, Since: now.Add(-7 * 24 * time.Hour)})
+	slices.Sort(queries)
+	if strings.Join(queries, ",") != "ghad:composer:>=2026-10-16,nvd:broken,nvd:gitlab,nvd:php" {
+		t.Fatalf("queries: %v", queries)
+	}
+	var nvdItems int
+	for _, it := range res.Items {
+		if it.Source == "nvd" {
+			nvdItems++
+		}
+	}
+	if nvdItems != 2 { // same records for php and gitlab: deduplicated
+		t.Fatalf("nvd items: %d (%+v)", nvdItems, res.Items)
+	}
+	if len(res.Failures) != 1 || !strings.Contains(res.Failures[0].Error, `"broken"`) {
+		t.Fatalf("a failing term is reported, the others kept: %+v", res.Failures)
+	}
+}
+
+func TestFeedWithControlCharacters(t *testing.T) {
+	entries, err := parseFeed([]byte("<rss><channel><item><title>Bad \x0b char</title><pubDate>Tue, 20 Oct 2026 09:12:00 +0000</pubDate></item></channel></rss>"))
+	if err != nil || len(entries) != 1 || entries[0].Title != "Bad char" {
+		t.Fatalf("%+v %v", entries, err)
+	}
+}
+
+func TestMaxPerSource(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("<rss><channel>")
+	for i := range MaxPerSource + 5 {
+		fmt.Fprintf(&b, "<item><title>n%d</title><pubDate>%s</pubDate></item>", i, time.Date(2026, 10, 1+i%20, 0, i, 0, 0, time.UTC).Format(time.RFC1123Z))
+	}
+	b.WriteString("</channel></rss>")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(b.String())) }))
+	defer srv.Close()
+	f := &Fetcher{Client: srv.Client(), Now: time.Now}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "big", Type: source.TypeFeed, URL: srv.URL, Tags: []string{"x"}, Stage: source.StageNews}}, Query{})
+	if len(res.Items) != MaxPerSource || len(res.Truncated) != 1 || res.Truncated[0].Dropped != 5 {
+		t.Fatalf("items %d, truncated %+v", len(res.Items), res.Truncated)
+	}
+	if res.Items[len(res.Items)-1].Published.Before(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)) { // days 1 and 2 are the oldest five
+		t.Fatal("the oldest entries must be the ones dropped")
+	}
+}
+
+func TestSearchCapKeepsTheMostSevere(t *testing.T) {
+	var b strings.Builder
+	b.WriteString(`{"vulnerabilities":[`)
+	for i := range MaxPerSource + 10 {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		score := 7.5
+		if i == 0 {
+			score = 10 // the oldest one is the critical one
+		}
+		fmt.Fprintf(&b, `{"cve":{"id":"CVE-2026-%d","published":"2026-10-%02dT10:00:00.000","descriptions":[{"lang":"en","value":"x"}],"metrics":{"cvssMetricV31":[{"cvssData":{"baseScore":%.1f}}]}}}`, i, 10+i%12, score)
+	}
+	b.WriteString("]}")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(b.String())) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "nvd", Type: source.TypeNVD, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageAdvisory}},
+		Query{Keywords: []string{"php"}, Since: now.Add(-30 * 24 * time.Hour)})
+	if len(res.Items) != MaxPerSource || !slices.ContainsFunc(res.Items, func(it Item) bool { return it.Score == 10 }) {
+		t.Fatalf("the critical CVE must survive the cap: %d items", len(res.Items))
 	}
 }

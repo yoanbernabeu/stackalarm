@@ -1,0 +1,6 @@
+id: jpcert
+name: JPCERT/CC (Japan)
+type: feed
+url: "https://www.jpcert.or.jp/english/rss/jpcert-en.rdf"
+tags: [general]
+stage: alert

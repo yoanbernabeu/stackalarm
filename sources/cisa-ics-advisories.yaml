@@ -1,0 +1,6 @@
+id: cisa-ics-advisories
+name: CISA industrial control systems advisories (US)
+type: feed
+url: "https://www.cisa.gov/cybersecurity-advisories/ics-advisories.xml"
+tags: [ics]
+stage: advisory

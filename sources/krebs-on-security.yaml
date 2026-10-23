@@ -1,0 +1,6 @@
+id: krebs-on-security
+name: Krebs on Security
+type: feed
+url: "https://krebsonsecurity.com/feed/"
+tags: [general]
+stage: news

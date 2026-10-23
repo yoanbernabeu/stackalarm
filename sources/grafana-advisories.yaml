@@ -1,0 +1,6 @@
+id: grafana-advisories
+name: Grafana security advisories
+type: feed
+url: "https://grafana.com/security/security-advisories/index.xml"
+tags: [grafana]
+stage: advisory

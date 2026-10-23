@@ -1,0 +1,6 @@
+id: euvd-search
+name: ENISA EU Vulnerability Database, searched by word, CVSS 7+ or not yet scored
+type: euvd-search
+url: "https://euvdservices.enisa.europa.eu/api/search"
+tags: [general]
+stage: advisory

@@ -21,7 +21,17 @@ const (
 	TypeFeed             Type = "feed"              // RSS 2.0, RSS 1.0 (RDF) or Atom
 	TypeGitHubAdvisories Type = "github-advisories" // published security advisories of a GitHub repository
 	TypeKEV              Type = "kev"               // CISA Known Exploited Vulnerabilities catalog
+	// TypeGitHubAdvisoryDatabase reads the reviewed advisories of one ecosystem
+	// from the GitHub Advisory Database.
+	TypeGitHubAdvisoryDatabase Type = "github-advisory-database"
+	TypeEUVD                   Type = "euvd"        // a list from the ENISA EU Vulnerability Database API
+	TypeEUVDSearch             Type = "euvd-search" // ENISA EUVD, searched for each requested word
+	TypeNVD                    Type = "nvd"         // NIST NVD, searched for each requested word
 )
+
+// IsSearch tells whether the source is queried with the requested words
+// rather than read as a whole. Search sources are skipped without words.
+func (t Type) IsSearch() bool { return t == TypeEUVDSearch || t == TypeNVD }
 
 // Stage is the step of the security timeline a source reveals.
 type Stage string
@@ -31,7 +41,8 @@ const (
 	StageHeadsUp  Stage = "heads-up" // a security release is announced ahead
 	StageRelease  Stage = "release"  // a release with security fixes is out
 	StageAdvisory Stage = "advisory" // detailed advisories (CVE, affected versions)
-	StageAlert    Stage = "alert"    // a CERT alert, or a vulnerability exploited in the wild
+	StageAlert    Stage = "alert"    // a CERT alert, a public exploit, or exploitation in the wild
+	StageNews     Stage = "news"     // security press and research: context, never the only evidence
 )
 
 // General is the tag of sources that cover every technology (CERTs, KEV…).
@@ -40,22 +51,23 @@ const General = "general"
 
 // Source is one watched source.
 type Source struct {
-	ID       string   `yaml:"id" json:"id"`
-	Name     string   `yaml:"name" json:"name"`
-	Type     Type     `yaml:"type" json:"type"`
-	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
-	Repo     string   `yaml:"repo,omitempty" json:"repo,omitempty"` // owner/name, for github-advisories
-	Tags     []string `yaml:"tags" json:"tags"`
-	Stage    Stage    `yaml:"stage" json:"stage"`
-	Keywords []string `yaml:"keywords,omitempty" json:"keywords,omitempty"` // keep only entries containing one of them
-	Language string   `yaml:"language,omitempty" json:"language,omitempty"` // when not English
+	ID        string   `yaml:"id" json:"id"`
+	Name      string   `yaml:"name" json:"name"`
+	Type      Type     `yaml:"type" json:"type"`
+	URL       string   `yaml:"url,omitempty" json:"url,omitempty"`
+	Repo      string   `yaml:"repo,omitempty" json:"repo,omitempty"`           // owner/name, for github-advisories
+	Ecosystem string   `yaml:"ecosystem,omitempty" json:"ecosystem,omitempty"` // for github-advisory-database (npm, composer, pip…)
+	Tags      []string `yaml:"tags" json:"tags"`
+	Stage     Stage    `yaml:"stage" json:"stage"`
+	Keywords  []string `yaml:"keywords,omitempty" json:"keywords,omitempty"` // keep only entries containing one of them
+	Language  string   `yaml:"language,omitempty" json:"language,omitempty"` // when not English
 }
 
 var (
 	idPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	tagPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
-	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV}
-	stages     = []Stage{StageHeadsUp, StageRelease, StageAdvisory, StageAlert}
+	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD}
+	stages     = []Stage{StageHeadsUp, StageRelease, StageAdvisory, StageAlert, StageNews}
 )
 
 // Parse reads and validates one source definition.
@@ -96,15 +108,22 @@ func (s Source) Validate() error {
 	}
 	switch s.Type {
 	case TypeGitHubAdvisories:
-		if strings.Count(s.Repo, "/") != 1 || s.URL != "" {
-			fail("a github-advisories source needs repo: owner/name and no url")
+		if strings.Count(s.Repo, "/") != 1 || s.URL != "" || s.Ecosystem != "" {
+			fail("a github-advisories source needs repo: owner/name, and no url nor ecosystem")
+		}
+	case TypeGitHubAdvisoryDatabase:
+		if s.Ecosystem == "" || s.URL != "" || s.Repo != "" {
+			fail("a github-advisory-database source needs ecosystem, and no url nor repo")
 		}
 	default:
 		if !strings.HasPrefix(s.URL, "https://") {
 			fail("url must start with https://")
 		}
-		if s.Repo != "" {
-			fail("repo is only for github-advisories")
+		if s.Repo != "" || s.Ecosystem != "" {
+			fail("repo and ecosystem are only for GitHub sources")
+		}
+		if s.Type.IsSearch() && !s.IsGeneral() {
+			fail("a search source must be tagged %q: it is queried with the requested words", General)
 		}
 	}
 	if len(errs) > 0 {

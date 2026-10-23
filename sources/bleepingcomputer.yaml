@@ -1,0 +1,6 @@
+id: bleepingcomputer
+name: BleepingComputer
+type: feed
+url: "https://www.bleepingcomputer.com/feed/"
+tags: [general]
+stage: news

@@ -1,0 +1,6 @@
+id: cisa-advisories
+name: CISA cybersecurity advisories and alerts (US)
+type: feed
+url: "https://www.cisa.gov/cybersecurity-advisories/all.xml"
+tags: [general]
+stage: alert

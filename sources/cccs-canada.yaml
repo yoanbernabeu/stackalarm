@@ -1,0 +1,6 @@
+id: cccs-canada
+name: Canadian Centre for Cyber Security alerts and advisories
+type: feed
+url: "https://www.cyber.gc.ca/api/cccs/rss/v1/get?feed=alerts_advisories&lang=en"
+tags: [general]
+stage: alert

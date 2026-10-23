@@ -1,0 +1,6 @@
+id: rapid7-blog
+name: Rapid7 blog (emergent threat responses)
+type: feed
+url: "https://www.rapid7.com/blog/rss/"
+tags: [general]
+stage: news

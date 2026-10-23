@@ -8,7 +8,11 @@ Why: AI now turns a security patch into a working exploit in hours. In October 2
 
 ## How it works
 
-- **The CLI** gathers security news from official sources (project announcements, release feeds, GitHub security advisories, CERT-FR, CERT-EU, oss-security, CISA KEV), filtered by technology tags. It does no project analysis.
+- **The CLI** gathers security news from 80 sources, filtered by technology tags. It does no project analysis.
+  - Projects and vendors: release feeds, security announcements and advisories (PHP, Node.js, Python, Ruby, GitLab, Symfony, Laravel, Django, Rails, WordPress, Drupal, Microsoft, Cisco, Fortinet, Palo Alto…) and the GitHub Advisory Database per ecosystem.
+  - CVE databases: NIST NVD (US) and ENISA EUVD (EU), searched for your technologies.
+  - Governments and CERTs: CISA (KEV catalog and advisories), CERT/CC, CERT-FR, CERT-EU, NCSC UK, CERT-Bund, NCSC-NL, CERT Polska, Canadian Centre for Cyber Security, JPCERT/CC, JVN.
+  - Exploits and research: Exploit-DB, Zero Day Initiative, Full Disclosure, oss-security, Project Zero, SANS ISC, watchTowr, and the security press.
 - **The agent skill** does the thinking: it reads your project, picks the tags and versions, runs the CLI, completes it with a web search (technologies without a source, affected versions, exploitation reports) and your ecosystem's dependency audits, decides what actually applies, explains it, and offers to fix what lives in the repository, one change at a time, after asking.
 
 ## Install
@@ -37,21 +41,21 @@ Security news since 2026-10-16 09:19 UTC (php)
 …
 ```
 
-Every item has a **stage**: `heads-up` (a security release is announced ahead), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert or exploitation in the wild). Sources that cannot be read are always listed: a silent watch tool is worse than a noisy one.
+Every item has a **stage**: `heads-up` (a security release is announced ahead), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert, public exploit or exploitation in the wild), `news` (security press and research). Sources that cannot be read are always listed: a silent watch tool is worse than a noisy one. Each source shows at most 30 entries (the most severe first for CVE databases), and the output says when some were left out.
 
 | Option | Default | |
 |---|---|---|
 | `--tag`, `-t` | all sources | technology to watch, repeatable |
-| `--keyword`, `-k` | | word searched in general sources (CERTs, oss-security, KEV), repeatable |
+| `--keyword`, `-k` | | word searched in general sources (CERTs, CVE databases, exploits, press), repeatable |
 | `--since` | `7d` | `24h`, `7d`, `2w`… |
 | `--format` | `text` | `text` or `json` |
 | `--no-cache` | | responses are otherwise reused for an hour (in your user cache directory) |
 
-Set `GITHUB_TOKEN` (or `GH_TOKEN`) to raise the GitHub API rate limit.
+Set `GITHUB_TOKEN` (or `GH_TOKEN`) to raise the GitHub API rate limit, and `NVD_API_KEY` ([free](https://nvd.nist.gov/developers/request-an-api-key)) to search the NVD faster: without a key, it allows one request every 6 seconds, one per tag or keyword.
 
 ## Privacy
 
-stackalarm only downloads public feeds. It sends nothing about your project anywhere, and has no telemetry. The skill runs your own audit tools locally.
+stackalarm downloads public feeds and queries public APIs. The only thing it sends is the tags and keywords you pass, as search terms to the CVE databases (NVD, EUVD); nothing about your project, and no telemetry. The skill runs your own audit tools locally.
 
 ## Contributing
 

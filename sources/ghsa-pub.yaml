@@ -1,0 +1,6 @@
+id: ghsa-pub
+name: GitHub Advisory Database, reviewed pub advisories
+type: github-advisory-database
+ecosystem: pub
+tags: [dart, flutter]
+stage: advisory

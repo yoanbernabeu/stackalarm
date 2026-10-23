@@ -21,11 +21,13 @@ body:
       options:
         - feed (RSS or Atom)
         - github-advisories (a GitHub repository that publishes security advisories)
+        - github-advisory-database (an ecosystem of the GitHub Advisory Database)
+        - other (an API: describe it below)
     validations: {required: true}
   - type: input
     id: location
     attributes:
-      label: Feed URL, or GitHub repository (owner/name)
+      label: Feed URL, GitHub repository (owner/name) or ecosystem
       placeholder: https://www.djangoproject.com/rss/weblog/
     validations: {required: true}
   - type: input
@@ -43,7 +45,8 @@ body:
         - heads-up (security releases announced ahead)
         - release (releases with security fixes)
         - advisory (detailed advisories, CVEs)
-        - alert (CERT alerts, exploitation in the wild)
+        - alert (CERT alerts, public exploits, exploitation in the wild)
+        - news (security press and research)
     validations: {required: true}
   - type: input
     id: keywords

@@ -1,0 +1,6 @@
+id: sans-isc
+name: SANS Internet Storm Center diaries
+type: feed
+url: "https://isc.sans.edu/rssfeed_full.xml"
+tags: [general]
+stage: news

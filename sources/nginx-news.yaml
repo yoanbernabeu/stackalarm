@@ -1,0 +1,7 @@
+id: nginx-news
+name: nginx news, security releases
+type: feed
+url: "https://nginx.org/index.rss"
+tags: [nginx]
+stage: release
+keywords: [security, CVE, vulnerability]

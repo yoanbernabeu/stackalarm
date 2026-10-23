@@ -1,0 +1,6 @@
+id: jvn
+name: Japan Vulnerability Notes (JVN)
+type: feed
+url: "https://jvn.jp/en/rss/jvn.rdf"
+tags: [general]
+stage: advisory

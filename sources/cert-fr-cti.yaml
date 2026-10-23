@@ -1,0 +1,7 @@
+id: cert-fr-cti
+name: CERT-FR threat reports (CTI)
+type: feed
+url: "https://www.cert.ssi.gouv.fr/cti/feed/"
+tags: [general]
+stage: news
+language: fr

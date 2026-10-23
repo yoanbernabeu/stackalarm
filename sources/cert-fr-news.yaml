@@ -1,0 +1,7 @@
+id: cert-fr-news
+name: CERT-FR news
+type: feed
+url: "https://www.cert.ssi.gouv.fr/actualite/feed/"
+tags: [general]
+stage: news
+language: fr

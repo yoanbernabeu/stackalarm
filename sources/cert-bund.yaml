@@ -1,0 +1,7 @@
+id: cert-bund
+name: CERT-Bund / BSI security advisories (Germany)
+type: feed
+url: "https://wid.cert-bund.de/content/public/securityAdvisory/rss"
+tags: [general]
+stage: advisory
+language: de

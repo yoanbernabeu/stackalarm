@@ -1,0 +1,6 @@
+id: ghsa-rust
+name: GitHub Advisory Database, reviewed rust advisories
+type: github-advisory-database
+ecosystem: rust
+tags: [rust, cargo]
+stage: advisory

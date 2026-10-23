@@ -1,0 +1,6 @@
+id: opensuse-security
+name: openSUSE security announcements
+type: feed
+url: "https://lists.opensuse.org/archives/list/security-announce@lists.opensuse.org/feed/"
+tags: [opensuse, linux]
+stage: advisory

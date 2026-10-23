@@ -1,0 +1,6 @@
+id: full-disclosure
+name: Full Disclosure mailing list
+type: feed
+url: "https://seclists.org/rss/fulldisclosure.rss"
+tags: [general]
+stage: heads-up

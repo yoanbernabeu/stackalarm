@@ -7,7 +7,7 @@ description: Security watch for the project at hand. Finds out whether today's s
 
 Help the user answer one question about the project open in front of you: **is there anything in the security news that affects us, and what should we do?**
 
-The `stackalarm` CLI gathers the news from official sources (project announcements, release feeds, GitHub security advisories, CERT-FR, CERT-EU, oss-security, CISA KEV). It does no project analysis on purpose: understanding the project and judging relevance is your job.
+The `stackalarm` CLI gathers the news from about 80 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, exploit databases and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
 
 Why this matters: since AI turned patches into working exploits within hours, the window between a fix and its exploitation is measured in hours, not weeks. The most valuable signal is often the **heads-up**: maintainers announcing a critical release a day or a week ahead. Catching it lets the user prepare before the attackers read the patch.
 
@@ -31,7 +31,7 @@ For each technology, note the version and **how precise it is**: exact (`8.3.35`
 
 Ignore the versions installed on this machine (`php -v`, `node -v` here). The developer's laptop rarely runs what production runs, and a false "you are fine" is the worst outcome of a security check.
 
-Then run `stackalarm sources --format json` to see which tags exist, and map the technologies to them. Anything without a tag (FrankenPHP, Caddy, nginx, Express, a library you saw in the lockfile) becomes a `--keyword`: general sources such as CERTs and oss-security are searched for it.
+Then run `stackalarm sources --format json` to see which tags exist, and map the technologies to them. Anything without a tag (FrankenPHP, Caddy, Express, a library you saw in the lockfile) becomes a `--keyword`: general sources such as CERTs and the CVE databases are searched for it. Keep keywords specific (`frankenphp`, not `server`), and few: each one costs a request to the NVD, which allows one every 6 seconds without an API key.
 
 ## 2. Gather the news
 
@@ -40,8 +40,10 @@ stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --sinc
 ```
 
 - Default to `--since 7d`: a vulnerable version is still a problem days after the advisory. When the user asks about "today", still look at seven days, but put what is new in the last 24 hours first.
-- Each item has a `stage`: `heads-up` (a security release is announced), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert or exploitation in the wild). An upcoming heads-up is always worth mentioning, even when nothing is broken yet.
-- Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear.
+- Each item has a `stage`: `heads-up` (a security release is announced), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert, public exploit, exploitation in the wild), `news` (press and research: useful context, never enough on its own to call the project affected). An upcoming heads-up is always worth mentioning, even when nothing is broken yet.
+- The same vulnerability often shows up in several sources (vendor, NVD, EUVD, CERTs, press). Merge them into one finding and keep the most official link. A public exploit (Exploit-DB) or an `Exploited in the wild` entry raises the urgency.
+- CVE database items carry a `score` (CVSS). Searching a common word such as `php` returns many CVEs of plugins and libraries the project does not use: keep only those that match what you found in the project.
+- Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear. `truncated` means a source had more entries than shown; narrow with more precise keywords if it matters.
 - Some sources are in French (`language: fr`). Read them as they are.
 
 ## 3. Complete with a web search

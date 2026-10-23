@@ -1,0 +1,6 @@
+id: wordpress-security
+name: WordPress security releases
+type: feed
+url: "https://wordpress.org/news/category/security/feed/"
+tags: [wordpress]
+stage: release

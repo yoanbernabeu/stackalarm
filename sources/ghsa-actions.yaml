@@ -1,0 +1,6 @@
+id: ghsa-actions
+name: GitHub Advisory Database, reviewed actions advisories
+type: github-advisory-database
+ecosystem: actions
+tags: [github-actions]
+stage: advisory

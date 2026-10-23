@@ -1,0 +1,7 @@
+id: docker-blog
+name: Docker blog, security posts
+type: feed
+url: "https://www.docker.com/blog/feed/"
+tags: [docker]
+stage: advisory
+keywords: [security, CVE, vulnerability]

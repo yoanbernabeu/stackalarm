@@ -1,0 +1,6 @@
+id: securityweek
+name: SecurityWeek
+type: feed
+url: "https://www.securityweek.com/feed/"
+tags: [general]
+stage: news

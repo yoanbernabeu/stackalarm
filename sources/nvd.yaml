@@ -1,0 +1,6 @@
+id: nvd
+name: NIST National Vulnerability Database (US), searched by word, CVSS 7+ or not yet scored
+type: nvd
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+tags: [general]
+stage: advisory

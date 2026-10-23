@@ -1,0 +1,6 @@
+id: cert-pl
+name: CERT Polska (Poland)
+type: feed
+url: "https://cert.pl/en/rss.xml"
+tags: [general]
+stage: news

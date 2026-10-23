@@ -1,0 +1,6 @@
+id: ncsc-nl
+name: NCSC-NL security advisories (Netherlands)
+type: feed
+url: "https://advisories.ncsc.nl/rss/advisories"
+tags: [general]
+stage: advisory

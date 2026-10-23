@@ -1,0 +1,7 @@
+id: chrome-releases
+name: Chrome releases, security fixes
+type: feed
+url: "https://chromereleases.googleblog.com/feeds/posts/default"
+tags: [chrome]
+stage: release
+keywords: [security, CVE]

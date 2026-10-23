@@ -1,0 +1,6 @@
+id: msrc
+name: Microsoft Security Response Center, security update guide
+type: feed
+url: "https://api.msrc.microsoft.com/update-guide/rss"
+tags: [microsoft, windows, dotnet]
+stage: advisory

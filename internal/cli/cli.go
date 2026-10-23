@@ -47,6 +47,7 @@ func Default(version string) (*App, error) {
 			Client:    &http.Client{Timeout: 20 * time.Second},
 			UserAgent: "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
 			CacheTTL:  time.Hour,
+			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key
 		},
 	}, nil
 }
@@ -75,13 +76,14 @@ func (a *App) Execute(ctx context.Context) int {
 }
 
 type newsReport struct {
-	GeneratedAt time.Time      `json:"generated_at"`
-	Since       time.Time      `json:"since"`
-	Tags        []string       `json:"tags"`
-	Keywords    []string       `json:"keywords"`
-	Items       []news.Item    `json:"items"`
-	Failures    []news.Failure `json:"failures"`
-	Warnings    []string       `json:"warnings"`
+	GeneratedAt time.Time         `json:"generated_at"`
+	Since       time.Time         `json:"since"`
+	Tags        []string          `json:"tags"`
+	Keywords    []string          `json:"keywords"`
+	Items       []news.Item       `json:"items"`
+	Failures    []news.Failure    `json:"failures"`
+	Truncated   []news.Truncation `json:"truncated"`
+	Warnings    []string          `json:"warnings"`
 }
 
 func (a *App) newsCommand() *cobra.Command {
@@ -96,8 +98,11 @@ func (a *App) newsCommand() *cobra.Command {
 		Long: `Gather security announcements, releases, advisories and CERT alerts.
 
 With --tag, only the sources of those technologies are read, plus the general
-sources (CERTs, oss-security, CISA KEV) whose entries mention one of the tags
-or --keyword values. Run "stackalarm sources" to see the available tags.`,
+sources (CERTs, CVE databases, exploit feeds, security press) whose entries
+mention one of the tags or --keyword values. The CVE databases (NVD, EUVD) are
+searched for each tag and keyword, and only when there is one: without a key,
+the NVD allows one request every 6 seconds (set NVD_API_KEY to go faster).
+Run "stackalarm sources" to see the available tags.`,
 		Example: "  stackalarm news --tag php --tag symfony --since 7d\n  stackalarm news --tag node --keyword express --format json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -123,6 +128,9 @@ or --keyword values. Run "stackalarm sources" to see the available tags.`,
 			f := *a.Fetcher
 			f.Now = a.Now
 			f.GitHubToken = cmp.Or(a.Getenv("GITHUB_TOKEN"), a.Getenv("GH_TOKEN"))
+			if f.NVDAPIKey = a.Getenv("NVD_API_KEY"); f.NVDAPIKey != "" {
+				f.NVDDelay = 700 * time.Millisecond // 50 requests per 30 s with a key
+			}
 			if !noCache {
 				if dir, err := a.CacheRoot(); err == nil {
 					f.CacheDir = filepath.Join(dir, "stackalarm")
@@ -132,7 +140,7 @@ or --keyword values. Run "stackalarm sources" to see the available tags.`,
 			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window)})
 			report := newsReport{
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords),
-				Items: res.Items, Failures: res.Failures, Warnings: nonNil(warnings),
+				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Warnings: nonNil(warnings),
 			}
 			if format == "json" {
 				enc := json.NewEncoder(a.Out)
@@ -167,6 +175,12 @@ func (a *App) printNews(r newsReport) {
 		fmt.Fprintf(a.Out, "%s  %-9s %-24s %s\n", it.Published.Format("2006-01-02"), it.Stage, it.Source, it.Title)
 		if it.URL != "" {
 			fmt.Fprintf(a.Out, "%38s%s\n", "", it.URL)
+		}
+	}
+	if len(r.Truncated) > 0 {
+		fmt.Fprintf(a.Out, "\nOnly the %d most recent entries are shown for:\n", news.MaxPerSource)
+		for _, t := range r.Truncated {
+			fmt.Fprintf(a.Out, "  %s: %d older entries left out (narrow with --since or more precise keywords)\n", t.Source, t.Dropped)
 		}
 	}
 	if len(r.Failures) > 0 {

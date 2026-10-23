@@ -1,0 +1,6 @@
+id: paloalto-psirt
+name: Palo Alto Networks security advisories
+type: feed
+url: "https://security.paloaltonetworks.com/rss.xml"
+tags: [paloalto]
+stage: advisory

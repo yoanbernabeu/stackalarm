@@ -1,0 +1,6 @@
+id: ghsa-composer
+name: GitHub Advisory Database, reviewed composer advisories
+type: github-advisory-database
+ecosystem: composer
+tags: [php, composer]
+stage: advisory

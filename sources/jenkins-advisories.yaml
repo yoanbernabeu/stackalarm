@@ -1,0 +1,6 @@
+id: jenkins-advisories
+name: Jenkins security advisories
+type: feed
+url: "https://www.jenkins.io/security/advisories/rss.xml"
+tags: [jenkins]
+stage: advisory

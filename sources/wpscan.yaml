@@ -1,0 +1,6 @@
+id: wpscan
+name: WPScan WordPress vulnerability news
+type: feed
+url: "https://wpscan.com/feed/"
+tags: [wordpress]
+stage: advisory

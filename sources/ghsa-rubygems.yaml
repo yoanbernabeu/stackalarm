@@ -1,0 +1,6 @@
+id: ghsa-rubygems
+name: GitHub Advisory Database, reviewed rubygems advisories
+type: github-advisory-database
+ecosystem: rubygems
+tags: [ruby]
+stage: advisory

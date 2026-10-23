@@ -32,6 +32,7 @@ type Item struct {
 	URL       string       `json:"url,omitempty"`
 	Published time.Time    `json:"published"`
 	Summary   string       `json:"summary,omitempty"`
+	Score     float64      `json:"score,omitempty"` // CVSS base score, for CVE databases
 	Language  string       `json:"language,omitempty"`
 }
 
@@ -42,11 +43,22 @@ type Failure struct {
 	Error  string `json:"error"`
 }
 
+// Truncation tells that a source had more entries than shown.
+type Truncation struct {
+	Source  string `json:"source"`
+	Dropped int    `json:"dropped"` // the oldest entries left out
+}
+
 // Result is the outcome of a fetch.
 type Result struct {
-	Items    []Item    `json:"items"`
-	Failures []Failure `json:"failures"`
+	Items     []Item       `json:"items"`
+	Failures  []Failure    `json:"failures"`
+	Truncated []Truncation `json:"truncated"`
 }
+
+// MaxPerSource keeps the output readable for a person or an agent: a CVE
+// database can return hundreds of records for a common word.
+const MaxPerSource = 30
 
 // Query selects what to fetch.
 type Query struct {
@@ -61,6 +73,8 @@ type Fetcher struct {
 	UserAgent   string
 	GitHubToken string        // optional, raises the GitHub API rate limit
 	GitHubAPI   string        // https://api.github.com unless a test changes it
+	NVDAPIKey   string        // optional, raises the NVD API rate limit
+	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
 	CacheDir    string        // empty disables the cache
 	CacheTTL    time.Duration // how long a cached response is reused
 	Now         func() time.Time
@@ -69,29 +83,45 @@ type Fetcher struct {
 // Fetch reads the sources selected by q, in parallel.
 func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
 	selected := selectSources(sources, q.Tags)
-	words := matchers(append(slices.Clone(q.Tags), q.Keywords...))
+	terms := searchTerms(q)
+	words := matchers(terms)
+	nvd := &gate{delay: f.NVDDelay}
 
 	var (
 		mu  sync.Mutex
-		res = Result{Items: []Item{}, Failures: []Failure{}}
+		res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}}
 		wg  sync.WaitGroup
 	)
 	for _, s := range selected {
+		if s.Type.IsSearch() && len(terms) == 0 {
+			continue // nothing to search for
+		}
 		wg.Go(func() {
-			entries, err := f.read(ctx, s)
+			entries, err := f.read(ctx, s, terms, q.Since, nvd)
 			mu.Lock()
 			defer mu.Unlock()
-			if err != nil {
+			if err != nil { // a search may fail for one word and succeed for others
 				res.Failures = append(res.Failures, Failure{Source: s.ID, Error: err.Error()})
-				return
+			}
+			entries = slices.DeleteFunc(entries, func(e entry) bool {
+				return e.Published.IsZero() || e.Published.Before(q.Since) || (!s.Type.IsSearch() && !keep(s, e, words))
+			})
+			slices.SortStableFunc(entries, func(a, b entry) int {
+				if s.Type.IsSearch() { // most severe first, so the cap drops the minor ones
+					if c := cmp.Compare(priority(b.Score), priority(a.Score)); c != 0 {
+						return c
+					}
+				}
+				return b.Published.Compare(a.Published)
+			})
+			if len(entries) > MaxPerSource {
+				res.Truncated = append(res.Truncated, Truncation{Source: s.ID, Dropped: len(entries) - MaxPerSource})
+				entries = entries[:MaxPerSource]
 			}
 			for _, e := range entries {
-				if e.Published.IsZero() || e.Published.Before(q.Since) || !keep(s, e, words) {
-					continue
-				}
 				res.Items = append(res.Items, Item{
 					Source: s.ID, Tags: s.Tags, Stage: s.Stage, Title: e.Title, URL: absolute(s.URL, e.URL),
-					Published: e.Published, Summary: e.Summary, Language: s.Language,
+					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language,
 				})
 			}
 		})
@@ -101,6 +131,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))
 	})
 	slices.SortFunc(res.Failures, func(a, b Failure) int { return cmp.Compare(a.Source, b.Source) })
+	slices.SortFunc(res.Truncated, func(a, b Truncation) int { return cmp.Compare(a.Source, b.Source) })
 	return res
 }
 
@@ -153,29 +184,131 @@ func matchers(words []string) []*regexp.Regexp {
 	return out
 }
 
-func (f *Fetcher) read(ctx context.Context, s source.Source) ([]entry, error) {
-	url, accept := s.URL, ""
-	if s.Type == source.TypeGitHubAdvisories {
-		url = cmp.Or(f.GitHubAPI, "https://api.github.com") + "/repos/" + s.Repo + "/security-advisories?per_page=30&sort=published&direction=desc"
-		accept = "application/vnd.github+json"
+// priority ranks an unscored CVE as high: fresh CVEs wait days for a score.
+func priority(score float64) float64 {
+	if score == 0 {
+		return 9
 	}
-	data, err := f.get(ctx, url, accept, s.Type == source.TypeGitHubAdvisories)
+	return score
+}
+
+// maxTerms bounds the requests made to search sources.
+const maxTerms = 8
+
+// searchTerms returns the words search sources are queried with.
+func searchTerms(q Query) []string {
+	var out []string
+	for _, w := range append(slices.Clone(q.Tags), q.Keywords...) {
+		if w = strings.ToLower(strings.TrimSpace(w)); w != "" && w != source.General && !slices.Contains(out, w) {
+			out = append(out, w)
+		}
+	}
+	return out[:min(len(out), maxTerms)]
+}
+
+// gate spaces out requests to an API with a strict rate limit.
+type gate struct {
+	mu    sync.Mutex
+	delay time.Duration
+	last  time.Time
+}
+
+func (g *gate) wait(ctx context.Context) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if d := g.delay - time.Since(g.last); !g.last.IsZero() && d > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(d):
+		}
+	}
+	g.last = time.Now()
+	return nil
+}
+
+func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, since time.Time, nvd *gate) ([]entry, error) {
+	github := cmp.Or(f.GitHubAPI, "https://api.github.com")
+	now := f.Now().UTC()
+	switch s.Type {
+	case source.TypeGitHubAdvisories:
+		return f.readOne(ctx, github+"/repos/"+s.Repo+"/security-advisories?per_page=30&sort=published&direction=desc", "github", parseGitHubAdvisories)
+	case source.TypeGitHubAdvisoryDatabase:
+		u := github + "/advisories?type=reviewed&per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
+			"&published=" + neturl.QueryEscape(">="+since.UTC().Format(time.DateOnly))
+		return f.readOne(ctx, u, "github", parseGitHubAdvisoryDatabase)
+	case source.TypeKEV:
+		return f.readOne(ctx, s.URL, "", parseKEV)
+	case source.TypeEUVD:
+		return f.readOne(ctx, s.URL, "", parseEUVD)
+	case source.TypeNVD:
+		// Whole hours keep the URL, hence the cache, stable within the hour.
+		end := now.Truncate(time.Hour).Add(time.Hour)
+		start := since.UTC().Truncate(24 * time.Hour)
+		if oldest := end.Add(-120 * 24 * time.Hour); start.Before(oldest) {
+			start = oldest // the API caps the range at 120 days
+		}
+		const layout = "2006-01-02T15:04:05.000Z"
+		return f.search(ctx, terms, func(term string) string {
+			return s.URL + "?keywordSearch=" + neturl.QueryEscape(term) + "&pubStartDate=" + start.Format(layout) + "&pubEndDate=" + end.Format(layout)
+		}, "nvd", nvd, parseNVD)
+	case source.TypeEUVDSearch:
+		return f.search(ctx, terms, func(term string) string {
+			return s.URL + "?size=100&text=" + neturl.QueryEscape(term) + "&fromDate=" + since.UTC().Format(time.DateOnly) + "&toDate=" + now.Format(time.DateOnly)
+		}, "", nil, parseEUVD)
+	default:
+		return f.readOne(ctx, s.URL, "", parseFeed)
+	}
+}
+
+func (f *Fetcher) readOne(ctx context.Context, url, api string, parse func([]byte) ([]entry, error)) ([]entry, error) {
+	data, err := f.get(ctx, url, api)
 	if err != nil {
 		return nil, err
 	}
-	switch s.Type {
-	case source.TypeGitHubAdvisories:
-		return parseGitHubAdvisories(data)
-	case source.TypeKEV:
-		return parseKEV(data)
-	default:
-		return parseFeed(data)
+	return parse(data)
+}
+
+// search queries a search source once per term and merges the results.
+func (f *Fetcher) search(ctx context.Context, terms []string, url func(string) string, api string, g *gate, parse func([]byte) ([]entry, error)) ([]entry, error) {
+	var (
+		out  []entry
+		errs []error
+		seen = map[string]bool{}
+	)
+	for _, term := range terms {
+		u := url(term)
+		if g != nil && !f.isCached(u) {
+			if err := g.wait(ctx); err != nil {
+				return out, err
+			}
+		}
+		entries, err := f.readOne(ctx, u, api, parse)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%q: %w", term, err))
+			continue
+		}
+		for _, e := range entries {
+			if !seen[e.URL] {
+				seen[e.URL] = true
+				out = append(out, e)
+			}
+		}
 	}
+	return out, errors.Join(errs...)
 }
 
 const maxBody = 32 << 20 // the KEV catalog is a few MB
 
-func (f *Fetcher) get(ctx context.Context, url, accept string, github bool) ([]byte, error) {
+func (f *Fetcher) isCached(url string) bool {
+	_, ok := f.cached(f.cachePath(url))
+	return ok
+}
+
+// get downloads url. api names the API it belongs to ("github", "nvd"), so
+// the right headers and rate-limit hints are used.
+func (f *Fetcher) get(ctx context.Context, url, api string) ([]byte, error) {
+	github := api == "github"
 	cache := f.cachePath(url)
 	if data, ok := f.cached(cache); ok {
 		return data, nil
@@ -185,11 +318,14 @@ func (f *Fetcher) get(ctx context.Context, url, accept string, github bool) ([]b
 		return nil, err
 	}
 	req.Header.Set("User-Agent", f.UserAgent)
-	if accept != "" {
-		req.Header.Set("Accept", accept)
+	if github {
+		req.Header.Set("Accept", "application/vnd.github+json")
+		if f.GitHubToken != "" {
+			req.Header.Set("Authorization", "Bearer "+f.GitHubToken)
+		}
 	}
-	if github && f.GitHubToken != "" {
-		req.Header.Set("Authorization", "Bearer "+f.GitHubToken)
+	if api == "nvd" && f.NVDAPIKey != "" {
+		req.Header.Set("apiKey", f.NVDAPIKey)
 	}
 	resp, err := f.Client.Do(req)
 	if err != nil {
@@ -203,6 +339,9 @@ func (f *Fetcher) get(ctx context.Context, url, accept string, github bool) ([]b
 	if resp.StatusCode != http.StatusOK {
 		if github && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
 			return nil, fmt.Errorf("GitHub API rate limit reached (HTTP %d): set GITHUB_TOKEN to raise it", resp.StatusCode)
+		}
+		if api == "nvd" && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
+			return nil, fmt.Errorf("NVD API rate limit reached (HTTP %d): set NVD_API_KEY to raise it", resp.StatusCode)
 		}
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}

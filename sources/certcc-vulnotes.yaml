@@ -1,0 +1,6 @@
+id: certcc-vulnotes
+name: CERT/CC vulnerability notes (US, Carnegie Mellon)
+type: feed
+url: "https://kb.cert.org/vuls/atomfeed"
+tags: [general]
+stage: advisory

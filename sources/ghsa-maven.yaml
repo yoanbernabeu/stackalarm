@@ -1,0 +1,6 @@
+id: ghsa-maven
+name: GitHub Advisory Database, reviewed maven advisories
+type: github-advisory-database
+ecosystem: maven
+tags: [java, maven]
+stage: advisory

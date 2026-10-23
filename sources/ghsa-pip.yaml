@@ -1,0 +1,6 @@
+id: ghsa-pip
+name: GitHub Advisory Database, reviewed pip advisories
+type: github-advisory-database
+ecosystem: pip
+tags: [python, pip]
+stage: advisory

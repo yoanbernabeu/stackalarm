@@ -1,0 +1,6 @@
+id: ghsa-swift
+name: GitHub Advisory Database, reviewed swift advisories
+type: github-advisory-database
+ecosystem: swift
+tags: [swift]
+stage: advisory

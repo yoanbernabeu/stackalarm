@@ -1,0 +1,6 @@
+id: drupal-security
+name: Drupal security advisories
+type: feed
+url: "https://www.drupal.org/security/rss.xml"
+tags: [drupal]
+stage: advisory

@@ -1,0 +1,6 @@
+id: project-zero
+name: Google Project Zero
+type: feed
+url: "https://googleprojectzero.blogspot.com/feeds/posts/default"
+tags: [general]
+stage: news

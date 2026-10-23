@@ -1,0 +1,6 @@
+id: ghsa-npm
+name: GitHub Advisory Database, reviewed npm advisories
+type: github-advisory-database
+ecosystem: npm
+tags: [node, npm]
+stage: advisory

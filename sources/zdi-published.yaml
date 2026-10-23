@@ -1,0 +1,6 @@
+id: zdi-published
+name: Zero Day Initiative published advisories
+type: feed
+url: "https://www.zerodayinitiative.com/rss/published/"
+tags: [general]
+stage: advisory

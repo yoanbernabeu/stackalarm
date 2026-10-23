@@ -1,0 +1,6 @@
+id: ghsa-nuget
+name: GitHub Advisory Database, reviewed nuget advisories
+type: github-advisory-database
+ecosystem: nuget
+tags: [dotnet, nuget]
+stage: advisory

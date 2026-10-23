@@ -1,0 +1,6 @@
+id: ncsc-uk
+name: NCSC UK news, alerts and reports
+type: feed
+url: "https://www.ncsc.gov.uk/api/1/services/v1/all-rss-feed.xml"
+tags: [general]
+stage: alert

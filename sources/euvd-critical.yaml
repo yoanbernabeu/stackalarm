@@ -1,0 +1,6 @@
+id: euvd-critical
+name: ENISA EU Vulnerability Database, latest critical vulnerabilities
+type: euvd
+url: "https://euvdservices.enisa.europa.eu/api/criticalvulnerabilities"
+tags: [general]
+stage: advisory

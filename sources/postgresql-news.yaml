@@ -1,0 +1,7 @@
+id: postgresql-news
+name: PostgreSQL news, security releases
+type: feed
+url: "https://www.postgresql.org/news.rss"
+tags: [postgresql]
+stage: release
+keywords: [security, CVE]

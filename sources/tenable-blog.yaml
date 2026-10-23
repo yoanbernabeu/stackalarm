@@ -1,0 +1,6 @@
+id: tenable-blog
+name: Tenable blog (vulnerability FAQs)
+type: feed
+url: "https://www.tenable.com/blog/feed"
+tags: [general]
+stage: news

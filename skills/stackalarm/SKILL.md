@@ -9,7 +9,7 @@ If the user added text after `/stackalarm` (a technology, "before the deploy", a
 
 Help the user answer one question about the project open in front of you: **is there anything in the security news that affects us, and what should we do?**
 
-The `stackalarm` CLI gathers the news from about 80 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, exploit databases and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
+The `stackalarm` CLI gathers the news from about 90 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, exploit databases and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
 
 Why this matters: since AI turned patches into working exploits within hours, the window between a fix and its exploitation is measured in hours, not weeks. The most valuable signal is often the **heads-up**: maintainers announcing a critical release a day or a week ahead. Catching it lets the user prepare before the attackers read the patch.
 
@@ -29,7 +29,9 @@ Read the files that declare what the project runs on. Typical ones:
 
 - Manifests and lockfiles: `composer.json`/`composer.lock`, `package.json` and its lockfile, `pyproject.toml`, `requirements*.txt`, `uv.lock`, `poetry.lock`, `go.mod`, `Gemfile.lock`, `Cargo.lock`.
 - Runtime pins: `Dockerfile*` and `compose*.yaml` (`FROM php:8.3-fpm`, `dunglas/frankenphp:1-php8.4`, `node:22-alpine`…), `.nvmrc`, `.node-version`, `.php-version`, `.python-version`, `.ruby-version`, `.tool-versions`, the `engines` field, `config.platform.php`.
-- Tooling and hosting: `.gitlab-ci.yml` (with a remote that is not gitlab.com, the team probably runs its own GitLab), CI images, server configuration files, deployment scripts.
+- Tooling and hosting: `.gitlab-ci.yml` (with a remote that is not gitlab.com, the team probably runs its own GitLab), CI images and `setup-node`/`setup-php`/`setup-python` versions in `.github/workflows`, hosting configuration (`netlify.toml`, `vercel.json`, `fly.toml`, `render.yaml`), server configuration files, deployment scripts.
+
+Watch for runtimes pinned to a branch only (`NODE_VERSION = "24"`, `node-version: '22'`, `php:8.3-fpm`): hosting platforms and CI runners may keep serving a cached, unpatched build of that branch. Pinning the exact fixed version is often the real fix.
 
 For each technology, note the version and **how precise it is**: exact (`8.3.35`), branch (`8.3`), or range (`>=8.2`). Record where it came from; you will need it to explain your verdict.
 
@@ -46,7 +48,7 @@ stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --sinc
 - Default to `--since 7d`: a vulnerable version is still a problem days after the advisory. When the user asks about "today", still look at seven days, but put what is new in the last 24 hours first.
 - Each item has a `stage`: `heads-up` (a security release is announced), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert, public exploit, exploitation in the wild), `news` (press and research: useful context, never enough on its own to call the project affected). An upcoming heads-up is always worth mentioning, even when nothing is broken yet.
 - The same vulnerability often shows up in several sources (vendor, NVD, EUVD, CERTs, press). Merge them into one finding and keep the most official link. A public exploit (Exploit-DB) or an `Exploited in the wild` entry raises the urgency.
-- CVE database items carry a `score` (CVSS). Searching a common word such as `php` returns many CVEs of plugins and libraries the project does not use: keep only those that match what you found in the project.
+- CVE database items carry a `score` (CVSS). Searching a common word such as `php` returns many CVEs of plugins and libraries the project does not use, and the per-ecosystem GitHub Advisory Database lists packages from the whole ecosystem: keep only those that match what you found in the project, including transitive dependencies from the lockfile (a library pulled by another one counts).
 - Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear. `truncated` means a source had more entries than shown; narrow with more precise keywords if it matters.
 - Some sources are in French (`language: fr`). Read them as they are.
 
@@ -86,6 +88,7 @@ For each item that touches the project, decide whether the project is affected:
 
 1. **Compare versions.** If the item does not say which versions are affected, open the advisory or the release notes (the `url` field) and find out. Release notes usually list fixed versions; anything older on the same branch is affected.
 2. **Check the conditions.** Many flaws need a specific setup (an SAPI such as mod_php or FPM, an enabled feature, a protocol, internet exposure). Look for it in the project before calling it relevant, and say what you checked.
+   - **Build-only and CI-only runtimes** (a static site built with Node, a CI job): the runtime is not exposed to visitors, so ask what untrusted input reaches it during the build. Fetching fixed, trusted APIs is low risk; fetching URLs or content that others control, or running CI on pull requests from forks, is not. Usually this lowers the urgency to "prepare" rather than "act now", but the fix (pin the patched version) still applies.
 3. **Weigh the urgency.** Exploitation in the wild (CISA KEV, a CERT alert, vendor reports) or unauthenticated remote code execution on an exposed component means today. A heads-up means prepare now: book the update slot, check the exposure, line up a mitigation.
 4. **Handle imprecise versions.** When the project declares a range or a branch that contains both vulnerable and fixed versions, the answer is "possibly affected". Ask for the real production version only if the answer would change your verdict, and tell the user how to find it (`php -v` on the server, `docker exec <container> php -v`, the GitLab admin area, the hosting panel). If they cannot tell, keep "possibly affected" and give the steps to check.
 

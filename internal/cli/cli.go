@@ -44,7 +44,7 @@ func Default(version string) (*App, error) {
 		Out: os.Stdout, Err: os.Stderr, Sources: srcs, Now: time.Now, Version: version,
 		Getenv: os.Getenv, CacheRoot: os.UserCacheDir,
 		Fetcher: &news.Fetcher{
-			Client:    &http.Client{Timeout: 20 * time.Second},
+			Client:    &http.Client{Timeout: 45 * time.Second}, // the NVD API is often slow
 			UserAgent: "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
 			CacheTTL:  time.Hour,
 			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key

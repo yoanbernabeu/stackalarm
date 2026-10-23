@@ -1,0 +1,6 @@
+id: astro-advisories
+name: Astro security advisories (GitHub)
+type: github-advisories
+repo: withastro/astro
+tags: [astro]
+stage: advisory

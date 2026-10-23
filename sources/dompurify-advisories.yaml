@@ -1,0 +1,6 @@
+id: dompurify-advisories
+name: DOMPurify security advisories (GitHub)
+type: github-advisories
+repo: cure53/DOMPurify
+tags: [dompurify]
+stage: advisory

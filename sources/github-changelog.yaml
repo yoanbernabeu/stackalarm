@@ -1,0 +1,7 @@
+id: github-changelog
+name: GitHub changelog, security and Actions changes
+type: feed
+url: https://github.blog/changelog/feed/
+tags: [github-actions, github]
+stage: release
+keywords: [security, vulnerability, CVE, runner, deprecated, deprecation]

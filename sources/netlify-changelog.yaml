@@ -1,0 +1,7 @@
+id: netlify-changelog
+name: Netlify changelog, security and build image changes
+type: feed
+url: https://www.netlify.com/changelog/feed.xml
+tags: [netlify]
+stage: release
+keywords: [security, CVE, vulnerability, node, build image]

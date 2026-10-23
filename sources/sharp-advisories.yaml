@@ -1,0 +1,6 @@
+id: sharp-advisories
+name: sharp security advisories (GitHub)
+type: github-advisories
+repo: lovell/sharp
+tags: [sharp]
+stage: advisory

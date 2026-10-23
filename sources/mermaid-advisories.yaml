@@ -1,0 +1,6 @@
+id: mermaid-advisories
+name: Mermaid security advisories (GitHub)
+type: github-advisories
+repo: mermaid-js/mermaid
+tags: [mermaid]
+stage: advisory

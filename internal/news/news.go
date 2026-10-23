@@ -104,7 +104,14 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				res.Failures = append(res.Failures, Failure{Source: s.ID, Error: err.Error()})
 			}
 			entries = slices.DeleteFunc(entries, func(e entry) bool {
-				return e.Published.IsZero() || e.Published.Before(q.Since) || (!s.Type.IsSearch() && !keep(s, e, words))
+				if e.Published.IsZero() || e.Published.Before(q.Since) {
+					return true
+				}
+				if s.Type.IsSearch() { // the databases match loosely ("node.js" finds kernel "node"): check the whole term
+					text := e.Title + " " + e.Summary
+					return !slices.ContainsFunc(words, func(re *regexp.Regexp) bool { return re.MatchString(text) })
+				}
+				return !keep(s, e, words)
 			})
 			slices.SortStableFunc(entries, func(a, b entry) int {
 				if s.Type.IsSearch() { // most severe first, so the cap drops the minor ones
@@ -195,11 +202,25 @@ func priority(score float64) float64 {
 // maxTerms bounds the requests made to search sources.
 const maxTerms = 8
 
+// searchAliases are the terms CVE databases are searched with for tags that
+// are ambiguous words: "node" alone matches hundreds of Linux kernel CVEs
+// (NUMA nodes, inodes), "go" matches almost anything.
+var searchAliases = map[string]string{
+	"node":   "node.js",
+	"nextjs": "next.js",
+	"go":     "golang",
+	"dotnet": ".net",
+}
+
 // searchTerms returns the words search sources are queried with.
 func searchTerms(q Query) []string {
 	var out []string
 	for _, w := range append(slices.Clone(q.Tags), q.Keywords...) {
-		if w = strings.ToLower(strings.TrimSpace(w)); w != "" && w != source.General && !slices.Contains(out, w) {
+		w = strings.ToLower(strings.TrimSpace(w))
+		if alias, ok := searchAliases[w]; ok {
+			w = alias
+		}
+		if w != "" && w != source.General && !slices.Contains(out, w) {
 			out = append(out, w)
 		}
 	}

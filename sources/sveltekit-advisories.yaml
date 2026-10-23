@@ -1,0 +1,6 @@
+id: sveltekit-advisories
+name: SvelteKit security advisories (GitHub)
+type: github-advisories
+repo: sveltejs/kit
+tags: [sveltekit]
+stage: advisory

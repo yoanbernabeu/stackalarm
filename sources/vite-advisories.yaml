@@ -1,0 +1,6 @@
+id: vite-advisories
+name: Vite security advisories (GitHub)
+type: github-advisories
+repo: vitejs/vite
+tags: [vite]
+stage: advisory

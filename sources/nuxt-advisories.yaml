@@ -1,0 +1,6 @@
+id: nuxt-advisories
+name: Nuxt security advisories (GitHub)
+type: github-advisories
+repo: nuxt/nuxt
+tags: [nuxt]
+stage: advisory

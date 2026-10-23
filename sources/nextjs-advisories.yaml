@@ -1,0 +1,6 @@
+id: nextjs-advisories
+name: Next.js security advisories (GitHub)
+type: github-advisories
+repo: vercel/next.js
+tags: [nextjs]
+stage: advisory

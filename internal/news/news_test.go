@@ -294,7 +294,7 @@ func TestSearchCapKeepsTheMostSevere(t *testing.T) {
 		if i == 0 {
 			score = 10 // the oldest one is the critical one
 		}
-		fmt.Fprintf(&b, `{"cve":{"id":"CVE-2026-%d","published":"2026-10-%02dT10:00:00.000","descriptions":[{"lang":"en","value":"x"}],"metrics":{"cvssMetricV31":[{"cvssData":{"baseScore":%.1f}}]}}}`, i, 10+i%12, score)
+		fmt.Fprintf(&b, `{"cve":{"id":"CVE-2026-%d","published":"2026-10-%02dT10:00:00.000","descriptions":[{"lang":"en","value":"PHP issue"}],"metrics":{"cvssMetricV31":[{"cvssData":{"baseScore":%.1f}}]}}}`, i, 10+i%12, score)
 	}
 	b.WriteString("]}")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(b.String())) }))
@@ -305,5 +305,27 @@ func TestSearchCapKeepsTheMostSevere(t *testing.T) {
 		Query{Keywords: []string{"php"}, Since: now.Add(-30 * 24 * time.Hour)})
 	if len(res.Items) != MaxPerSource || !slices.ContainsFunc(res.Items, func(it Item) bool { return it.Score == 10 }) {
 		t.Fatalf("the critical CVE must survive the cap: %d items", len(res.Items))
+	}
+}
+
+func TestSearchTermsUseAliasesForAmbiguousTags(t *testing.T) {
+	got := searchTerms(Query{Tags: []string{"node", "php", "general"}, Keywords: []string{"Node.js", "vite"}})
+	if strings.Join(got, ",") != "node.js,php,vite" {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestSearchResultsMustContainTheTerm(t *testing.T) {
+	body := `{"items":[
+{"id":"EUVD-1","description":"In the Linux kernel, a device tree node leaks.","datePublished":"Oct 21, 2026, 6:00:19 PM","baseScore":"0.0"},
+{"id":"EUVD-2","description":"Node.js Brotli decoder out-of-bounds write.","datePublished":"Oct 21, 2026, 6:00:19 PM","baseScore":"8.8"}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(body)) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "euvd", Type: source.TypeEUVDSearch, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageAdvisory}},
+		Query{Tags: []string{"node"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if len(res.Items) != 1 || !strings.Contains(res.Items[0].Title, "Node.js") {
+		t.Fatalf("only the Node.js entry must remain: %+v", res.Items)
 	}
 }

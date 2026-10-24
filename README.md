@@ -14,11 +14,10 @@ stackalarm is an agent skill and the CLI it relies on. Open a project in Claude 
 ## Install
 
 ```sh
-brew install yoanbernabeu/tap/stackalarm     # or: curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh
 npx skills add yoanbernabeu/stackalarm
 ```
 
-On Windows, download the zip from the [releases](https://github.com/yoanbernabeu/stackalarm/releases). With Go: `go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest`.
+The first time you run `/stackalarm`, the skill sees the CLI is missing and offers to install it; it runs nothing before you agree. To install the CLI yourself: `brew install yoanbernabeu/tap/stackalarm`, or `curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh`. On Windows, download the zip from the [releases](https://github.com/yoanbernabeu/stackalarm/releases). With Go: `go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest`.
 
 Optional: `GITHUB_TOKEN` (or `GH_TOKEN`) raises the GitHub API rate limit, and `NVD_API_KEY` ([free](https://nvd.nist.gov/developers/request-an-api-key)) makes NVD searches faster.
 

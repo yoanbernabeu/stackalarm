@@ -15,13 +15,15 @@ Why this matters: since AI turned patches into working exploits within hours, th
 
 ## 0. Check the CLI is there
 
-Run `stackalarm --version`. If it is missing, tell the user how to install it and stop there, rather than installing it yourself:
+Run `stackalarm --version`. If it is missing, the skill was installed alone: offer to install the CLI, in one sentence that names the command, and run it only once the user agrees. Pick the command for the machine:
 
-```
-brew install yoanbernabeu/tap/stackalarm
-# or
-curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh
-```
+- Homebrew available (`brew` on the PATH): `brew install yoanbernabeu/tap/stackalarm`.
+- macOS or Linux without Homebrew: `curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh`. It needs no sudo: it installs in `/usr/local/bin` when writable, otherwise in `~/.local/bin`, and checks the archive against the release checksums.
+- Windows: there is no installer. With Go, offer `go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest`; otherwise give the link to the releases (https://github.com/yoanbernabeu/stackalarm/releases) and stop there.
+
+Then run `stackalarm --version` again. If the install script says its folder is not on the PATH, run the CLI by its full path for this session (`~/.local/bin/stackalarm`) and tell the user how to add the folder to their PATH. If the user declines or the install fails, give them the command and stop: without the CLI, a check would only rest on your training data and a web search, which is exactly what this skill exists to avoid.
+
+In unattended triage (CI), never install anything: the CLI is already there.
 
 ## 1. Map the project
 

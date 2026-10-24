@@ -136,7 +136,7 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8" /></svg>
             </button>
           </div>
-          <p class="hero-note">Needs the CLI too: <a href="#install">install both</a>.</p>
+          <p class="hero-note">It offers to install the CLI on first run.</p>
         </div>
         <p class="hero-foot wrap">The skill reads your project, the CLI reads the news. Neither one patches, pushes or deploys anything on its own.</p>
       </section>
@@ -294,27 +294,26 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
 
       <section id="install" aria-labelledby="install-title">
         <div class="wrap install">
-          <h2 id="install-title">Install both parts</h2>
-          <ol class="steps">
-            <li>
-              <h3>The CLI</h3>
-              <Code code="brew install yoanbernabeu/tap/stackalarm" />
-              <p class="muted">or, on Linux and macOS:</p>
-              <Code code="curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh" />
-              <p class="muted small">
-                On Windows, download the zip from the <a href={`${repo}/releases`}>releases</a>. With Go:
-                <code>go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest</code>.
-              </p>
-            </li>
-            <li>
-              <h3>The skill</h3>
-              <Code code="npx skills add yoanbernabeu/stackalarm" />
-              <p class="muted small">
-                Optional: set <code>GITHUB_TOKEN</code> to raise the GitHub API rate limit, and <code>NVD_API_KEY</code>
-                (<a href="https://nvd.nist.gov/developers/request-an-api-key">free</a>) to search the NVD faster.
-              </p>
-            </li>
-          </ol>
+          <h2 id="install-title">One command</h2>
+          <Code code="npx skills add yoanbernabeu/stackalarm" />
+          <p>
+            For Claude Code, Codex, Cursor and other agents. The first time you run <code>/stackalarm</code>, the skill sees the CLI is missing
+            and offers to install it, with Homebrew or the install script; it runs nothing before you agree.
+          </p>
+          <p class="muted small">
+            Optional: set <code>GITHUB_TOKEN</code> to raise the GitHub API rate limit, and <code>NVD_API_KEY</code>
+            (<a href="https://nvd.nist.gov/developers/request-an-api-key">free</a>) to search the NVD faster.
+          </p>
+          <details class="manual">
+            <summary>Install the CLI yourself</summary>
+            <Code code="brew install yoanbernabeu/tap/stackalarm" />
+            <p class="muted">or, on Linux and macOS:</p>
+            <Code code="curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh" />
+            <p class="muted small">
+              On Windows, download the zip from the <a href={`${repo}/releases`}>releases</a>. With Go:
+              <code>go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest</code>.
+            </p>
+          </details>
         </div>
       </section>
 

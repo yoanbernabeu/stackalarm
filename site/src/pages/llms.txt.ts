@@ -17,7 +17,7 @@ export const GET: APIRoute = () => {
 - Every item has a stage: ${stages.map((s) => `${s} (${count(s)} sources)`).join(", ")}. A heads-up is a security release announced ahead, the most valuable signal.
 - Sources that cannot be read are always reported. The CLI sends only what it is given: tags and keywords to the CVE databases (NVD, EUVD), package names to the GitHub Advisory Database; no telemetry.
 
-Install: \`brew install yoanbernabeu/tap/stackalarm\` (or \`curl -sSL ${raw}/install.sh | sh\`), then \`npx skills add yoanbernabeu/stackalarm\`.
+Install: \`npx skills add yoanbernabeu/stackalarm\`. On its first run, the skill offers to install the CLI (\`brew install yoanbernabeu/tap/stackalarm\`, or \`curl -sSL ${raw}/install.sh | sh\`).
 
 ## Docs
 

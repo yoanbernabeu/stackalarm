@@ -1,0 +1,5 @@
+Contact: https://github.com/yoanbernabeu/stackalarm/security/advisories/new
+Expires: 2027-10-24T00:00:00.000Z
+Policy: https://github.com/yoanbernabeu/stackalarm/blob/main/SECURITY.md
+Preferred-Languages: en, fr
+Canonical: https://stackalarm.dev/.well-known/security.txt

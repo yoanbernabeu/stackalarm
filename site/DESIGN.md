@@ -33,3 +33,4 @@ Prompt used for generation (16:9):
 - `/llms.txt` follows llmstxt.org and links to the raw README, skill, action and CI files; `/llms-full.txt` holds the README and the skill in one file. Both are built from the repository, like the source count.
 - `robots.txt` lets every crawler in, AI ones included, and points to `sitemap.xml`.
 - Published by `.github/workflows/site.yml` to GitHub Pages, on the domain in `public/CNAME`.
+- Icon: the `/` of `/stackalarm` in the lamp orange on night (`public/favicon.svg`), readable at 16px. `favicon.ico`, `apple-touch-icon.png` and the PWA icons are rendered from the same drawing; the Apple and PWA ones are full-bleed because those platforms round the corners themselves.

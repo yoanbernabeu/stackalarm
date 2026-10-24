@@ -59,7 +59,8 @@ stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --sinc
 - The same vulnerability often shows up in several sources (vendor, NVD, EUVD, CERTs, press). Merge them into one finding and keep the most official link. A public exploit (Exploit-DB) or an `Exploited in the wild` entry raises the urgency.
 - CVE database items carry a `score` (CVSS). Searching a common word such as `php` returns many CVEs of plugins and libraries the project does not use, and the per-ecosystem GitHub Advisory Database lists packages from the whole ecosystem: keep only those that match what you found in the project, including transitive dependencies from the lockfile (a library pulled by another one counts).
 - An item with `also_in` (or "also in" in the summary) was found in several vulnerability databases: it is one finding, not several.
-- Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear. `truncated` means a source had more entries than shown; narrow with more precise keywords if it matters.
+- Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear.
+- If GitHub sources failed on the rate limit ("set GITHUB_TOKEN"), anonymous requests are capped at 60 per hour. When `gh auth token` works, offer to run the command again with `GITHUB_TOKEN=$(gh auth token) stackalarm news …`: the token stays in that command's environment, is only sent to api.github.com, and is never printed. Otherwise, tell the user that any GitHub token, with no permission, lifts the cap. `truncated` means a source had more entries than shown; narrow with more precise keywords if it matters.
 - Some sources are in French (`language: fr`). Read them as they are.
 
 ## 3. Complete with a web search
@@ -155,7 +156,7 @@ A check only helps when someone runs it; a heads-up published on a Tuesday eveni
    `precision` is `exact`, `branch`, `range` or `unknown`. The file is committed and may be public: never write host names, internal URLs, IP addresses or anything secret in it (`gitlab`, not `gitlab.acme.internal`). Check it with `stackalarm news --profile .stackalarm.yaml --since 24h`.
 2. **Add the schedule**, depending on where the project lives:
    - GitHub: copy https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/github/stackalarm.yml to `.github/workflows/stackalarm.yml`. Tell the user about the `ANTHROPIC_API_KEY` secret: with it, Claude judges each new item and an issue is opened only when the project is concerned, at the cost of API usage on the runs that find something; without it, every new heads-up, alert or security release opens an issue with the raw news.
-   - GitLab: add the `include:` shown at the top of https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/gitlab/stackalarm.yml to `.gitlab-ci.yml`, then explain the two steps only the user can do: the `STACKALARM_GITLAB_TOKEN` variable and the pipeline schedule.
+   - GitLab: add the `include:` shown at the top of https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/gitlab/stackalarm.yml to `.gitlab-ci.yml`, then explain the steps only the user can do: the `STACKALARM_GITLAB_TOKEN` variable and the pipeline schedule. Recommend a `GITHUB_TOKEN` variable too (a GitHub token with no permission): shared runners share their IP, and the GitHub advisory sources allow 60 anonymous requests per hour per IP.
 
 When the project already has a profile, update it instead if step 1 found differences, and say what changed.
 

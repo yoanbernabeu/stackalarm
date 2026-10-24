@@ -46,6 +46,10 @@ stack:
   </p>
   <Code label=".github/workflows/stackalarm.yml" code={githubWorkflow} />
   <p>
+    No token to create: the workflow's automatic <code>github.token</code> opens the issue and lifts the GitHub API cap. The optional secrets
+    are <code>ANTHROPIC_API_KEY</code> (the triage, below) and <code>NVD_API_KEY</code>.
+  </p>
+  <p>
     The workflow uses the <code>yoanbernabeu/stackalarm</code> action, which you can also call from your own workflows. Its inputs and outputs,
     as declared in <a href={`${repo}/blob/main/action.yml`}><code>action.yml</code></a>:
   </p>
@@ -105,6 +109,21 @@ stack:
     </li>
     <li>Create a pipeline schedule (Build &gt; Pipeline schedules), every 4 hours: <code>17 */4 * * *</code>. The job runs only on schedules.</li>
   </ol>
+  <p>Two optional variables, read by the CLI as on your machine:</p>
+  <table>
+    <thead><tr><th scope="col">Variable</th><th scope="col">Why</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>GITHUB_TOKEN</code></td>
+        <td>
+          Recommended on shared runners. The GitHub advisory sources allow 60 anonymous requests per hour per IP, and shared runners share
+          their IP with many other jobs: without a token, those sources often fail. Use a GitHub token with no permission at all (a
+          fine-grained token with public repositories, read-only), masked.
+        </td>
+      </tr>
+      <tr><td><code>NVD_API_KEY</code></td><td>Faster NVD searches. <a href="https://nvd.nist.gov/developers/request-an-api-key">Free</a>.</td></tr>
+    </tbody>
+  </table>
   <p>The job's variables, which you can override:</p>
   <table>
     <thead><tr><th scope="col">Variable</th><th scope="col">Default</th></tr></thead>

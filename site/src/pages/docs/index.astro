@@ -26,20 +26,34 @@ import { repo, raw } from "../../lib/repo";
   </p>
   <Code code="go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest" />
 
-  <h3>Two optional keys</h3>
+  <h3 id="keys">Two optional keys</h3>
+  <p>stackalarm works without any key. Two environment variables make it fuller and faster:</p>
   <table>
     <thead><tr><th scope="col">Variable</th><th scope="col">What it changes</th></tr></thead>
     <tbody>
-      <tr><td><code>GITHUB_TOKEN</code> or <code>GH_TOKEN</code></td><td>Raises the GitHub API rate limit, used by the GitHub advisory sources.</td></tr>
+      <tr>
+        <td><code>GITHUB_TOKEN</code> or <code>GH_TOKEN</code></td>
+        <td>
+          Lifts the GitHub API cap. 26 sources go through it (the GitHub Advisory Database per ecosystem, and the security advisories of
+          projects such as Astro or Next.js); only those matching your tags are read. Anonymous requests are capped at 60 per hour per IP:
+          past that, those sources fail, and the output says so. Any token works, with no permission at all: the data is public.
+        </td>
+      </tr>
       <tr>
         <td><code>NVD_API_KEY</code></td>
         <td>
-          NVD searches go from one request every 6 seconds to more than one per second.
+          NVD searches go from one request every 6 seconds to about one every 0.7 seconds.
           <a href="https://nvd.nist.gov/developers/request-an-api-key">Request a key</a>, it is free.
         </td>
       </tr>
     </tbody>
   </table>
+  <p>If you use the GitHub CLI, your existing login is enough:</p>
+  <Code code="export GITHUB_TOKEN=$(gh auth token)" />
+  <p>
+    When GitHub sources fail on the cap and <code>gh</code> is logged in, the skill offers to run the CLI again this way. The token is only sent
+    to api.github.com.
+  </p>
 
   <h2 id="run">Run a check</h2>
   <p>Open a project in your agent and call the skill by name. Anything you add after it becomes the focus of the check:</p>

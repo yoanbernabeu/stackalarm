@@ -7,6 +7,10 @@
 #    token with the api scope and the Reporter role, to open the issues.
 # 3. Create a pipeline schedule (Build > Pipeline schedules), every 4 hours:
 #    17 */4 * * *
+# 4. Recommended on shared runners: a CI/CD variable GITHUB_TOKEN (masked), a
+#    GitHub token with no permission at all. The GitHub advisory sources allow
+#    60 anonymous requests per hour per IP, and shared runners share their IP.
+#    Optional: NVD_API_KEY, to search the NVD faster.
 #
 # The job reads the .stackalarm.yaml profile the stackalarm skill wrote, and
 # opens an issue when a heads-up, an alert or a security release is new. The

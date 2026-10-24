@@ -1,5 +1,5 @@
 name: stackalarm watch
-description: Watch the security news of your stack on a schedule, and open an issue only when your project is concerned.
+description: Watch the security news of your stack on a schedule. With Claude, open an issue only when your project is concerned.
 author: Yoan Bernabeu
 branding:
   icon: bell

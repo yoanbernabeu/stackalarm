@@ -998,11 +998,13 @@ main > section:not(.hero) {
   min-height: 44px;
   text-decoration: none;
   font-weight: 500;
+  color: var(--muted);
 }
 
+/* The current section is marked by colour, like the sidebar: an underline made "Docs" look lower than "GitHub". */
 .docs-header nav a[aria-current="page"],
 .docs-header nav a:hover {
-  text-decoration: underline;
+  color: var(--text);
 }
 
 .docs-grid {

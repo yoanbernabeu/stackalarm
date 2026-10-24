@@ -435,3 +435,24 @@ func TestItemIDsAreStableAcrossDatabases(t *testing.T) {
 		t.Fatalf("ids: nvd %q, euvd %q", fromNVD, fromEUVD)
 	}
 }
+
+func TestLinksDoNotMatchTags(t *testing.T) {
+	feed := `<rss><channel>
+<item><title>Godot 4.x: heap out-of-bounds read</title><description>Fixed in https://github.com/godotengine/godot/pull/1 and github.com/godotengine/godot/pull/2</description><pubDate>Fri, 23 Oct 2026 10:00:00 +0000</pubDate></item>
+<item><title>GitHub Enterprise Server: critical flaw</title><pubDate>Fri, 23 Oct 2026 10:00:00 +0000</pubDate></item>
+<item><title>Node.js 22.23.4 security release</title><pubDate>Fri, 23 Oct 2026 10:00:00 +0000</pubDate></item>
+</channel></rss>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(feed)) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "oss-security", Type: source.TypeFeed, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageHeadsUp}},
+		Query{Tags: []string{"github", "node"}, Since: now.Add(-7 * 24 * time.Hour)})
+	var titles []string
+	for _, it := range res.Items {
+		titles = append(titles, it.Title)
+	}
+	if strings.Join(titles, ",") != "GitHub Enterprise Server: critical flaw,Node.js 22.23.4 security release" {
+		t.Fatalf("items: %v", titles)
+	}
+}

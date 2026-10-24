@@ -115,7 +115,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 					return true
 				}
 				if s.Type.IsSearch() { // the databases match loosely ("node.js" finds kernel "node"): check the whole term
-					text := e.Title + " " + e.Summary
+					text := matchText(e)
 					return !slices.ContainsFunc(words, func(re *regexp.Regexp) bool { return re.MatchString(text) })
 				}
 				return !keep(s, e, words)
@@ -233,7 +233,7 @@ func selectSources(sources []source.Source, tags []string) []source.Source {
 // keep applies the source keywords, and for a general source, the requested
 // tags and keywords.
 func keep(s source.Source, e entry, words []*regexp.Regexp) bool {
-	text := e.Title + " " + e.Summary
+	text := matchText(e)
 	if len(s.Keywords) > 0 && !slices.ContainsFunc(matchers(s.Keywords), func(re *regexp.Regexp) bool { return re.MatchString(text) }) {
 		return false
 	}
@@ -241,6 +241,14 @@ func keep(s source.Source, e entry, words []*regexp.Regexp) bool {
 		return slices.ContainsFunc(words, func(re *regexp.Regexp) bool { return re.MatchString(text) })
 	}
 	return true
+}
+
+// links are left out of the text words are matched against: a mailing list
+// post linking to github.com is not about GitHub.
+var links = regexp.MustCompile(`(?i)\bhttps?://\S+|\b(?:[\w-]+\.)+(?:com|org|net|io|dev)/\S*`)
+
+func matchText(e entry) string {
+	return links.ReplaceAllString(e.Title+" "+e.Summary, " ")
 }
 
 // matchers builds case-insensitive whole-word patterns ("node" matches

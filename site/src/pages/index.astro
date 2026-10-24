@@ -320,7 +320,7 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
 
       <section id="watch" class="watch" aria-labelledby="watch-title">
         <div class="wrap">
-          <h2 id="watch-title">The same check, every four hours, in your CI</h2>
+          <h2 id="watch-title">Keep watch every four hours, in your CI</h2>
           <p class="intro">
             A check only helps when someone runs it. The scheduled watch runs the CLI in GitHub Actions or GitLab CI and opens an issue when a
             heads-up, an alert or a security release concerns your stack. Quiet runs cost nothing and open nothing.
@@ -362,12 +362,17 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
               <h3>With Claude as the triage, on GitHub</h3>
               <p>
                 Raw news is not a verdict: a Go release the project already runs is news, not a reason to act. Set the secret
-                <code>ANTHROPIC_API_KEY</code> and, when the CLI finds something new, Claude runs the skill on the project. API usage happens only on
-                the runs that find something.
+                <code>ANTHROPIC_API_KEY</code> and, when the CLI finds something new, Claude runs the skill on the project. Claude is called only on
+                the runs that find something new.
               </p>
               <p class="muted small">
-                The agent can only write its answer files: it cannot open issues nor change the repository. The items already reported are kept in
-                the CI cache, saved only after the issue is opened: an item may be reported twice, never missed.
+                Claude reads text written by others (feeds, advisories, web pages), so it runs locked down: it reads the project, searches the
+                web, runs read-only audits and writes its verdict. It cannot open issues, push or change the project's files; the action opens
+                the issue from that verdict.
+              </p>
+              <p class="muted small">
+                Each item is reported once: the CI cache keeps the list of items already handled, saved only once the run has dealt with them
+                (issue opened, or none needed). If something fails, an item may be reported twice, never missed.
               </p>
             </div>
             <div class="table-scroll" role="region" aria-label="What each run does" tabindex="0">
@@ -376,7 +381,7 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
                   <tr><th scope="col">The run finds</th><th scope="col">What happens</th></tr>
                 </thead>
                 <tbody>
-                  <tr><td>Nothing new</td><td>Nothing is opened. No API call.</td></tr>
+                  <tr><td>Nothing new</td><td>Nothing is opened. Claude is not called.</td></tr>
                   <tr><td>New items, triage says <code>act</code> or <code>prepare</code></td><td>An issue, verdict first, the raw news folded below.</td></tr>
                   <tr><td>New items, triage says <code>none</code></td><td>No issue. The verdict stays in the run summary.</td></tr>
                   <tr class="override"><td>Triage says <code>none</code>, but a watched technology is exploited in the wild (CISA KEV, EUVD)</td><td>An issue anyway.</td></tr>
@@ -393,9 +398,9 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
         <div class="wrap narrow">
           <h2 id="privacy-title">What leaves your machine</h2>
           <p>
-            The CLI downloads public feeds and queries public APIs. The only thing it sends is the tags and keywords it is given, as search terms to
-            the CVE databases (NVD, EUVD): nothing about your project, and no telemetry. The skill runs your own audit tools locally, and its web
-            searches go through your agent.
+            The CLI downloads public feeds and queries public APIs. It sends only what it is given: tags and keywords, as search terms to the
+            CVE databases (NVD, EUVD), and package names, to the GitHub Advisory Database. Nothing else about your project, and no telemetry. The
+            skill runs your own audit tools locally, and its web searches go through your agent.
           </p>
         </div>
       </section>

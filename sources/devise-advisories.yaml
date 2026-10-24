@@ -1,0 +1,6 @@
+id: devise-advisories
+name: Devise security advisories (GitHub)
+type: github-advisories
+repo: heartcombo/devise
+tags: [devise]
+stage: advisory

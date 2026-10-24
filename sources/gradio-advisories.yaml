@@ -1,0 +1,6 @@
+id: gradio-advisories
+name: Gradio security advisories (GitHub)
+type: github-advisories
+repo: gradio-app/gradio
+tags: [gradio]
+stage: advisory

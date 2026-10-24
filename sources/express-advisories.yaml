@@ -1,0 +1,6 @@
+id: express-advisories
+name: Express security advisories (GitHub)
+type: github-advisories
+repo: expressjs/express
+tags: [express]
+stage: advisory

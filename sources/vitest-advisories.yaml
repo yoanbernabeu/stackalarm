@@ -1,0 +1,6 @@
+id: vitest-advisories
+name: Vitest security advisories (GitHub)
+type: github-advisories
+repo: vitest-dev/vitest
+tags: [vitest]
+stage: advisory

@@ -1,0 +1,6 @@
+id: containerd-advisories
+name: containerd security advisories (GitHub)
+type: github-advisories
+repo: containerd/containerd
+tags: [containerd]
+stage: advisory

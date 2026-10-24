@@ -1,0 +1,6 @@
+id: bun-advisories
+name: Bun security advisories (GitHub)
+type: github-advisories
+repo: oven-sh/bun
+tags: [bun]
+stage: advisory

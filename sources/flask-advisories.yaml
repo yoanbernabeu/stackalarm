@@ -1,0 +1,6 @@
+id: flask-advisories
+name: Flask security advisories (GitHub)
+type: github-advisories
+repo: pallets/flask
+tags: [flask]
+stage: advisory

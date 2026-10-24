@@ -1,0 +1,6 @@
+id: redis-advisories
+name: Redis security advisories (GitHub)
+type: github-advisories
+repo: redis/redis
+tags: [redis]
+stage: advisory

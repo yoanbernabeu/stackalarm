@@ -1,0 +1,6 @@
+id: tauri-advisories
+name: Tauri security advisories (GitHub)
+type: github-advisories
+repo: tauri-apps/tauri
+tags: [tauri]
+stage: advisory

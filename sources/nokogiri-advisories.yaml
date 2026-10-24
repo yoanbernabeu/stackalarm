@@ -1,0 +1,6 @@
+id: nokogiri-advisories
+name: Nokogiri security advisories (GitHub)
+type: github-advisories
+repo: sparklemotion/nokogiri
+tags: [nokogiri]
+stage: advisory

@@ -1,0 +1,6 @@
+id: better-auth-advisories
+name: Better Auth security advisories (GitHub)
+type: github-advisories
+repo: better-auth/better-auth
+tags: [better-auth]
+stage: advisory

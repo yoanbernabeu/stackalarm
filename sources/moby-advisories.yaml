@@ -1,0 +1,6 @@
+id: moby-advisories
+name: Moby (Docker Engine) security advisories (GitHub)
+type: github-advisories
+repo: moby/moby
+tags: [docker]
+stage: advisory

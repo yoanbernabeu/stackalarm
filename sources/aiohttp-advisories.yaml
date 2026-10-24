@@ -1,0 +1,6 @@
+id: aiohttp-advisories
+name: aiohttp security advisories (GitHub)
+type: github-advisories
+repo: aio-libs/aiohttp
+tags: [aiohttp]
+stage: advisory

@@ -1,0 +1,6 @@
+id: payload-advisories
+name: Payload CMS security advisories (GitHub)
+type: github-advisories
+repo: payloadcms/payload
+tags: [payloadcms]
+stage: advisory

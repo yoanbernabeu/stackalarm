@@ -1,0 +1,6 @@
+id: runc-advisories
+name: runc security advisories (GitHub)
+type: github-advisories
+repo: opencontainers/runc
+tags: [runc, docker]
+stage: advisory

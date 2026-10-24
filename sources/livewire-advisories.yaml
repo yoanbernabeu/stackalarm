@@ -1,0 +1,6 @@
+id: livewire-advisories
+name: Livewire security advisories (GitHub)
+type: github-advisories
+repo: livewire/livewire
+tags: [livewire]
+stage: advisory

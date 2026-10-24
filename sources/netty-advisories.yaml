@@ -1,0 +1,6 @@
+id: netty-advisories
+name: Netty security advisories (GitHub)
+type: github-advisories
+repo: netty/netty
+tags: [netty]
+stage: advisory

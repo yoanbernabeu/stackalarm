@@ -1,0 +1,6 @@
+id: prestashop-advisories
+name: PrestaShop security advisories (GitHub)
+type: github-advisories
+repo: PrestaShop/PrestaShop
+tags: [prestashop]
+stage: advisory

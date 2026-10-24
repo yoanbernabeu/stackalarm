@@ -1,0 +1,6 @@
+id: streamlit-advisories
+name: Streamlit security advisories (GitHub)
+type: github-advisories
+repo: streamlit/streamlit
+tags: [streamlit]
+stage: advisory

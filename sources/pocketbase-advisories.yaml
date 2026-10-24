@@ -1,0 +1,6 @@
+id: pocketbase-advisories
+name: PocketBase security advisories (GitHub)
+type: github-advisories
+repo: pocketbase/pocketbase
+tags: [pocketbase]
+stage: advisory

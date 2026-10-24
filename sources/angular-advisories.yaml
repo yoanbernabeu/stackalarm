@@ -1,0 +1,6 @@
+id: angular-advisories
+name: Angular security advisories (GitHub)
+type: github-advisories
+repo: angular/angular
+tags: [angular]
+stage: advisory

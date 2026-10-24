@@ -1,0 +1,6 @@
+id: helm-advisories
+name: Helm security advisories (GitHub)
+type: github-advisories
+repo: helm/helm
+tags: [helm]
+stage: advisory

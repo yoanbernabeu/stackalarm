@@ -1,0 +1,6 @@
+id: twig-advisories
+name: Twig security advisories (GitHub)
+type: github-advisories
+repo: twigphp/Twig
+tags: [twig]
+stage: advisory

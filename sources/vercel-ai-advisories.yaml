@@ -1,0 +1,6 @@
+id: vercel-ai-advisories
+name: Vercel AI SDK security advisories (GitHub)
+type: github-advisories
+repo: vercel/ai
+tags: [ai-sdk]
+stage: advisory

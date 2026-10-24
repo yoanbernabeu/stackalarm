@@ -1,0 +1,6 @@
+id: mcp-python-sdk-advisories
+name: MCP Python SDK security advisories (GitHub)
+type: github-advisories
+repo: modelcontextprotocol/python-sdk
+tags: [mcp]
+stage: advisory

@@ -1,0 +1,6 @@
+id: deno-advisories
+name: Deno security advisories (GitHub)
+type: github-advisories
+repo: denoland/deno
+tags: [deno]
+stage: advisory

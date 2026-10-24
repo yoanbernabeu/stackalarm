@@ -1,0 +1,6 @@
+id: phoenix-advisories
+name: Phoenix security advisories (GitHub)
+type: github-advisories
+repo: phoenixframework/phoenix
+tags: [phoenix]
+stage: advisory

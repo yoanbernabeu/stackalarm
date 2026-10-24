@@ -1,0 +1,6 @@
+id: argo-cd-advisories
+name: Argo CD security advisories (GitHub)
+type: github-advisories
+repo: argoproj/argo-cd
+tags: [argocd]
+stage: advisory

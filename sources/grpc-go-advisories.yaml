@@ -1,0 +1,6 @@
+id: grpc-go-advisories
+name: gRPC-Go security advisories (GitHub)
+type: github-advisories
+repo: grpc/grpc-go
+tags: [grpc-go]
+stage: advisory

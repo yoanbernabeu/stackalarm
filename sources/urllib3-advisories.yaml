@@ -1,0 +1,6 @@
+id: urllib3-advisories
+name: urllib3 security advisories (GitHub)
+type: github-advisories
+repo: urllib3/urllib3
+tags: [urllib3]
+stage: advisory

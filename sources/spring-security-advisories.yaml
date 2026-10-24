@@ -1,0 +1,6 @@
+id: spring-security-advisories
+name: Spring security advisories (Framework, Boot, Security, Cloud…)
+type: feed
+url: "https://spring.io/security.atom"
+tags: [spring]
+stage: advisory

@@ -1,0 +1,6 @@
+id: nestjs-advisories
+name: NestJS security advisories (GitHub)
+type: github-advisories
+repo: nestjs/nest
+tags: [nestjs]
+stage: advisory

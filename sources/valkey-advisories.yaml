@@ -1,0 +1,6 @@
+id: valkey-advisories
+name: Valkey security advisories (GitHub)
+type: github-advisories
+repo: valkey-io/valkey
+tags: [valkey]
+stage: advisory

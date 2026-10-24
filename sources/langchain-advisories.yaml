@@ -1,0 +1,6 @@
+id: langchain-advisories
+name: LangChain security advisories (GitHub)
+type: github-advisories
+repo: langchain-ai/langchain
+tags: [langchain]
+stage: advisory

@@ -1,0 +1,6 @@
+id: kirby-advisories
+name: Kirby CMS security advisories (GitHub)
+type: github-advisories
+repo: getkirby/kirby
+tags: [kirby]
+stage: advisory

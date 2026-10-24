@@ -1,0 +1,6 @@
+id: prometheus-advisories
+name: Prometheus security advisories (GitHub)
+type: github-advisories
+repo: prometheus/prometheus
+tags: [prometheus]
+stage: advisory

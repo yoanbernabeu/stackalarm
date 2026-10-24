@@ -1,0 +1,6 @@
+id: sylius-advisories
+name: Sylius security advisories (GitHub)
+type: github-advisories
+repo: Sylius/Sylius
+tags: [sylius]
+stage: advisory

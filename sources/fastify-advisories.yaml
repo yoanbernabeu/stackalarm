@@ -1,0 +1,6 @@
+id: fastify-advisories
+name: Fastify security advisories (GitHub)
+type: github-advisories
+repo: fastify/fastify
+tags: [fastify]
+stage: advisory

@@ -1,0 +1,6 @@
+id: traefik-advisories
+name: Traefik security advisories (GitHub)
+type: github-advisories
+repo: traefik/traefik
+tags: [traefik]
+stage: advisory

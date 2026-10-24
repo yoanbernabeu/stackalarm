@@ -1,0 +1,6 @@
+id: codeigniter-advisories
+name: CodeIgniter 4 security advisories (GitHub)
+type: github-advisories
+repo: codeigniter4/CodeIgniter4
+tags: [codeigniter]
+stage: advisory

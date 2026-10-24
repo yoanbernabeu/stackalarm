@@ -1,0 +1,6 @@
+id: caddy-advisories
+name: Caddy security advisories (GitHub)
+type: github-advisories
+repo: caddyserver/caddy
+tags: [caddy]
+stage: advisory

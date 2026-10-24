@@ -1,0 +1,6 @@
+id: starlette-advisories
+name: Starlette (the toolkit under FastAPI) security advisories (GitHub)
+type: github-advisories
+repo: encode/starlette
+tags: [starlette, fastapi]
+stage: advisory

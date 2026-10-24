@@ -1,0 +1,6 @@
+id: minio-advisories
+name: MinIO security advisories (GitHub)
+type: github-advisories
+repo: minio/minio
+tags: [minio]
+stage: advisory

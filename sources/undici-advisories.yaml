@@ -1,0 +1,6 @@
+id: undici-advisories
+name: undici (the HTTP client of Node.js) security advisories (GitHub)
+type: github-advisories
+repo: nodejs/undici
+tags: [undici]
+stage: advisory

@@ -1,0 +1,6 @@
+id: jackson-databind-advisories
+name: Jackson databind security advisories (GitHub)
+type: github-advisories
+repo: FasterXML/jackson-databind
+tags: [jackson]
+stage: advisory

@@ -1,0 +1,6 @@
+id: rack-advisories
+name: Rack security advisories (GitHub)
+type: github-advisories
+repo: rack/rack
+tags: [rack]
+stage: advisory

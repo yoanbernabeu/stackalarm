@@ -1,0 +1,6 @@
+id: electron-advisories
+name: Electron security advisories (GitHub)
+type: github-advisories
+repo: electron/electron
+tags: [electron]
+stage: advisory

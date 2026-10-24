@@ -1,0 +1,6 @@
+id: gitea-advisories
+name: Gitea security advisories (GitHub)
+type: github-advisories
+repo: go-gitea/gitea
+tags: [gitea]
+stage: advisory

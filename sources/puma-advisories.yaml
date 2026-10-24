@@ -1,0 +1,6 @@
+id: puma-advisories
+name: Puma security advisories (GitHub)
+type: github-advisories
+repo: puma/puma
+tags: [puma]
+stage: advisory

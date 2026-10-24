@@ -1,0 +1,6 @@
+id: home-assistant-advisories
+name: Home Assistant security advisories (GitHub)
+type: github-advisories
+repo: home-assistant/core
+tags: [home-assistant]
+stage: advisory

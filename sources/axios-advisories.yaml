@@ -1,0 +1,6 @@
+id: axios-advisories
+name: Axios security advisories (GitHub)
+type: github-advisories
+repo: axios/axios
+tags: [axios]
+stage: advisory

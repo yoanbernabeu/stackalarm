@@ -1,0 +1,6 @@
+id: filament-advisories
+name: Filament security advisories (GitHub)
+type: github-advisories
+repo: filamentphp/filament
+tags: [filament]
+stage: advisory

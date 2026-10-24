@@ -1,0 +1,6 @@
+id: umbraco-advisories
+name: Umbraco CMS security advisories (GitHub)
+type: github-advisories
+repo: umbraco/Umbraco-CMS
+tags: [umbraco]
+stage: advisory

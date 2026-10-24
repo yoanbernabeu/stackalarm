@@ -1,0 +1,6 @@
+id: micronaut-advisories
+name: Micronaut security advisories (GitHub)
+type: github-advisories
+repo: micronaut-projects/micronaut-core
+tags: [micronaut]
+stage: advisory

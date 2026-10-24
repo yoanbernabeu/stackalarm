@@ -1,0 +1,6 @@
+id: tokio-advisories
+name: Tokio security advisories (GitHub)
+type: github-advisories
+repo: tokio-rs/tokio
+tags: [tokio]
+stage: advisory

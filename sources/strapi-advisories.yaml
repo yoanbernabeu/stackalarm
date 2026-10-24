@@ -1,0 +1,6 @@
+id: strapi-advisories
+name: Strapi security advisories (GitHub)
+type: github-advisories
+repo: strapi/strapi
+tags: [strapi]
+stage: advisory

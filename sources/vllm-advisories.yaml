@@ -1,0 +1,6 @@
+id: vllm-advisories
+name: vLLM security advisories (GitHub)
+type: github-advisories
+repo: vllm-project/vllm
+tags: [vllm]
+stage: advisory

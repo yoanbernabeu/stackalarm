@@ -1,0 +1,6 @@
+id: guzzle-advisories
+name: Guzzle security advisories (GitHub)
+type: github-advisories
+repo: guzzle/guzzle
+tags: [guzzle]
+stage: advisory

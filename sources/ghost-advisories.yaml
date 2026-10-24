@@ -1,0 +1,6 @@
+id: ghost-advisories
+name: Ghost security advisories (GitHub)
+type: github-advisories
+repo: TryGhost/Ghost
+tags: [ghost]
+stage: advisory

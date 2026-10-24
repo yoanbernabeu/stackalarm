@@ -1,0 +1,6 @@
+id: keycloak-advisories
+name: Keycloak security advisories (GitHub)
+type: github-advisories
+repo: keycloak/keycloak
+tags: [keycloak]
+stage: advisory

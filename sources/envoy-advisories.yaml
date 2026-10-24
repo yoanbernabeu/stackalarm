@@ -1,0 +1,6 @@
+id: envoy-advisories
+name: Envoy security advisories (GitHub)
+type: github-advisories
+repo: envoyproxy/envoy
+tags: [envoy]
+stage: advisory

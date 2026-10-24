@@ -1,0 +1,6 @@
+id: discourse-advisories
+name: Discourse security advisories (GitHub)
+type: github-advisories
+repo: discourse/discourse
+tags: [discourse]
+stage: advisory

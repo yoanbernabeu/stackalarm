@@ -1,0 +1,7 @@
+id: rust-blog
+name: Rust blog, security advisories and point releases
+type: feed
+url: "https://blog.rust-lang.org/feed.xml"
+tags: [rust]
+stage: release
+keywords: [security, CVE]

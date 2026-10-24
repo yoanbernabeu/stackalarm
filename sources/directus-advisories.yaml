@@ -1,0 +1,6 @@
+id: directus-advisories
+name: Directus security advisories (GitHub)
+type: github-advisories
+repo: directus/directus
+tags: [directus]
+stage: advisory

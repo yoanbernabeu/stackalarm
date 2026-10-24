@@ -1,0 +1,6 @@
+id: mlflow-advisories
+name: MLflow security advisories (GitHub)
+type: github-advisories
+repo: mlflow/mlflow
+tags: [mlflow]
+stage: advisory

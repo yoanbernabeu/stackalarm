@@ -1,0 +1,6 @@
+id: hono-advisories
+name: Hono security advisories (GitHub)
+type: github-advisories
+repo: honojs/hono
+tags: [hono]
+stage: advisory

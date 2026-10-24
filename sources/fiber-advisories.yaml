@@ -1,0 +1,6 @@
+id: fiber-advisories
+name: Fiber (Go) security advisories (GitHub)
+type: github-advisories
+repo: gofiber/fiber
+tags: [gofiber]
+stage: advisory

@@ -1,0 +1,6 @@
+id: craftcms-advisories
+name: Craft CMS security advisories (GitHub)
+type: github-advisories
+repo: craftcms/cms
+tags: [craftcms]
+stage: advisory

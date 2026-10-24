@@ -1,0 +1,6 @@
+id: shopware-advisories
+name: Shopware security advisories (GitHub)
+type: github-advisories
+repo: shopware/shopware
+tags: [shopware]
+stage: advisory

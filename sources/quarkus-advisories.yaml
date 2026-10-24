@@ -1,0 +1,6 @@
+id: quarkus-advisories
+name: Quarkus security advisories (GitHub)
+type: github-advisories
+repo: quarkusio/quarkus
+tags: [quarkus]
+stage: advisory

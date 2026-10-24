@@ -1,0 +1,6 @@
+id: wagtail-advisories
+name: Wagtail security advisories (GitHub)
+type: github-advisories
+repo: wagtail/wagtail
+tags: [wagtail]
+stage: advisory

@@ -8,6 +8,8 @@ aliases:
   nextjs: next.js
   go: golang
   dotnet: .net
+  # "echo" alone matches kernel and network CVEs (echo requests, Junos).
+  echo: labstack
 
 # Tags the CVE databases are not searched for. General sources (CERTs, KEV,
 # press) still match them, and an explicit --keyword is still searched.
@@ -25,3 +27,11 @@ skip:
   - pip
   - maven
   - nuget
+  # Frameworks the CVE databases name in the description of every app built
+  # with them. Their GitHub advisories source covers their own flaws.
+  - fastapi
+  - flask
+  - nestjs
+  - vue
+  - twig
+  - mcp

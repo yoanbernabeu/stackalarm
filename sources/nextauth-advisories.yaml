@@ -1,0 +1,6 @@
+id: nextauth-advisories
+name: NextAuth.js / Auth.js security advisories (GitHub)
+type: github-advisories
+repo: nextauthjs/next-auth
+tags: [next-auth, authjs]
+stage: advisory

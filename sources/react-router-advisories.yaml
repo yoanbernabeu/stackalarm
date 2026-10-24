@@ -1,0 +1,6 @@
+id: react-router-advisories
+name: React Router (and Remix) security advisories (GitHub)
+type: github-advisories
+repo: remix-run/react-router
+tags: [react-router, remix]
+stage: advisory

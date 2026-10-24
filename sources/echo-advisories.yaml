@@ -1,0 +1,6 @@
+id: echo-advisories
+name: Echo (Go) security advisories (GitHub)
+type: github-advisories
+repo: labstack/echo
+tags: [echo]
+stage: advisory

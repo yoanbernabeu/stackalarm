@@ -1,0 +1,6 @@
+id: mastodon-advisories
+name: Mastodon security advisories (GitHub)
+type: github-advisories
+repo: mastodon/mastodon
+tags: [mastodon]
+stage: advisory

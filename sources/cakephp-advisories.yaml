@@ -1,0 +1,6 @@
+id: cakephp-advisories
+name: CakePHP security advisories (GitHub)
+type: github-advisories
+repo: cakephp/cakephp
+tags: [cakephp]
+stage: advisory

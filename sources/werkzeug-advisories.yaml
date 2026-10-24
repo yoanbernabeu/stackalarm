@@ -1,0 +1,6 @@
+id: werkzeug-advisories
+name: Werkzeug (the toolkit under Flask) security advisories (GitHub)
+type: github-advisories
+repo: pallets/werkzeug
+tags: [werkzeug, flask]
+stage: advisory

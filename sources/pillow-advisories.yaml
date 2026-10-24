@@ -1,0 +1,6 @@
+id: pillow-advisories
+name: Pillow security advisories (GitHub)
+type: github-advisories
+repo: python-pillow/Pillow
+tags: [pillow]
+stage: advisory

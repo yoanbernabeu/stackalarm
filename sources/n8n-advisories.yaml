@@ -1,0 +1,6 @@
+id: n8n-advisories
+name: n8n security advisories (GitHub)
+type: github-advisories
+repo: n8n-io/n8n
+tags: [n8n]
+stage: advisory

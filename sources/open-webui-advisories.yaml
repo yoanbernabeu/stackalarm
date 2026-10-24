@@ -1,0 +1,6 @@
+id: open-webui-advisories
+name: Open WebUI security advisories (GitHub)
+type: github-advisories
+repo: open-webui/open-webui
+tags: [open-webui]
+stage: advisory

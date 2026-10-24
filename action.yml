@@ -87,6 +87,7 @@ runs:
         FAIL_ON: ${{ inputs.fail-on }}
       run: |
         report="$RUNNER_TEMP/stackalarm/report.md"
+        mkdir -p "$RUNNER_TEMP/stackalarm" # the install step, which creates it, may be skipped
         set +e
         stackalarm news --profile "$PROFILE" --since "$SINCE" --fail-on "$FAIL_ON" \
           --state "$RUNNER_TEMP/stackalarm/state" --format markdown > "$report"

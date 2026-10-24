@@ -4,7 +4,7 @@
 
 stackalarm is an agent skill and the CLI it relies on. Open a project in Claude Code, Codex, Cursor or another agent, run the skill, and the agent tells you what in this week's security news affects *this* repository, how urgent it is, and what to change.
 
-**[stackalarm.dev](https://stackalarm.dev)**: what it does, an example answer, and the scheduled watch for your CI.
+**[stackalarm.dev](https://stackalarm.dev)**: what it does and an example answer. **[Documentation](https://stackalarm.dev/docs/)**: the skill, every CLI option, the scheduled watch, the sources.
 
 ## How it works
 

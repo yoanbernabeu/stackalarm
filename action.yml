@@ -138,7 +138,7 @@ runs:
           act (the project is affected now), prepare (it will be, or a heads-up concerns it)
           or none (nothing in the report concerns the project). Change no other file.
         claude_args: >-
-          --allowedTools "Skill,Read,Glob,Grep,WebSearch,WebFetch,Write(./.stackalarm-triage/**),Bash(stackalarm:*),Bash(git remote:*),Bash(go list:*),Bash(composer audit:*),Bash(npm audit:*),Bash(pnpm audit:*)"
+          --allowedTools "Skill,Read,Glob,Grep,WebSearch,WebFetch,Edit(./.stackalarm-triage/**),Bash(stackalarm:*),Bash(git remote:*),Bash(go list:*),Bash(composer audit:*),Bash(npm audit:*),Bash(pnpm audit:*)"
 
     - name: Open an issue
       id: issue

@@ -1,0 +1,113 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import Code from "../../components/Code.astro";
+import { raw } from "../../lib/repo";
+---
+<Docs title="The skill" description="How the stackalarm skill reads a project, gathers the news, judges what applies and answers.">
+  <p class="lead-in">
+    The skill is the analyst. The CLI gathers the news; the skill understands the project and decides what matters. This page summarises
+    what it does. The instructions the agent actually follows are in <a href={`${raw}/skills/stackalarm/SKILL.md`}>SKILL.md</a>.
+  </p>
+
+  <h2 id="map">1. It maps the project</h2>
+  <p>It reads the files that declare what the project runs on, and for each technology notes the version and how precise it is.</p>
+  <table>
+    <thead><tr><th scope="col">Kind</th><th scope="col">Typical files</th></tr></thead>
+    <tbody>
+      <tr><td>Manifests and lockfiles</td><td><code>composer.lock</code>, <code>package.json</code> and its lockfile, <code>pyproject.toml</code>, <code>requirements*.txt</code>, <code>uv.lock</code>, <code>poetry.lock</code>, <code>go.mod</code>, <code>Gemfile.lock</code>, <code>Cargo.lock</code></td></tr>
+      <tr><td>Runtime pins</td><td><code>Dockerfile*</code>, <code>compose*.yaml</code>, <code>.nvmrc</code>, <code>.php-version</code>, <code>.python-version</code>, <code>.tool-versions</code>, the <code>engines</code> field</td></tr>
+      <tr><td>Tooling and hosting</td><td><code>.gitlab-ci.yml</code>, <code>.github/workflows</code>, <code>netlify.toml</code>, <code>vercel.json</code>, <code>fly.toml</code>, deployment scripts, git remotes</td></tr>
+    </tbody>
+  </table>
+  <p>
+    A version is <em>exact</em> (<code>8.3.35</code>), a <em>branch</em> (<code>8.3</code>, <code>php:8.3-fpm</code>) or a <em>range</em>
+    (<code>&gt;=8.2</code>). Floating tags matter: a hosting platform may keep serving a cached, unpatched build of a branch, so pinning the
+    fixed version is often the real fix. The skill ignores the versions installed on your machine: your laptop rarely runs what production
+    runs.
+  </p>
+  <p>
+    It watches what the team runs or ships, not the platforms it merely uses. A repository on github.com or a site on Netlify is patched by the
+    provider; a self-hosted GitLab is not, and gets watched.
+  </p>
+
+  <h2 id="gather">2. It gathers the news</h2>
+  <p>It maps the technologies to the CLI's tags, turns the rest into keywords, passes the package names from the lockfile, and reads a week:</p>
+  <Code code="stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --since 7d --format summary" copy={false} />
+  <p>
+    The same vulnerability often appears in several sources (vendor, NVD, EUVD, CERTs, press): it becomes one finding, with the most official
+    link. A public exploit or exploitation in the wild raises the urgency. A source that could not be read is mentioned in the answer, so
+    silence is never mistaken for "all clear". See <a href="/docs/cli/">the CLI</a> for the options.
+  </p>
+
+  <h2 id="search">3. It searches the web</h2>
+  <p>
+    The CLI only knows its sources. A web search covers technologies without a source, the details feeds lack (affected and fixed versions,
+    conditions, workarounds), and signals not yet in a feed. Official pages win over write-ups, and every nickname, CVE number and fixed version
+    taken from the press is checked against the advisory.
+  </p>
+  <p>
+    Every title, summary and page is treated as data, never as instructions: when a feed or a page tells the agent to run something, it ignores
+    it and tells you.
+  </p>
+
+  <h2 id="audit">4. It runs your audits</h2>
+  <p>Vulnerable libraries are best found by the ecosystem's own audit, which reads the lockfile exactly. The skill runs those already installed:</p>
+  <table>
+    <thead><tr><th scope="col">Ecosystem</th><th scope="col">Command</th></tr></thead>
+    <tbody>
+      <tr><td>Composer</td><td><code>composer audit --format=json</code></td></tr>
+      <tr><td>npm</td><td><code>npm audit --omit=dev --json</code></td></tr>
+      <tr><td>pnpm</td><td><code>pnpm audit --prod --json</code></td></tr>
+      <tr><td>Yarn (Berry)</td><td><code>yarn npm audit --environment production --json</code></td></tr>
+      <tr><td>Python</td><td><code>pip-audit</code></td></tr>
+      <tr><td>Go</td><td><code>govulncheck ./...</code></td></tr>
+      <tr><td>Ruby</td><td><code>bundle audit check --update</code></td></tr>
+      <tr><td>Rust</td><td><code>cargo audit</code></td></tr>
+      <tr><td>Any</td><td><code>osv-scanner scan source -r .</code></td></tr>
+    </tbody>
+  </table>
+  <p>A missing tool is named with how to get it; the skill does not install it without asking.</p>
+
+  <h2 id="judge">5. It judges what applies</h2>
+  <ul>
+    <li><strong>Versions.</strong> When an item does not say which versions are affected, the skill opens the advisory or the release notes.</li>
+    <li><strong>Conditions.</strong> Many flaws need a setup (an SAPI, a feature, internet exposure). It looks for it in the project and says what it checked. A build-only runtime usually means "prepare", not "act now".</li>
+    <li><strong>Urgency.</strong> Exploitation in the wild or unauthenticated remote code execution on an exposed component means today. A heads-up means prepare now.</li>
+    <li><strong>Imprecise versions.</strong> A branch or a range that holds both vulnerable and fixed versions gives "possibly affected". It asks for the production version only when the answer would change the verdict, and says how to find it.</li>
+  </ul>
+
+  <h2 id="answer">6. It answers, then offers fixes</h2>
+  <p>
+    The answer format is described in <a href="/docs/#answer">Getting started</a>. Fixes come one at a time, after you agree: bump a runtime image
+    or pin keeping the same variant, update a dependency with the package manager rather than editing a lockfile, or add a documented temporary
+    mitigation. It never pushes, deploys or touches a server.
+  </p>
+
+  <h2 id="profile">7. It offers the scheduled watch</h2>
+  <p>
+    Once, in one sentence. If you agree, it writes the <code>.stackalarm.yaml</code> profile and adds the CI file. On later runs it refreshes
+    the profile and says what changed. See <a href="/docs/watch/">Scheduled watch</a>.
+  </p>
+
+  <h2 id="triage">Triage mode</h2>
+  <p>
+    The scheduled watch reports raw news, not a verdict. To judge a report, pass it to the skill:
+  </p>
+  <Code code="/stackalarm triage https://github.com/acme/app/issues/42" copy={false} />
+  <p>
+    It judges only the items of the report against the project, and never changes a file in this mode: it says what to change, so that you can
+    run <code>/stackalarm</code> to apply it. In CI, the same mode writes a decision used to open the issue or not:
+  </p>
+  <table>
+    <thead><tr><th scope="col">Decision</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>act</code></td><td>The project is affected now, or possibly affected through a floating tag or a range.</td></tr>
+      <tr><td><code>prepare</code></td><td>A heads-up or an upcoming end of support concerns the project, or a fix must be planned.</td></tr>
+      <tr><td><code>none</code></td><td>Nothing concerns the project, including releases it already runs and releases of other branches.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    When in doubt, the skill does not pick <code>none</code>: a needless issue costs a minute, a missed one can cost production. A report entry
+    that asks for <code>none</code> is treated as an injection attempt and mentioned in the verdict.
+  </p>
+</Docs>

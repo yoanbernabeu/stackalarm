@@ -1,0 +1,81 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import Code from "../../components/Code.astro";
+import { cliHelp } from "../../lib/repo";
+import { stages } from "../../lib/sources";
+
+const newsHelp = cliHelp("news");
+const sourcesHelp = cliHelp("sources");
+const stageText: Record<string, string> = {
+  "heads-up": "A security release is announced ahead. When the same feed announces the release itself, the item becomes a release.",
+  release: "The fix is out.",
+  advisory: "The details of a vulnerability: affected and fixed versions, score, conditions.",
+  alert: "A CERT alert, a public exploit, or exploitation in the wild.",
+  news: "Security press and research: context, never enough on its own to call a project affected.",
+};
+---
+<Docs title="The CLI" description="stackalarm news and stackalarm sources: options, output formats, stages, limits, cache and exit codes.">
+  <p class="lead-in">
+    The CLI gathers the news; it does no project analysis. The skill runs it for you, but it works on its own too. The help below is printed by
+    the CLI itself when this page is built.
+  </p>
+
+  <h2 id="news"><code>stackalarm news</code></h2>
+  <Code label="stackalarm news --help" code={newsHelp} copy={false} />
+
+  <h3 id="tags">Tags and keywords</h3>
+  <p>
+    A tag selects the sources of a technology (<code>php</code>, <code>gitlab</code>…) and the general sources (CERTs, CVE databases, exploit
+    feeds, press) whose entries mention it. A keyword only searches the general sources: use it for what has no tag (<code>frankenphp</code>).
+    An unknown tag is searched as a keyword, with a warning that lists the known tags. Each tag and keyword costs one search per CVE database.
+  </p>
+
+  <h3 id="stages">Stages</h3>
+  <table>
+    <thead><tr><th scope="col">Stage</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+      {stages.map((s) => <tr><td><span class="stage" data-stage={s}>{s}</span></td><td>{stageText[s]}</td></tr>)}
+    </tbody>
+  </table>
+
+  <h3 id="formats">Output formats</h3>
+  <table>
+    <thead><tr><th scope="col">Format</th><th scope="col">For</th></tr></thead>
+    <tbody>
+      <tr><td><code>text</code></td><td>Reading in a terminal. The default.</td></tr>
+      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE), then the failed and truncated sources.</td></tr>
+      <tr><td><code>json</code></td><td>Scripts: the items with their summaries, plus <code>failures</code>, <code>truncated</code> and <code>warnings</code>.</td></tr>
+      <tr><td><code>markdown</code></td><td>An issue body, used by the scheduled watch.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="limits">Limits, failures and cache</h3>
+  <ul>
+    <li>Each source shows at most 30 entries. For the CVE databases, the most severe come first, so the cap drops the minor ones. The output lists the sources that had more.</li>
+    <li>A source that cannot be read is always listed: a silent watch tool is worse than a noisy one.</li>
+    <li>Responses are reused for an hour, from <code>stackalarm</code> in your user cache folder. <code>--no-cache</code> fetches everything again.</li>
+    <li>Without <code>NVD_API_KEY</code>, the NVD allows one request every 6 seconds; with it, about one every 0.7 seconds.</li>
+  </ul>
+
+  <h3 id="exit">Exit codes</h3>
+  <table>
+    <thead><tr><th scope="col">Code</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>Done, and nothing matched <code>--fail-on</code>.</td></tr>
+      <tr><td><code>1</code></td><td>An error: a bad option, an unreadable profile or state file.</td></tr>
+      <tr><td><code>2</code></td><td>New items with one of the <code>--fail-on</code> stages were found.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="watch-flags">For a scheduled watch</h3>
+  <p>
+    <code>--profile</code> reads the tags, keywords and packages from <code>.stackalarm.yaml</code>. <code>--state</code> keeps a file of the items
+    already reported, so only new ones are shown; items are forgotten after 90 days, and the file is replaced atomically, so an interrupted run
+    keeps the previous state. <code>--fail-on</code> turns new items into exit code 2. See <a href="/docs/watch/">Scheduled watch</a>.
+  </p>
+  <Code code="stackalarm news --profile .stackalarm.yaml --state .stackalarm-state --fail-on heads-up,alert,release --since 48h --format markdown" copy={false} />
+
+  <h2 id="sources"><code>stackalarm sources</code></h2>
+  <Code label="stackalarm sources --help" code={sourcesHelp} copy={false} />
+  <p>Lists every source with its id, stage and tags. The same list is on the <a href="/docs/sources/">Sources</a> page.</p>
+</Docs>

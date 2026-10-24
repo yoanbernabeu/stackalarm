@@ -1,0 +1,130 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import Code from "../../components/Code.astro";
+import { actionSpec, ciFile, gitlabVariables, repo, raw } from "../../lib/repo";
+
+const action = actionSpec();
+const githubWorkflow = ciFile("ci/github/stackalarm.yml");
+const gitlabVars = gitlabVariables();
+const profile = `# Written by the stackalarm skill, refreshed on each /stackalarm run.
+tags: [php, symfony, composer, gitlab, docker]
+keywords: [frankenphp]
+packages: [symfony/http-kernel, twig/twig]
+stack:
+  - {name: php, version: "8.3", precision: branch, from: Dockerfile}
+  - {name: gitlab, version: unknown, precision: unknown, from: git remote}`;
+---
+<Docs title="Scheduled watch" description="Run stackalarm every 4 hours in GitHub Actions or GitLab CI, and get an issue when new security news concerns the project.">
+  <p class="lead-in">
+    A check only helps when someone runs it. The scheduled watch runs the CLI every 4 hours in your CI and opens an issue when a heads-up, an
+    alert or a security release is new for your stack. Quiet runs cost nothing and open nothing.
+  </p>
+
+  <h2 id="profile">The profile</h2>
+  <p>
+    The watch reads <code>.stackalarm.yaml</code> at the root of the project. The skill writes it at the end of a <code>/stackalarm</code> run
+    when you accept the watch, and refreshes it on later runs.
+  </p>
+  <Code label=".stackalarm.yaml" code={profile} copy={false} />
+  <table>
+    <thead><tr><th scope="col">Field</th><th scope="col">Use</th></tr></thead>
+    <tbody>
+      <tr><td><code>tags</code></td><td>Technologies to watch, as in <code>--tag</code>.</td></tr>
+      <tr><td><code>keywords</code></td><td>Words searched in the general sources, as in <code>--keyword</code>.</td></tr>
+      <tr><td><code>packages</code></td><td>Package names from the lockfile, as in <code>--package</code>.</td></tr>
+      <tr><td><code>stack</code></td><td>What the skill found, with the version, its precision (<code>exact</code>, <code>branch</code>, <code>range</code>, <code>unknown</code>) and the file it came from. Shown in reports, never used to filter.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The file is committed and may be public: it never holds host names, internal URLs, IP addresses or secrets (<code>gitlab</code>, not
+    <code>gitlab.acme.internal</code>). Check it with <code>stackalarm news --profile .stackalarm.yaml --since 24h</code>.
+  </p>
+
+  <h2 id="github">GitHub Actions</h2>
+  <p>
+    Copy <a href={`${repo}/blob/main/ci/github/stackalarm.yml`}><code>ci/github/stackalarm.yml</code></a> to <code>.github/workflows/</code>:
+  </p>
+  <Code label=".github/workflows/stackalarm.yml" code={githubWorkflow} />
+  <p>
+    The workflow uses the <code>yoanbernabeu/stackalarm</code> action, which you can also call from your own workflows. Its inputs and outputs,
+    as declared in <a href={`${repo}/blob/main/action.yml`}><code>action.yml</code></a>:
+  </p>
+  <div class="table-wrap" role="region" aria-label="Action inputs" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">Input</th><th scope="col">Default</th><th scope="col">Description</th></tr></thead>
+      <tbody>
+        {action.inputs.map((i) => <tr><td><code>{i.name}</code></td><td>{i.default ? <code>{i.default}</code> : <span class="muted">empty</span>}</td><td>{i.description}</td></tr>)}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-wrap" role="region" aria-label="Action outputs" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">Output</th><th scope="col">Description</th></tr></thead>
+      <tbody>
+        {action.outputs.map((o) => <tr><td><code>{o.name}</code></td><td>{o.description}</td></tr>)}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="triage">Triage by Claude</h3>
+  <p>
+    Raw news is not a verdict: a Go release the project already runs is news, not a reason to act. With the <code>ANTHROPIC_API_KEY</code>
+    secret, when the CLI finds something new, Claude runs the skill in <a href="/docs/skill/#triage">triage mode</a> and the issue depends on
+    its decision. Claude is called only on the runs that find something new.
+  </p>
+  <div class="table-wrap" role="region" aria-label="What each run does" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">The run finds</th><th scope="col">What happens</th></tr></thead>
+      <tbody>
+        <tr><td>Nothing new</td><td>Nothing is opened. Claude is not called.</td></tr>
+        <tr><td>New items, decision <code>act</code></td><td>An issue "stackalarm: act now", verdict first, the raw news folded below.</td></tr>
+        <tr><td>New items, decision <code>prepare</code></td><td>An issue "stackalarm: prepare", same layout.</td></tr>
+        <tr><td>New items, decision <code>none</code></td><td>No issue. The verdict stays in the run summary.</td></tr>
+        <tr><td>Decision <code>none</code>, but the report holds an item from CISA KEV or the EUVD exploited list</td><td>An issue anyway: a vulnerability exploited in the wild that names a watched technology always reaches a person.</td></tr>
+        <tr><td>New items, the triage fails</td><td>An issue with the raw news, saying the triage did not complete.</td></tr>
+        <tr><td>New items, no API key</td><td>An issue with the raw news. Judge it with <code>/stackalarm triage &lt;issue link&gt;</code> in your agent.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Claude reads text written by others, so it runs locked down. It cannot open issues, push or change the project's files: it can only write
+    its verdict and its decision, and the action opens the issue from them. The tools it is allowed, read from <code>action.yml</code>:
+  </p>
+  <ul class="tools">
+    {action.allowedTools.map((t) => <li><code>{t}</code></li>)}
+  </ul>
+
+  <h2 id="gitlab">GitLab CI</h2>
+  <p>Include the job in <code>.gitlab-ci.yml</code>:</p>
+  <Code label=".gitlab-ci.yml" code={`include:\n  - remote: ${raw}/ci/gitlab/stackalarm.yml`} />
+  <p>Then two steps only you can do:</p>
+  <ol>
+    <li>
+      Add a masked CI/CD variable <code>STACKALARM_GITLAB_TOKEN</code>: a project access token with the <code>api</code> scope and the Reporter
+      role, to open the issues.
+    </li>
+    <li>Create a pipeline schedule (Build &gt; Pipeline schedules), every 4 hours: <code>17 */4 * * *</code>. The job runs only on schedules.</li>
+  </ol>
+  <p>The job's variables, which you can override:</p>
+  <table>
+    <thead><tr><th scope="col">Variable</th><th scope="col">Default</th></tr></thead>
+    <tbody>
+      {Object.entries(gitlabVars).map(([k, v]) => <tr><td><code>{k}</code></td><td><code>{v}</code></td></tr>)}
+    </tbody>
+  </table>
+  <p>
+    GitLab has no triage by Claude: every new heads-up, alert or security release opens an issue with the raw news, to judge with
+    <code>/stackalarm triage &lt;issue link&gt;</code>. Without the token, the job fails instead of staying silent.
+  </p>
+
+  <h2 id="state">Each item reported once</h2>
+  <p>
+    The CI cache keeps a state file of the items already handled. It is saved only once the run has dealt with them (issue opened, or none
+    needed): if the issue cannot be opened, the next run reports the items again. An item may be reported twice, never missed. On GitLab
+    runners without a shared cache, a few items may be reported twice.
+  </p>
+  <p>
+    The watch looks back 48 hours by default, longer than the 4-hour schedule, so a delayed or failed run misses nothing; the state removes the
+    duplicates.
+  </p>
+</Docs>

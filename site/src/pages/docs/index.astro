@@ -1,0 +1,76 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import Code from "../../components/Code.astro";
+import { repo, raw } from "../../lib/repo";
+---
+<Docs title="Getting started" description="Install the stackalarm skill, run your first check, and read the answer.">
+  <p class="lead-in">
+    stackalarm is an agent skill and the CLI it relies on. You install the skill; it installs the CLI with your agreement, then answers one
+    question about the project in front of it: is there anything in this week's security news that affects us, and what should we do?
+  </p>
+
+  <h2 id="install">Install</h2>
+  <Code code="npx skills add yoanbernabeu/stackalarm" />
+  <p>
+    This works with Claude Code, Codex, Cursor and the other agents the <a href="https://skills.sh">skills</a> installer supports. The first
+    time you run <code>/stackalarm</code>, the skill checks for the CLI and, when it is missing, offers to install it with the command that
+    fits your machine. Nothing runs before you agree.
+  </p>
+  <p>To install the CLI yourself instead:</p>
+  <Code label="Homebrew (macOS, Linux)" code="brew install yoanbernabeu/tap/stackalarm" />
+  <Code label="Install script (macOS, Linux)" code={`curl -sSL ${raw}/install.sh | sh`} />
+  <p>
+    The script needs no <code>sudo</code>: it installs in <code>/usr/local/bin</code> when it can write there, otherwise in
+    <code>~/.local/bin</code>, and checks the archive against the release checksums. Set <code>STACKALARM_VERSION</code> to pick a version and
+    <code>INSTALL_DIR</code> to pick the folder. On Windows, download the zip from the <a href={`${repo}/releases`}>releases</a>, or use Go:
+  </p>
+  <Code code="go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest" />
+
+  <h3>Two optional keys</h3>
+  <table>
+    <thead><tr><th scope="col">Variable</th><th scope="col">What it changes</th></tr></thead>
+    <tbody>
+      <tr><td><code>GITHUB_TOKEN</code> or <code>GH_TOKEN</code></td><td>Raises the GitHub API rate limit, used by the GitHub advisory sources.</td></tr>
+      <tr>
+        <td><code>NVD_API_KEY</code></td>
+        <td>
+          NVD searches go from one request every 6 seconds to more than one per second.
+          <a href="https://nvd.nist.gov/developers/request-an-api-key">Request a key</a>, it is free.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="run">Run a check</h2>
+  <p>Open a project in your agent and call the skill by name. Anything you add after it becomes the focus of the check:</p>
+  <Code code={`/stackalarm\n/stackalarm before the Friday deploy\n/stackalarm are we affected by PHP2Shell?`} copy={false} />
+  <p>
+    In agents without slash commands, ask for it by name: "use the stackalarm skill". Calling it explicitly matters: asked "any security flaws
+    to fix?", agents tend to run <code>npm audit</code> or <code>composer audit</code> on their own, which only see library advisories and know
+    nothing of this week's runtime flaws or announced releases.
+  </p>
+
+  <h2 id="answer">Read the answer</h2>
+  <p>The answer comes in your language, verdict first, then the findings grouped by urgency. Empty groups are left out.</p>
+  <table>
+    <thead><tr><th scope="col">Part</th><th scope="col">What it holds</th></tr></thead>
+    <tbody>
+      <tr><td>Verdict</td><td>One sentence: nothing to do, prepare for X, or act today on Y.</td></tr>
+      <tr><td>Act now</td><td>The project is affected: what, why (the version and the file it comes from), the fix, a mitigation, the source.</td></tr>
+      <tr><td>Prepare / plan</td><td>A heads-up, an end of support, or a fix to plan without urgency.</td></tr>
+      <tr><td>Good to know</td><td>Context that does not call for action.</td></tr>
+      <tr><td>Checked / Not checked</td><td>The tags, keywords, searches and audits used, and what could not be checked: a source that failed, a missing tool, an unknown production version.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Then the agent offers to fix what lives in the repository (a runtime image, a dependency, a documented mitigation), one change at a time and
+    only after you agree. It never pushes, deploys or touches a server: what lives elsewhere is explained for you to do. See
+    <a href="/docs/skill/">the skill</a> for how it decides.
+  </p>
+
+  <h2 id="watch">Keep watch</h2>
+  <p>
+    At the end of a check, the agent offers to set up the <a href="/docs/watch/">scheduled watch</a>: the same news, read every 4 hours in
+    GitHub Actions or GitLab CI, with an issue when something new concerns the project.
+  </p>
+</Docs>

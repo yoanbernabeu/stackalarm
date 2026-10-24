@@ -1,6 +1,16 @@
 import type { APIRoute } from "astro";
 
-const pages = ["/", "/llms.txt", "/llms-full.txt"];
+const pages = [
+  "/",
+  "/docs/",
+  "/docs/skill/",
+  "/docs/cli/",
+  "/docs/watch/",
+  "/docs/sources/",
+  "/docs/privacy/",
+  "/llms.txt",
+  "/llms-full.txt",
+];
 
 export const GET: APIRoute = ({ site }) =>
   new Response(

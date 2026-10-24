@@ -1,5 +1,5 @@
 ---
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import "@fontsource/ibm-plex-mono/400.css";
@@ -50,12 +50,6 @@ const stageText: Record<string, string> = {
   news: "Security press and research. Context, never enough on its own to call a project affected.",
 };
 
-// The workflow users copy, read from the repository so the version shown is the one shipped.
-const githubWorkflow = readFileSync(resolve(process.cwd(), "..", "ci/github/stackalarm.yml"), "utf8")
-  .split("\n")
-  .filter((line) => !line.startsWith("#"))
-  .join("\n")
-  .trim();
 
 const gitlabInclude = `include:
   - remote: https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/gitlab/stackalarm.yml`;
@@ -116,6 +110,7 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
           <a href="#answer">The answer</a>
           <a href="#how">How it works</a>
           <a href="#watch">CI/CD</a>
+          <a href="/docs/">Docs</a>
           <a href={repo}>GitHub</a>
         </nav>
         <a class="pill" href="#install">Install</a>
@@ -276,18 +271,7 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
               </div>
             ))}
           </dl>
-          <details class="source-list">
-            <summary>See all {sources.length} sources</summary>
-            <div class="source-columns">
-              {stages.map((s) => (
-                <div>
-                  <h3><span class="stage" data-stage={s}>{s}</span></h3>
-                  <ul>{byStage[s].map((x) => <li>{x.name}</li>)}</ul>
-                </div>
-              ))}
-            </div>
-            <p>Missing one? Open a <a href={`${repo}/issues/new?template=new-source.yml`}>New source issue</a>.</p>
-          </details>
+          <p class="more"><a href="/docs/sources/">See all {sources.length} sources and their tags</a></p>
           <p class="muted small">A source that cannot be read is always listed in the output: a silent watch tool is worse than a noisy one.</p>
         </div>
       </section>
@@ -341,55 +325,18 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
               <h3>GitHub Actions</h3>
               <p>
                 Copy <a href={`${repo}/blob/main/ci/github/stackalarm.yml`}><code>ci/github/stackalarm.yml</code></a> to
-                <code>.github/workflows/</code>. The <code>yoanbernabeu/stackalarm</code> action can also be called from your own workflows.
+                <code>.github/workflows/</code>. With an <code>ANTHROPIC_API_KEY</code> secret, Claude triages the news first and an issue is
+                opened only when the project is concerned. Claude runs locked down: it cannot open issues, push or change the
+                project's files.
               </p>
-              <Code label=".github/workflows/stackalarm.yml" code={githubWorkflow} />
             </div>
             <div>
               <h3>GitLab CI</h3>
-              <p>Include the job in <code>.gitlab-ci.yml</code>:</p>
+              <p>Include the job, add a token and a pipeline schedule:</p>
               <Code label=".gitlab-ci.yml" code={gitlabInclude} />
-              <p>
-                Then add a masked <code>STACKALARM_GITLAB_TOKEN</code> variable (a project access token with the <code>api</code> scope and the
-                Reporter role) and a pipeline schedule: <code>17 */4 * * *</code>.
-              </p>
             </div>
           </div>
-
-          <div class="triage">
-            <div class="triage-text">
-              <h3>With Claude as the triage, on GitHub</h3>
-              <p>
-                Raw news is not a verdict: a Go release the project already runs is news, not a reason to act. Set the secret
-                <code>ANTHROPIC_API_KEY</code> and, when the CLI finds something new, Claude runs the skill on the project. Claude is called only on
-                the runs that find something new.
-              </p>
-              <p class="muted small">
-                Claude reads text written by others (feeds, advisories, web pages), so it runs locked down: it reads the project, searches the
-                web, runs read-only audits and writes its verdict. It cannot open issues, push or change the project's files; the action opens
-                the issue from that verdict.
-              </p>
-              <p class="muted small">
-                Each item is reported once: the CI cache keeps the list of items already handled, saved only once the run has dealt with them
-                (issue opened, or none needed). If something fails, an item may be reported twice, never missed.
-              </p>
-            </div>
-            <div class="table-scroll" role="region" aria-label="What each run does" tabindex="0">
-              <table class="outcomes">
-                <thead>
-                  <tr><th scope="col">The run finds</th><th scope="col">What happens</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td>Nothing new</td><td>Nothing is opened. Claude is not called.</td></tr>
-                  <tr><td>New items, triage says <code>act</code> or <code>prepare</code></td><td>An issue, verdict first, the raw news folded below.</td></tr>
-                  <tr><td>New items, triage says <code>none</code></td><td>No issue. The verdict stays in the run summary.</td></tr>
-                  <tr class="override"><td>Triage says <code>none</code>, but a watched technology is exploited in the wild (CISA KEV, EUVD)</td><td>An issue anyway.</td></tr>
-                  <tr><td>New items, the triage fails</td><td>An issue with the raw news.</td></tr>
-                  <tr><td>New items, no API key</td><td>An issue with the raw news, to judge with <code>/stackalarm triage &lt;issue link&gt;</code>.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <p class="more"><a href="/docs/watch/">Read how the scheduled watch works</a>: the action's inputs, what each run does, and how each item is reported once.</p>
         </div>
       </section>
 

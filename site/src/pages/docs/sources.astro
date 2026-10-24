@@ -1,0 +1,48 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import { loadSources, stages } from "../../lib/sources";
+import { repo } from "../../lib/repo";
+
+const sources = loadSources();
+const tags = [...new Set(sources.flatMap((s) => s.tags))].filter((t) => t !== "general").sort();
+const general = sources.filter((s) => s.tags.includes("general"));
+---
+<Docs title="Sources" description={`The ${sources.length} sources stackalarm reads, with their stage and tags.`}>
+  <p class="lead-in">
+    stackalarm reads {sources.length} sources first-hand. This list is built from the <a href={`${repo}/tree/main/sources`}><code>sources/</code></a>
+    folder of the repository, so it always matches the CLI of the same version.
+  </p>
+
+  <h2 id="tags">Tags</h2>
+  <p>Pass them with <code>--tag</code>. An unknown tag is searched as a keyword in the general sources.</p>
+  <ul class="tag-list">
+    {tags.map((t) => <li><code>{t}</code></li>)}
+  </ul>
+  <p>
+    The {general.length} sources tagged <code>general</code> (CERTs, CVE databases, exploit feeds, press) are read on every run, and only their
+    entries that mention one of your tags or keywords are kept.
+  </p>
+
+  <h2 id="all">All sources</h2>
+  <div class="table-wrap" role="region" aria-label="All sources" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Tags</th></tr></thead>
+      <tbody>
+        {sources.map((s) => (
+          <tr>
+            <td>{s.name}<br /><code class="muted small">{s.id}</code></td>
+            <td><span class="stage" data-stage={s.stage}>{s.stage}</span></td>
+            <td>{s.tags.map((t) => <code>{t}</code>).reduce((a: any[], c, i) => (i ? [...a, " ", c] : [c]), [])}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted small">Counts by stage: {stages.map((s) => `${s} ${sources.filter((x) => x.stage === s).length}`).join(", ")}.</p>
+
+  <h2 id="propose">Propose a source</h2>
+  <p>
+    The most useful contribution. Open a <a href={`${repo}/issues/new?template=new-source.yml`}>New source</a> issue with the feed URL: it needs
+    to answer and its entries to carry dates.
+  </p>
+</Docs>

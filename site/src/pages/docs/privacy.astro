@@ -1,0 +1,44 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import { repo } from "../../lib/repo";
+---
+<Docs title="Privacy and security" description="What stackalarm sends and to whom, how the CI triage is locked down, and how to report a vulnerability.">
+  <h2 id="cli">What the CLI sends</h2>
+  <p>
+    The CLI downloads public feeds and queries public APIs. It sends nothing about your project beyond what it is given, and no telemetry.
+  </p>
+  <table>
+    <thead><tr><th scope="col">To</th><th scope="col">What</th></tr></thead>
+    <tbody>
+      <tr><td>Every source</td><td>A plain request for the feed, with a <code>stackalarm/&lt;version&gt;</code> user agent.</td></tr>
+      <tr><td>NVD and EUVD</td><td>Each tag and keyword, as a search term, with the date range.</td></tr>
+      <tr><td>GitHub API</td><td>The package names passed with <code>--package</code> or the profile, to filter the GitHub Advisory Database; your <code>GITHUB_TOKEN</code> when set.</td></tr>
+      <tr><td>NVD API</td><td>Your <code>NVD_API_KEY</code> when set.</td></tr>
+    </tbody>
+  </table>
+  <p>Responses are cached for an hour on your machine, in your user cache folder.</p>
+
+  <h2 id="skill">What the skill does</h2>
+  <p>
+    It runs on your machine, inside your agent: it reads the project, runs your own audit tools locally, and its web searches go through your
+    agent like any other. It changes a file only after you agree, one change at a time, and never pushes, deploys or touches a server.
+  </p>
+
+  <h2 id="ci">The triage in CI</h2>
+  <p>
+    On GitHub, with an <code>ANTHROPIC_API_KEY</code>, Claude reads the news, which is text written by others and could hold instructions
+    aimed at it. So it runs locked down: it can read the project, search the web, run read-only commands and write two answer files, nothing
+    more. It cannot open issues, push or change the project's files; the action opens the issue from its decision. The
+    <a href="/docs/watch/#triage">exact list of allowed tools</a> is read from the action.
+  </p>
+  <p>
+    The workflow to copy grants <code>contents: read</code> and <code>issues: write</code> only, and checks the repository out without keeping
+    its credentials.
+  </p>
+
+  <h2 id="report">Report a vulnerability</h2>
+  <p>
+    Privately, through <a href={`${repo}/security/advisories/new`}>GitHub's private vulnerability reporting</a>, not in a public issue. See
+    <a href={`${repo}/blob/main/SECURITY.md`}>SECURITY.md</a> and <a href="/.well-known/security.txt">security.txt</a>.
+  </p>
+</Docs>

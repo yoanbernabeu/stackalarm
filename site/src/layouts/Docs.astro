@@ -1,0 +1,100 @@
+---
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "../styles/global.css";
+import { repo } from "../lib/repo";
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+
+const pages = [
+  { href: "/docs/", label: "Getting started" },
+  { href: "/docs/skill/", label: "The skill" },
+  { href: "/docs/cli/", label: "The CLI" },
+  { href: "/docs/watch/", label: "Scheduled watch" },
+  { href: "/docs/sources/", label: "Sources" },
+  { href: "/docs/privacy/", label: "Privacy and security" },
+];
+const path = Astro.url.pathname.replace(/\/?$/, "/");
+const canonical = new URL(path, Astro.site).href;
+const ogImage = new URL("/og.png", Astro.site).href;
+const index = pages.findIndex((p) => p.href === path);
+const next = pages[index + 1];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>{title}: stackalarm docs</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content="#0b0e14" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="stackalarm" />
+    <meta property="og:title" content={`${title}: stackalarm docs`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body class="docs-body">
+    <a class="skip" href="#content">Skip to content</a>
+    <header class="docs-header">
+      <div class="wrap nav-row">
+        <a class="wordmark" href="/">/stackalarm</a>
+        <nav aria-label="Site">
+          <a href="/docs/" aria-current={path.startsWith("/docs/") ? "page" : undefined}>Docs</a>
+          <a href={repo}>GitHub</a>
+        </nav>
+      </div>
+    </header>
+    <div class="wrap docs-grid">
+      <nav class="docs-nav" aria-label="Documentation">
+        <ul>
+          {pages.map((p) => <li><a href={p.href} aria-current={p.href === path ? "page" : undefined}>{p.label}</a></li>)}
+        </ul>
+      </nav>
+      <main id="content" class="prose">
+        <h1>{title}</h1>
+        <slot />
+        {next && (
+          <p class="docs-next">
+            Next: <a href={next.href}>{next.label}</a>
+          </p>
+        )}
+      </main>
+    </div>
+    <footer class="footer">
+      <div class="wrap footer-row">
+        <p>
+          <span class="wordmark small">/stackalarm</span> is <a href={`${repo}/blob/main/LICENSE`}>MIT licensed</a>. Something wrong or missing
+          here? <a href={`${repo}/issues`}>Open an issue</a>.
+        </p>
+        <a href="/">stackalarm.dev</a>
+      </div>
+    </footer>
+    <script>
+      for (const button of document.querySelectorAll<HTMLButtonElement>(".copy")) {
+        button.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(button.dataset.code ?? "");
+            button.textContent = "Copied";
+          } catch {
+            button.textContent = "Select and copy";
+          }
+          setTimeout(() => (button.textContent = "Copy"), 2000);
+        });
+      }
+    </script>
+  </body>
+</html>

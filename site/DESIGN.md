@@ -12,7 +12,7 @@ Dial: ENERGY 2 / RHYTHM 2 / MOTION 1
 - **Motif.** The five stages as the CLI prints them (`heads-up`, `release`, `advisory`, `alert`, `news`), in mono, lowercase. They structure the "Why" timeline, the source list and the sample answer.
 - **Glass.** Two elements only, both over the hero image: the Install pill in the nav and the install command.
 - **Motion.** Hover and focus states only.
-- **Content.** Only what the README and the repository state. The source count and list are read from `sources/*.yaml`, and the GitHub workflow from `ci/github/stackalarm.yml`, at build time.
+- **Content.** Only what the code backs. The landing sells; the docs (`/docs/`) are the reference. Everything that can be is read from the repository at build time (`src/lib/repo.ts`, `src/lib/sources.ts`): the sources and tags, the CLI's own `--help` (so the build needs Go), the action's inputs, outputs and allowed tools, the CI files and GitLab variables. Prose claims are checked against the code before they ship.
 
 ## The hero image
 

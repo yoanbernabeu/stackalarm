@@ -1,0 +1,19 @@
+---
+// A command or a file, with a copy button when it is meant to be pasted.
+interface Props {
+  code: string;
+  label?: string;
+  copy?: boolean;
+}
+const { code, label, copy = true } = Astro.props;
+---
+<figure class:list={["code", { bare: !label }]}>
+  {label && (
+    <figcaption>
+      <span>{label}</span>
+      {copy && <button type="button" class="copy" data-code={code}>Copy</button>}
+    </figcaption>
+  )}
+  <pre tabindex="0"><code>{code}</code></pre>
+  {!label && copy && <button type="button" class="copy" data-code={code}>Copy</button>}
+</figure>

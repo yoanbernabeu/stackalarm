@@ -1,0 +1,950 @@
+/* Direction and reasons: see site/DESIGN.md. */
+
+:root {
+  --bg: #0b0e14;
+  --bg-2: #121722;
+  --bg-code: #0e121a;
+  --line: #262d3b; /* separators only */
+  --edge: #5b6578; /* borders of interactive things: 3:1 on --bg */
+  --text: #ecebe6;
+  --muted: #a5abb8;
+  --accent: #ff8a4c; /* the beacon: primary action, heads-up */
+  --on-accent: #1a0d05;
+  --alert: #ff6b5e;
+  --sans: "Bricolage Grotesque Variable", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-padding-top: 1rem;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (min-width: 48rem) {
+  body {
+    font-size: 1.125rem;
+  }
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.6em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: clamp(2rem, 1.2rem + 3vw, 3.6rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+h3 {
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--edge);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+code,
+pre,
+.stage,
+.meta,
+time {
+  font-family: var(--mono);
+}
+
+code {
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.92em;
+}
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  padding: 0.6rem 1rem;
+  background: var(--text);
+  color: var(--bg);
+  z-index: 10;
+}
+
+.skip:focus {
+  top: 1rem;
+}
+
+.wrap {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding-inline: 16px;
+}
+
+@media (min-width: 48rem) {
+  .wrap {
+    padding-inline: 40px;
+  }
+}
+
+.narrow {
+  max-width: 52rem;
+}
+
+.intro {
+  max-width: 46rem;
+  color: var(--muted);
+  font-size: 1.1em;
+  margin-bottom: 2.5rem;
+}
+
+/* Nav: sits over the hero image. */
+
+.nav {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 5;
+}
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1rem;
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+
+.wordmark.small {
+  font-size: inherit;
+}
+
+.nav nav {
+  display: none;
+  gap: 2rem;
+}
+
+.nav nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav nav a:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 56rem) {
+  .nav nav {
+    display: flex;
+  }
+}
+
+/* Glass, dose 1 of 2: the install shortcut, read over the image. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border: 1px solid rgb(236 235 230 / 0.45);
+  border-radius: 999px;
+  background: rgb(11 14 20 / 0.35);
+  backdrop-filter: blur(10px);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pill:hover {
+  background: rgb(11 14 20 / 0.6);
+}
+
+/* Hero */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: 7rem 2rem;
+  overflow: clip;
+  background: linear-gradient(180deg, #121a2b 0%, #0b0e14 70%);
+}
+
+.hero-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 78% center; /* narrow screens keep the tower and the fire */
+  z-index: -2;
+}
+
+/* Darkens the top for the nav, the middle for the headline, the bottom to meet the page. */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 52%, rgb(11 14 20 / 0.55), transparent 75%),
+    linear-gradient(180deg, rgb(11 14 20 / 0.6) 0%, rgb(11 14 20 / 0.1) 25%, rgb(11 14 20 / 0.15) 60%, var(--bg) 100%);
+}
+
+.hero-body {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-block: auto;
+}
+
+.hero h1 {
+  font-size: clamp(2.7rem, 1rem + 7.2vw, 6.6rem);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  max-width: 14ch;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 2px 30px rgb(11 14 20 / 0.6);
+}
+
+.hero-lead {
+  max-width: 40rem;
+  font-size: clamp(1.15rem, 1rem + 0.6vw, 1.4rem);
+  line-height: 1.45;
+  text-shadow: 0 1px 16px rgb(11 14 20 / 0.8);
+}
+
+.hero-lead code {
+  font-size: 0.9em;
+}
+
+/* Glass, dose 2 of 2: the one command to run. */
+.command {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: min(100%, 34rem);
+  margin-top: 1.5rem;
+  padding: 0.4rem 0.4rem 0.4rem 1.4rem;
+  border: 1px solid rgb(236 235 230 / 0.4);
+  border-radius: 999px;
+  background: rgb(11 14 20 / 0.55);
+  backdrop-filter: blur(12px);
+  text-align: left;
+}
+
+.command code {
+  flex: 1;
+  min-width: 0;
+  font-size: clamp(0.82rem, 0.75rem + 0.4vw, 1rem);
+  overflow-wrap: anywhere;
+}
+
+.hero-note {
+  margin-top: 1.25rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  text-shadow: 0 1px 12px rgb(11 14 20 / 0.9);
+}
+
+.hero-foot {
+  margin: 3rem auto 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* Copy buttons */
+
+.copy {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  font: 500 0.8rem var(--mono);
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.copy:hover {
+  background: var(--bg-2);
+}
+
+.copy.icon {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  width: 44px;
+  border-radius: 999px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.copy.icon:hover {
+  background: #ffa271;
+}
+
+/* The icon button shows its result as text, like the labelled ones. */
+.copy.icon[data-state]::after {
+  content: attr(data-state);
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  right: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  white-space: nowrap;
+}
+
+/* Sections */
+
+main > section:not(.hero) {
+  padding-block: clamp(4rem, 3rem + 5vw, 8rem);
+}
+
+/* Answer */
+
+.answer-grid {
+  display: grid;
+  gap: 3rem;
+}
+
+@media (min-width: 64rem) {
+  .answer-grid {
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 5rem;
+    align-items: start;
+  }
+
+  .answer-text {
+    position: sticky;
+    top: 2rem;
+  }
+}
+
+.sheet {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.25rem;
+  font-size: 0.97rem;
+  line-height: 1.55;
+}
+
+@media (min-width: 48rem) {
+  .sheet {
+    padding: 2rem 2.25rem;
+  }
+}
+
+.sheet-head {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+}
+
+.sheet-head p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.sheet-head .meta {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.3rem;
+}
+
+.verdict {
+  font-size: 1.12em;
+}
+
+.sheet ul {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+}
+
+.sheet li + li {
+  margin-top: 0.7rem;
+}
+
+.urgency {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1rem;
+  margin: 1.5rem 0 0.6rem;
+}
+
+/* The square marks the urgency its heading names. */
+.urgency::before {
+  content: "";
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  border: 2px solid currentColor;
+}
+
+.urgency.act {
+  color: var(--alert);
+}
+
+.urgency.act::before {
+  background: currentColor;
+}
+
+.urgency.prepare {
+  color: var(--accent);
+}
+
+.checked,
+.offer {
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+.offer {
+  margin: 0;
+  color: var(--text);
+}
+
+/* Stage labels: the identity motif, as the CLI prints them. */
+
+.stage {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.6;
+  padding: 0 0.5em;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.stage[data-stage="heads-up"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.stage[data-stage="alert"] {
+  border-color: var(--alert);
+  color: var(--alert);
+}
+
+/* Why */
+
+.why {
+  display: grid;
+  gap: 3rem;
+}
+
+@media (min-width: 64rem) {
+  .why {
+    grid-template-columns: 1fr 1fr;
+    gap: 5rem;
+    align-items: center;
+  }
+}
+
+.why p {
+  max-width: 36rem;
+  font-size: 1.1em;
+}
+
+.timeline {
+  margin: 0;
+}
+
+.timeline figcaption,
+.code figcaption {
+  font: 500 0.8rem var(--mono);
+  color: var(--muted);
+}
+
+.timeline ol {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  border-left: 1px solid var(--edge);
+}
+
+.timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+  padding: 0 0 1.75rem 1.5rem;
+}
+
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 0.55em;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+}
+
+.timeline li > span:last-child {
+  grid-column: 1 / -1;
+  font-size: 1.05em;
+}
+
+.timeline time {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.timeline .stage {
+  justify-self: start;
+}
+
+/* How */
+
+.halves {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 2.5rem;
+}
+
+@media (min-width: 64rem) {
+  .halves {
+    grid-template-columns: 5fr 7fr;
+  }
+}
+
+.half {
+  min-width: 0;
+  padding: 1.75rem;
+  border-radius: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+
+.half-label {
+  font: 500 0.85rem var(--mono);
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+
+.half h3 {
+  font-size: 1.8rem;
+}
+
+.half > p:not(.half-label) {
+  color: var(--muted);
+}
+
+/* Code */
+
+.code {
+  margin: 1.25rem 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-code);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.code figcaption {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.3rem 0.3rem 0.3rem 1rem;
+  min-height: 44px;
+}
+
+.code figcaption span {
+  overflow-wrap: anywhere;
+}
+
+.code pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
+.code pre code {
+  font-size: inherit;
+  overflow-wrap: normal;
+}
+
+/* A command without a label: the copy button sits beside it. */
+.code.bare {
+  display: flex;
+  align-items: center;
+}
+
+.code.bare pre {
+  flex: 1;
+  min-width: 0;
+}
+
+.code.bare .copy {
+  margin-right: 0.3rem;
+}
+
+/* Sources */
+
+.stages {
+  margin: 0;
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.stages > div {
+  display: grid;
+  gap: 0.5rem 2rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--bg);
+}
+
+@media (min-width: 48rem) {
+  .stages > div {
+    grid-template-columns: 8rem 1fr auto;
+    align-items: baseline;
+  }
+}
+
+.stages dd {
+  margin: 0;
+}
+
+.stages .count {
+  color: var(--muted);
+  font: 0.85rem var(--mono);
+}
+
+.source-list {
+  margin: 2rem 0 1rem;
+}
+
+.source-list summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1.1rem;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.source-list summary:hover {
+  background: var(--bg-2);
+}
+
+.source-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 2rem 3rem;
+  margin: 2rem 0;
+}
+
+.source-columns h3 {
+  margin-bottom: 0.75rem;
+}
+
+.source-columns ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.source-columns li {
+  padding-block: 0.25rem;
+}
+
+/* Install */
+
+.install {
+  max-width: 56rem;
+}
+
+.steps {
+  list-style: none;
+  margin: 2.5rem 0 0;
+  padding: 0;
+  counter-reset: step;
+}
+
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 3.5rem;
+}
+
+.steps > li + li {
+  margin-top: 3rem;
+}
+
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -0.1rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  font: 500 0.9rem var(--mono);
+  color: var(--accent);
+}
+
+@media (max-width: 30rem) {
+  .steps > li {
+    padding-left: 0;
+  }
+
+  .steps > li::before {
+    position: static;
+    margin-bottom: 0.75rem;
+  }
+}
+
+/* Watch */
+
+.watch {
+  background: var(--bg-2);
+}
+
+.watch .code {
+  background: var(--bg);
+}
+
+.watch-profile,
+.platforms,
+.triage {
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 4rem;
+}
+
+@media (min-width: 64rem) {
+  .watch-profile {
+    grid-template-columns: 1fr 1.2fr;
+    gap: 4rem;
+    align-items: start;
+  }
+
+  .watch-profile .code {
+    margin-top: 0;
+  }
+
+  .platforms {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 4rem;
+  }
+
+  .platforms > div {
+    min-width: 0;
+  }
+
+  .triage {
+    grid-template-columns: 0.8fr 1.2fr;
+    gap: 4rem;
+    align-items: start;
+  }
+}
+
+.triage {
+  margin-bottom: 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+}
+
+.outcomes {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.97rem;
+}
+
+.outcomes th,
+.outcomes td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.outcomes tr:last-child td {
+  border-bottom: 0;
+}
+
+.outcomes th {
+  font: 500 0.8rem var(--mono);
+  color: var(--muted);
+}
+
+.outcomes td:first-child {
+  width: 50%;
+  color: var(--muted);
+}
+
+.outcomes .override td {
+  color: var(--alert);
+}
+
+/* Footer */
+
+.footer {
+  border-top: 1px solid var(--line);
+  padding-block: 2.5rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.footer-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.footer-row p {
+  margin: 0;
+  max-width: 46rem;
+}
+
+.footer .wordmark {
+  color: var(--text);
+}
+
+@media (min-width: 64rem) {
+  .footer-row {
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Grid columns may shrink below their content: long code scrolls inside its block, not the page. */
+.answer-grid > *,
+.why > *,
+.halves > *,
+.watch-profile > *,
+.platforms > *,
+.triage > * {
+  min-width: 0;
+}
+
+.wordmark,
+.footer-row > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* With the dawn image: dark ink on the bright sky, a light wash behind it instead of a dark one,
+   and the sky darkened only at the top (nav) and the bottom (where it meets the page). */
+.hero.has-image {
+  --hero-ink: #10131c;
+}
+
+.hero.has-image::before {
+  background:
+    radial-gradient(ellipse 60% 60% at 50% 35%, rgb(238 234 240 / 0.8), transparent 70%),
+    linear-gradient(180deg, rgb(11 14 20 / 0.45) 0%, rgb(11 14 20 / 0) 7%, rgb(11 14 20 / 0) 70%, rgb(11 14 20 / 0.8) 82%, var(--bg) 100%);
+}
+
+.hero.has-image h1,
+.hero.has-image .hero-lead {
+  color: var(--hero-ink);
+  text-shadow: 0 0 40px rgb(238 234 240 / 0.5);
+}
+
+.hero.has-image .hero-lead {
+  font-weight: 500;
+}
+
+/* The note lands on bright sky or dark sea depending on the width: its own backing keeps it readable on both. */
+.hero.has-image .hero-note {
+  padding: 0.35rem 0.9rem;
+  border-radius: 12px;
+  background: rgb(11 14 20 / 0.65);
+  text-shadow: none;
+}

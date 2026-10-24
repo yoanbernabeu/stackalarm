@@ -19,6 +19,7 @@ skills/stackalarm/  the agent skill (published on skills.sh)
 evals/              test prompts and assertions for the skill (kept out of the skill folder)
 action.yml          the GitHub Action of the scheduled watch
 ci/                 ready-to-copy scheduled watch for GitHub and GitLab
+site/               the presentation site (Astro), see site/DESIGN.md
 ```
 
 ## Adding a source (from a "New source" issue)

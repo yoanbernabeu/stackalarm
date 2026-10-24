@@ -1,0 +1,435 @@
+---
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "../styles/global.css";
+import Code from "../components/Code.astro";
+import { loadSources, stages } from "../lib/sources";
+import { latestTag } from "../lib/version";
+
+const repo = "https://github.com/yoanbernabeu/stackalarm";
+const sources = loadSources();
+const byStage = Object.fromEntries(stages.map((s) => [s, sources.filter((x) => x.stage === s)]));
+
+// The hero image is optional: without the file, the hero falls back to a plain night sky.
+const heroImage = ["hero.webp", "hero.jpg", "hero.png"].find((f) => existsSync(resolve(process.cwd(), "public", f)));
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+
+const title = "stackalarm: security news, matched to your stack";
+const description = `Type /stackalarm in your AI agent and find out what to patch first: this week's advisories, releases and CERT alerts from ${sources.length} official sources, checked against your project.`;
+const canonical = new URL("/", Astro.site).href;
+const ogImage = new URL("/og.png", Astro.site).href;
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "stackalarm",
+  description,
+  url: canonical,
+  image: ogImage,
+  applicationCategory: "DeveloperApplication",
+  applicationSubCategory: "Security",
+  operatingSystem: "macOS, Linux, Windows",
+  softwareVersion: latestTag(),
+  license: "https://opensource.org/licenses/MIT",
+  isAccessibleForFree: true,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  downloadUrl: `${repo}/releases`,
+  installUrl: `${canonical}#install`,
+  sameAs: [repo],
+  author: { "@type": "Person", name: "Yoan Bernabeu" },
+};
+
+const stageText: Record<string, string> = {
+  "heads-up": "A security release is announced ahead. The most valuable signal: time to prepare before anyone can read the patch.",
+  release: "The fix is out.",
+  advisory: "The CVE details: affected and fixed versions, score, conditions.",
+  alert: "A CERT alert, a public exploit, or exploitation in the wild.",
+  news: "Security press and research. Context, never enough on its own to call a project affected.",
+};
+
+// The workflow users copy, read from the repository so the version shown is the one shipped.
+const githubWorkflow = readFileSync(resolve(process.cwd(), "..", "ci/github/stackalarm.yml"), "utf8")
+  .split("\n")
+  .filter((line) => !line.startsWith("#"))
+  .join("\n")
+  .trim();
+
+const gitlabInclude = `include:
+  - remote: https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/gitlab/stackalarm.yml`;
+
+const profile = `tags: [php, symfony, composer, docker]
+keywords: [frankenphp]
+packages: [symfony/http-kernel, twig/twig]
+stack:
+  - {name: php, version: "8.3", precision: branch, from: Dockerfile}`;
+
+const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
+
+2026-10-21  release   php-releases             PHP 8.3.36 released!
+2026-10-21  alert     cert-fr-alerts           [Màj] Multiples vulnérabilités dans PHP (21 octobre 2026)
+2026-10-21  alert     exploit-db               [remote] PHP2Shell (CVE-2026-109618) - PHP core versions after v5.4 - RCE
+2026-10-20  heads-up  php-internals            [PHP-DEV] Upcoming Critical PHP Security Release
+…`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <meta name="theme-color" content="#0b0e14" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="stackalarm" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="stackalarm: security news, matched to your stack. A lighthouse at dawn." />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    {heroImage && <link rel="preload" as="image" href={`${base}${heroImage}`} />}
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <div class="wrap nav-row">
+        <a class="wordmark" href="#main">/stackalarm</a>
+        <nav aria-label="Sections">
+          <a href="#answer">The answer</a>
+          <a href="#how">How it works</a>
+          <a href="#watch">CI/CD</a>
+          <a href={repo}>GitHub</a>
+        </nav>
+        <a class="pill" href="#install">Install</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class:list={["hero", { "has-image": heroImage }]} aria-labelledby="title">
+        {heroImage && <img class="hero-image" src={`${base}${heroImage}`} alt="" fetchpriority="high" />}
+        <div class="wrap hero-body">
+          <h1 id="title">Security news, matched to your&nbsp;stack</h1>
+          <p class="hero-lead">
+            Type <code>/stackalarm</code> in your agent. Find out what to patch first.
+          </p>
+          <div class="command">
+            <code>npx skills add yoanbernabeu/stackalarm</code>
+            <button type="button" class="copy icon" data-code="npx skills add yoanbernabeu/stackalarm" aria-label="Copy the install command">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8" /></svg>
+            </button>
+          </div>
+          <p class="hero-note">The skill needs the CLI: <a href="#install">install both</a>, for Claude Code, Codex, Cursor and other agents.</p>
+        </div>
+        <p class="hero-foot wrap">The skill reads your project, the CLI reads the news. Neither one patches, pushes or deploys anything on its own.</p>
+      </section>
+
+      <section id="answer" class="answer" aria-labelledby="answer-title">
+        <div class="wrap answer-grid">
+          <div class="answer-text">
+            <h2 id="answer-title">A verdict first, then what to change</h2>
+            <p>
+              Open a project in your agent and run the skill. The agent finds what the project runs on (manifests, lockfiles, Dockerfiles, CI, git
+              remotes), gathers the news, completes it with a web search and your own audit tools, and answers with the findings grouped by urgency.
+            </p>
+            <Code code={`/stackalarm\n/stackalarm before the Friday deploy\n/stackalarm are we affected by PHP2Shell?`} copy={false} />
+            <p class="muted">
+              Call it by name. Asked "any security flaws to fix?", agents tend to run <code>npm audit</code> or <code>composer audit</code> on their
+              own, which know nothing of this week's runtime flaws or announced releases.
+            </p>
+          </div>
+
+          <article class="sheet" aria-labelledby="sample-title">
+            <header class="sheet-head">
+              <p id="sample-title"><code>/stackalarm</code> on a Symfony project with a self-hosted GitLab</p>
+              <p class="meta">Example answer, October 2026</p>
+            </header>
+            <p class="verdict">
+              <strong>Verdict:</strong> yes, act today. Two critical PHP flaws (unauthenticated RCE, public exploit) affect the 8.3 branch this project
+              runs on, and the self-hosted GitLab needs a patch.
+            </p>
+            <h3 class="urgency act">Act now</h3>
+            <ul>
+              <li>
+                <strong>PHP</strong>, CVE-2026-109618 / CVE-2026-109619 (CVSS 9.2): the Dockerfile uses <code>php:8.3-fpm</code>, a floating tag, so
+                production is possibly affected depending on when the image was built. Rebuild with <code>--pull</code>, redeploy, check
+                <code>php -v</code> shows 8.3.36. Until then: <code>session.upload_progress.enabled=0</code>.
+              </li>
+              <li>
+                <strong>GitLab</strong>, CVE-2026-110264 (CVSS 10): the remote points to a self-hosted instance. Fixed in 19.5.1, 19.4.3, 19.3.6…
+                Which version does gitlab.acme.internal run?
+              </li>
+            </ul>
+            <h3 class="urgency prepare">Prepare</h3>
+            <ul>
+              <li><strong>Symfony 7.3</strong> no longer gets security fixes; CVE-2026-108082 is only fixed in 7.4.</li>
+            </ul>
+            <p class="checked">
+              <strong>Checked:</strong> php, symfony, composer, gitlab tags, CERTs, NVD, EUVD, KEV, web search, composer audit.
+              <strong>Not checked:</strong> the PHP version running in production, the full lockfile.
+            </p>
+            <p class="offer">Shall I pin <code>FROM php:8.3.36-fpm</code> in the Dockerfile?</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="why" aria-labelledby="why-title">
+        <div class="wrap why">
+          <div>
+            <h2 id="why-title">A patch becomes an exploit in hours</h2>
+            <p>
+              AI now turns a security patch into a working exploit in hours. In October 2026, the PHP team announced a critical release one day
+              ahead. Teams that caught the heads-up on Tuesday evening had a night to prepare. The others learned about it from their logs.
+            </p>
+            <p class="muted">
+              Your agent's training data does not know this week's vulnerabilities, and dependency audits only see library advisories: they miss
+              flaws in the runtime itself, Docker base images, self-hosted tools such as GitLab, and releases announced but not yet out.
+            </p>
+          </div>
+          <figure class="timeline">
+            <figcaption>PHP2Shell, as the CLI saw it</figcaption>
+            <ol>
+              <li>
+                <time datetime="2026-10-20">Oct 20</time>
+                <span class="stage" data-stage="heads-up">heads-up</span>
+                <span>PHP internals: "Upcoming Critical PHP Security Release"</span>
+              </li>
+              <li>
+                <time datetime="2026-10-21">Oct 21</time>
+                <span class="stage" data-stage="release">release</span>
+                <span>PHP 8.3.36 released</span>
+              </li>
+              <li>
+                <time datetime="2026-10-21">Oct 21</time>
+                <span class="stage" data-stage="alert">alert</span>
+                <span>Exploit-DB: PHP2Shell (CVE-2026-109618), remote code execution</span>
+              </li>
+              <li>
+                <time datetime="2026-10-21">Oct 21</time>
+                <span class="stage" data-stage="alert">alert</span>
+                <span>CERT-FR: multiple vulnerabilities in PHP</span>
+              </li>
+            </ol>
+          </figure>
+        </div>
+      </section>
+
+      <section id="how" aria-labelledby="how-title">
+        <div class="wrap">
+          <h2 id="how-title">Two halves, neither useful alone</h2>
+          <div class="halves">
+            <div class="half">
+              <p class="half-label">The skill</p>
+              <h3>The analyst</h3>
+              <p>
+                It reads the project to find the technologies and their versions, runs the CLI, and completes it with a web search and your
+                ecosystem's audits (<code>composer audit</code>, <code>npm audit</code>, <code>pip-audit</code>, <code>govulncheck</code>…).
+              </p>
+              <p>
+                It decides what actually applies, says how sure it is (exact version, branch or range), asks the one question that would change the
+                verdict, and offers to fix what lives in the repository, one change at a time, after asking.
+              </p>
+            </div>
+            <div class="half">
+              <p class="half-label">The CLI</p>
+              <h3>Its eyes</h3>
+              <p>
+                It reads {sources.length} sources first-hand, so the agent sees an announcement minutes after it is published, before search engines
+                index it.
+              </p>
+              <Code label="stackalarm news --tag php --since 7d" code={newsOutput} copy={false} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <div class="wrap">
+          <h2 id="sources-title">{sources.length} sources, five stages</h2>
+          <p class="intro">
+            Projects and vendors, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA
+            KEV, exploit databases and the security press. Every item they publish gets a stage.
+          </p>
+          <dl class="stages">
+            {stages.map((s) => (
+              <div>
+                <dt><span class="stage" data-stage={s}>{s}</span></dt>
+                <dd>{stageText[s]}</dd>
+                <dd class="count">{byStage[s].length} sources</dd>
+              </div>
+            ))}
+          </dl>
+          <details class="source-list">
+            <summary>See all {sources.length} sources</summary>
+            <div class="source-columns">
+              {stages.map((s) => (
+                <div>
+                  <h3><span class="stage" data-stage={s}>{s}</span></h3>
+                  <ul>{byStage[s].map((x) => <li>{x.name}</li>)}</ul>
+                </div>
+              ))}
+            </div>
+            <p>Missing one? Open a <a href={`${repo}/issues/new?template=new-source.yml`}>New source issue</a>.</p>
+          </details>
+          <p class="muted small">A source that cannot be read is always listed in the output: a silent watch tool is worse than a noisy one.</p>
+        </div>
+      </section>
+
+      <section id="install" aria-labelledby="install-title">
+        <div class="wrap install">
+          <h2 id="install-title">Install both parts</h2>
+          <ol class="steps">
+            <li>
+              <h3>The CLI</h3>
+              <Code code="brew install yoanbernabeu/tap/stackalarm" />
+              <p class="muted">or, on Linux and macOS:</p>
+              <Code code="curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh" />
+              <p class="muted small">
+                On Windows, download the zip from the <a href={`${repo}/releases`}>releases</a>. With Go:
+                <code>go install github.com/yoanbernabeu/stackalarm/cmd/stackalarm@latest</code>.
+              </p>
+            </li>
+            <li>
+              <h3>The skill</h3>
+              <Code code="npx skills add yoanbernabeu/stackalarm" />
+              <p class="muted small">
+                Optional: set <code>GITHUB_TOKEN</code> to raise the GitHub API rate limit, and <code>NVD_API_KEY</code>
+                (<a href="https://nvd.nist.gov/developers/request-an-api-key">free</a>) to search the NVD faster.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="watch" class="watch" aria-labelledby="watch-title">
+        <div class="wrap">
+          <h2 id="watch-title">The same check, every four hours, in your CI</h2>
+          <p class="intro">
+            A check only helps when someone runs it. The scheduled watch runs the CLI in GitHub Actions or GitLab CI and opens an issue when a
+            heads-up, an alert or a security release concerns your stack. Quiet runs cost nothing and open nothing.
+          </p>
+
+          <div class="watch-profile">
+            <div>
+              <h3>It starts from a profile</h3>
+              <p>
+                At the end of a <code>/stackalarm</code> run, the agent offers to write <code>.stackalarm.yaml</code>: the tags, keywords and packages
+                to watch, and the stack they come from. It is refreshed on each run, and never holds host names or secrets.
+              </p>
+            </div>
+            <Code label=".stackalarm.yaml" code={profile} copy={false} />
+          </div>
+
+          <div class="platforms">
+            <div>
+              <h3>GitHub Actions</h3>
+              <p>
+                Copy <a href={`${repo}/blob/main/ci/github/stackalarm.yml`}><code>ci/github/stackalarm.yml</code></a> to
+                <code>.github/workflows/</code>. The <code>yoanbernabeu/stackalarm</code> action can also be called from your own workflows.
+              </p>
+              <Code label=".github/workflows/stackalarm.yml" code={githubWorkflow} />
+            </div>
+            <div>
+              <h3>GitLab CI</h3>
+              <p>Include the job in <code>.gitlab-ci.yml</code>:</p>
+              <Code label=".gitlab-ci.yml" code={gitlabInclude} />
+              <p>
+                Then add a masked <code>STACKALARM_GITLAB_TOKEN</code> variable (a project access token with the <code>api</code> scope and the
+                Reporter role) and a pipeline schedule: <code>17 */4 * * *</code>.
+              </p>
+            </div>
+          </div>
+
+          <div class="triage">
+            <div class="triage-text">
+              <h3>With Claude as the triage, on GitHub</h3>
+              <p>
+                Raw news is not a verdict: a Go release the project already runs is news, not a reason to act. Set the secret
+                <code>ANTHROPIC_API_KEY</code> and, when the CLI finds something new, Claude runs the skill on the project. API usage happens only on
+                the runs that find something.
+              </p>
+              <p class="muted small">
+                The agent can only write its answer files: it cannot open issues nor change the repository. The items already reported are kept in
+                the CI cache, saved only after the issue is opened: an item may be reported twice, never missed.
+              </p>
+            </div>
+            <div class="table-scroll" role="region" aria-label="What each run does" tabindex="0">
+              <table class="outcomes">
+                <thead>
+                  <tr><th scope="col">The run finds</th><th scope="col">What happens</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Nothing new</td><td>Nothing is opened. No API call.</td></tr>
+                  <tr><td>New items, triage says <code>act</code> or <code>prepare</code></td><td>An issue, verdict first, the raw news folded below.</td></tr>
+                  <tr><td>New items, triage says <code>none</code></td><td>No issue. The verdict stays in the run summary.</td></tr>
+                  <tr class="override"><td>Triage says <code>none</code>, but a watched technology is exploited in the wild (CISA KEV, EUVD)</td><td>An issue anyway.</td></tr>
+                  <tr><td>New items, the triage fails</td><td>An issue with the raw news.</td></tr>
+                  <tr><td>New items, no API key</td><td>An issue with the raw news, to judge with <code>/stackalarm triage &lt;issue link&gt;</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="privacy" aria-labelledby="privacy-title">
+        <div class="wrap narrow">
+          <h2 id="privacy-title">What leaves your machine</h2>
+          <p>
+            The CLI downloads public feeds and queries public APIs. The only thing it sends is the tags and keywords it is given, as search terms to
+            the CVE databases (NVD, EUVD): nothing about your project, and no telemetry. The skill runs your own audit tools locally, and its web
+            searches go through your agent.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-row">
+        <p>
+          <span class="wordmark small">/stackalarm</span> is <a href={`${repo}/blob/main/LICENSE`}>MIT licensed</a>, by Yoan Bernabeu.
+          Contributions go through <a href={`${repo}/issues`}>issues</a>; the most useful one is a
+          <a href={`${repo}/issues/new?template=new-source.yml`}>new source</a>.
+        </p>
+        <a href={repo}>github.com/yoanbernabeu/stackalarm</a>
+      </div>
+    </footer>
+
+    <script>
+      for (const button of document.querySelectorAll<HTMLButtonElement>(".copy")) {
+        const idle = button.innerHTML;
+        const status = (text: string) => {
+          if (button.classList.contains("icon")) button.setAttribute("aria-label", text);
+          else button.textContent = text;
+          button.dataset.state = text;
+        };
+        button.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(button.dataset.code ?? "");
+            status("Copied");
+          } catch {
+            status("Select and copy");
+          }
+          setTimeout(() => {
+            button.innerHTML = idle;
+            button.setAttribute("aria-label", button.classList.contains("icon") ? "Copy the install command" : "");
+            if (!button.classList.contains("icon")) button.removeAttribute("aria-label");
+            delete button.dataset.state;
+          }, 2000);
+        });
+      }
+    </script>
+  </body>
+</html>

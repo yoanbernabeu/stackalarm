@@ -21,6 +21,9 @@ inputs:
   label:
     description: The label of the issues, created if missing.
     default: stackalarm
+  install:
+    description: Install stackalarm ("true"), or use the one already on the PATH ("false").
+    default: "true"
   version:
     description: The stackalarm version to install (v0.5.0). Empty means the version of this action when it is pinned to a release, the latest release otherwise.
     default: ""
@@ -46,6 +49,7 @@ runs:
   using: composite
   steps:
     - name: Install stackalarm
+      if: inputs.install == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}

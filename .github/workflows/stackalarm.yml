@@ -1,0 +1,32 @@
+# The scheduled watch of this repository, run with the code of the commit:
+# it watches the stack of stackalarm itself, and tests the action it ships.
+name: stackalarm
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build stackalarm
+        run: |
+          go build -o "$RUNNER_TEMP/bin/stackalarm" ./cmd/stackalarm
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - uses: ./
+        with:
+          install: "false"

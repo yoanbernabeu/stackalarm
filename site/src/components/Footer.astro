@@ -1,0 +1,29 @@
+---
+import { repo } from "../lib/repo";
+
+// Every link points to something that exists in the repository or on the site.
+const links = [
+  { href: "/docs/", label: "Docs" },
+  { href: repo, label: "GitHub" },
+  { href: `${repo}/releases`, label: "Releases" },
+  { href: `${repo}/issues`, label: "Issues" },
+  { href: `${repo}/issues/new?template=bug.yml`, label: "Report a bug" },
+  { href: `${repo}/issues/new?template=new-source.yml`, label: "Propose a source" },
+  { href: `${repo}/blob/main/CONTRIBUTING.md`, label: "Contributing" },
+  { href: `${repo}/blob/main/SECURITY.md`, label: "Security" },
+  { href: `${repo}/blob/main/LICENSE`, label: "MIT License" },
+  { href: "/llms.txt", label: "llms.txt" },
+];
+---
+<footer class="footer">
+  <div class="wrap footer-row">
+    <p>
+      <a class="wordmark small" href="/">/stackalarm</a>, by Yoan Bernabeu
+    </p>
+    <nav aria-label="Project links">
+      <ul class="footer-links">
+        {links.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+      </ul>
+    </nav>
+  </div>
+</footer>

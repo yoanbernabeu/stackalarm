@@ -184,9 +184,87 @@ code {
   text-decoration: underline;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Not glass: the two glass elements are the Install pill and the hero command. */
+.menu-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgb(236 235 230 / 0.45);
+  border-radius: 999px;
+  background: rgb(11 14 20 / 0.55);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menu-toggle[hidden] {
+  display: none;
+}
+
+/* Bars when closed, a cross when open. */
+.menu-toggle .cross,
+.menu-toggle[aria-expanded="true"] .bars {
+  display: none;
+}
+
+.menu-toggle[aria-expanded="true"] .cross {
+  display: inline;
+}
+
+.menu-toggle:hover {
+  background: rgb(11 14 20 / 0.75);
+}
+
+/* Below 56rem the nav is a panel under the header, opened by the menu button. */
+@media (max-width: 55.99rem) {
+  .nav.open nav {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: calc(100% - 0.25rem);
+    left: 16px;
+    right: 16px;
+    padding: 0.5rem;
+    background: var(--bg-2);
+    border: 1px solid var(--edge);
+    border-radius: 16px;
+    gap: 0;
+  }
+
+  .nav.open nav a {
+    min-height: 48px;
+    padding: 0 1rem;
+    border-radius: 10px;
+  }
+
+  .nav.open nav a:hover {
+    background: var(--bg);
+    text-decoration: none;
+  }
+}
+
+/* On mobile, Install lives in the menu; on desktop, in the pill. */
+@media (max-width: 55.99rem) {
+  .nav-actions .pill {
+    display: none;
+  }
+}
+
 @media (min-width: 56rem) {
   .nav nav {
     display: flex;
+  }
+
+  .menu-toggle,
+  .nav-install {
+    display: none !important;
   }
 }
 
@@ -883,7 +961,31 @@ main > section:not(.hero) {
 
 .footer-row p {
   margin: 0;
-  max-width: 46rem;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.footer-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 
 .footer .wordmark {

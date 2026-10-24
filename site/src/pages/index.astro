@@ -7,6 +7,7 @@ import "@fontsource/ibm-plex-mono/500.css";
 import "../styles/global.css";
 import FontPreload from "../components/FontPreload.astro";
 import Code from "../components/Code.astro";
+import Footer from "../components/Footer.astro";
 import { loadSources, stages } from "../lib/sources";
 import { latestTag } from "../lib/version";
 
@@ -108,14 +109,23 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
     <header class="nav">
       <div class="wrap nav-row">
         <a class="wordmark" href="#main">/stackalarm</a>
-        <nav aria-label="Sections">
+        <nav id="site-nav" aria-label="Sections">
           <a href="#answer">The answer</a>
           <a href="#how">How it works</a>
           <a href="#watch">CI/CD</a>
           <a href="/docs/">Docs</a>
           <a href={repo}>GitHub</a>
+          <a class="nav-install" href="#install">Install</a>
         </nav>
-        <a class="pill" href="#install">Install</a>
+        <div class="nav-actions">
+          <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Open the menu" hidden>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path class="bars" d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+              <path class="cross" d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+            </svg>
+          </button>
+          <a class="pill" href="#install">Install</a>
+        </div>
       </div>
     </header>
 
@@ -354,18 +364,30 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="wrap footer-row">
-        <p>
-          <span class="wordmark small">/stackalarm</span> is <a href={`${repo}/blob/main/LICENSE`}>MIT licensed</a>, by Yoan Bernabeu.
-          Contributions go through <a href={`${repo}/issues`}>issues</a>; the most useful one is a
-          <a href={`${repo}/issues/new?template=new-source.yml`}>new source</a>.
-        </p>
-        <a href={repo}>github.com/yoanbernabeu/stackalarm</a>
-      </div>
-    </footer>
+    <Footer />
 
     <script>
+      // Mobile menu: the nav becomes a panel under the header. Without JavaScript the button stays hidden.
+      const header = document.querySelector<HTMLElement>(".nav")!;
+      const toggle = header.querySelector<HTMLButtonElement>(".menu-toggle")!;
+      const setOpen = (open: boolean) => {
+        header.classList.toggle("open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.setAttribute("aria-label", open ? "Close the menu" : "Open the menu");
+      };
+      toggle.hidden = false;
+      toggle.addEventListener("click", () => setOpen(!header.classList.contains("open")));
+      header.querySelectorAll("#site-nav a").forEach((a) => a.addEventListener("click", () => setOpen(false)));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && header.classList.contains("open")) {
+          setOpen(false);
+          toggle.focus();
+        }
+      });
+      document.addEventListener("click", (e) => {
+        if (header.classList.contains("open") && !header.contains(e.target as Node)) setOpen(false);
+      });
+
       for (const button of document.querySelectorAll<HTMLButtonElement>(".copy")) {
         const idle = button.innerHTML;
         const status = (text: string) => {

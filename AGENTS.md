@@ -14,7 +14,7 @@ internal/cli/       Cobra commands (news, sources); App holds every dependency
 internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, KEV), filtering, cache
 internal/source/    the source format and its validation
 internal/watch/     the project profile and the state of a scheduled watch
-sources/            one YAML file per source, embedded in the binary
+sources/            one YAML file per source, plus search.yaml (how tags are searched in the CVE databases), embedded in the binary
 skills/stackalarm/  the agent skill (published on skills.sh)
 evals/              test prompts and assertions for the skill (kept out of the skill folder)
 action.yml          the GitHub Action of the scheduled watch
@@ -27,7 +27,7 @@ site/               the presentation site (Astro), see site/DESIGN.md
 1. Check the URL answers and the entries carry dates.
 2. Write `sources/<id>.yaml` (the id is the file name).
 3. `go test ./...` validates every bundled source.
-4. Run `go run ./cmd/stackalarm news --tag <tag> --since 30d --no-cache` and check the entries look right.
+4. Run `go run ./cmd/stackalarm news --tag <tag> --since 30d --no-cache` and check the entries look right. If a new tag is an ambiguous word, the NVD and EUVD results show it: give it an alias or skip it in `sources/search.yaml`.
 5. Commit with `Fixes #<issue>`.
 
 ## Rules

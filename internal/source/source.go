@@ -149,6 +149,9 @@ func LoadAll(fsys fs.FS) ([]Source, error) {
 		errs []error
 	)
 	for _, name := range names {
+		if name == SearchFile {
+			continue
+		}
 		data, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			return nil, err
@@ -165,6 +168,58 @@ func LoadAll(fsys fs.FS) ([]Source, error) {
 		out = append(out, s)
 	}
 	return out, errors.Join(errs...)
+}
+
+// SearchFile sits next to the sources but is not one: it says how the CVE
+// databases are searched for each tag.
+const SearchFile = "search.yaml"
+
+// Search tunes the words the search sources (NVD, EUVD) are queried with.
+type Search struct {
+	// Aliases replace an ambiguous tag, in searches and when matching the
+	// entries of general sources: "node" alone matches Linux kernel CVEs.
+	Aliases map[string]string `yaml:"aliases"`
+	// Skip lists the tags the search sources are not queried with: the word
+	// means something else, or names a whole ecosystem whose own sources
+	// already cover the project. General sources still match them.
+	Skip []string `yaml:"skip"`
+}
+
+// LoadSearch reads SearchFile and checks that it only names tags of sources.
+func LoadSearch(fsys fs.FS, sources []Source) (Search, error) {
+	data, err := fs.ReadFile(fsys, SearchFile)
+	if err != nil {
+		return Search{}, err
+	}
+	var s Search
+	dec := yaml.NewDecoder(strings.NewReader(string(data)))
+	dec.KnownFields(true)
+	if err := dec.Decode(&s); err != nil {
+		return Search{}, fmt.Errorf("%s: invalid YAML: %w", SearchFile, err)
+	}
+	var errs []error
+	fail := func(format string, args ...any) { errs = append(errs, fmt.Errorf(format, args...)) }
+	tags := Tags(sources)
+	for tag, alias := range s.Aliases {
+		if !slices.Contains(tags, tag) {
+			fail("alias of unknown tag %q", tag)
+		}
+		if alias == "" || alias != strings.ToLower(alias) {
+			fail("alias of %q must be a lowercase word", tag)
+		}
+		if slices.Contains(s.Skip, tag) {
+			fail("tag %q is both aliased and skipped", tag)
+		}
+	}
+	for _, tag := range s.Skip {
+		if !slices.Contains(tags, tag) || tag == General {
+			fail("skipped tag %q is not a technology tag of a source", tag)
+		}
+	}
+	if len(errs) > 0 {
+		return Search{}, fmt.Errorf("%s: %w", SearchFile, errors.Join(errs...))
+	}
+	return s, nil
 }
 
 // Tags returns every tag used by the sources, sorted.

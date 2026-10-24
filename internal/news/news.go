@@ -84,14 +84,15 @@ type Fetcher struct {
 	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
 	CacheDir    string        // empty disables the cache
 	CacheTTL    time.Duration // how long a cached response is reused
+	Search      source.Search // how tags become CVE database search terms
 	Now         func() time.Time
 }
 
 // Fetch reads the sources selected by q, in parallel.
 func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
 	selected := selectSources(sources, q.Tags)
-	terms := searchTerms(q)
-	words := matchers(terms)
+	terms := searchTerms(q, f.Search)
+	words := matchers(matchTerms(q, f.Search))
 	nvd := &gate{delay: f.NVDDelay}
 
 	var (
@@ -274,28 +275,30 @@ func priority(score float64) float64 {
 // maxTerms bounds the requests made to search sources.
 const maxTerms = 8
 
-// searchAliases are the terms CVE databases are searched with for tags that
-// are ambiguous words: "node" alone matches hundreds of Linux kernel CVEs
-// (NUMA nodes, inodes), "go" matches almost anything.
-var searchAliases = map[string]string{
-	"node":   "node.js",
-	"nextjs": "next.js",
-	"go":     "golang",
-	"dotnet": ".net",
-}
-
-// searchTerms returns the words search sources are queried with.
-func searchTerms(q Query) []string {
+// matchTerms returns the words entries of general sources are matched
+// against: every tag and keyword, with the aliases of sources/search.yaml.
+func matchTerms(q Query, s source.Search) []string {
 	var out []string
 	for _, w := range append(slices.Clone(q.Tags), q.Keywords...) {
 		w = strings.ToLower(strings.TrimSpace(w))
-		if alias, ok := searchAliases[w]; ok {
+		if alias, ok := s.Aliases[w]; ok {
 			w = alias
 		}
 		if w != "" && w != source.General && !slices.Contains(out, w) {
 			out = append(out, w)
 		}
 	}
+	return out
+}
+
+// searchTerms returns the words search sources are queried with: the match
+// terms, minus the tags sources/search.yaml skips. An explicit keyword is
+// always searched.
+func searchTerms(q Query, s source.Search) []string {
+	tags := slices.DeleteFunc(slices.Clone(q.Tags), func(t string) bool {
+		return slices.Contains(s.Skip, strings.ToLower(strings.TrimSpace(t)))
+	})
+	out := matchTerms(Query{Tags: tags, Keywords: q.Keywords}, s)
 	return out[:min(len(out), maxTerms)]
 }
 

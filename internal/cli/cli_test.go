@@ -25,6 +25,9 @@ func TestBundledSourcesAreValid(t *testing.T) {
 	if len(srcs) < 20 {
 		t.Fatalf("only %d sources loaded", len(srcs))
 	}
+	if _, err := source.LoadSearch(sources.FS, srcs); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func newTestApp(t *testing.T, args ...string) (*App, *bytes.Buffer, *bytes.Buffer) {

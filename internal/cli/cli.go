@@ -42,6 +42,10 @@ func Default(version string) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bundled sources are invalid: %w", err)
 	}
+	search, err := source.LoadSearch(sources.FS, srcs)
+	if err != nil {
+		return nil, fmt.Errorf("bundled search settings are invalid: %w", err)
+	}
 	return &App{
 		Out: os.Stdout, Err: os.Stderr, Sources: srcs, Now: time.Now, Version: version,
 		Getenv: os.Getenv, CacheRoot: os.UserCacheDir,
@@ -50,6 +54,7 @@ func Default(version string) (*App, error) {
 			UserAgent: "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
 			CacheTTL:  time.Hour,
 			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key
+			Search:    search,
 		},
 	}, nil
 }

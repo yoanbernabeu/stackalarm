@@ -309,9 +309,36 @@ func TestSearchCapKeepsTheMostSevere(t *testing.T) {
 }
 
 func TestSearchTermsUseAliasesForAmbiguousTags(t *testing.T) {
-	got := searchTerms(Query{Tags: []string{"node", "php", "general"}, Keywords: []string{"Node.js", "vite"}})
+	got := searchTerms(Query{Tags: []string{"node", "php", "general"}, Keywords: []string{"Node.js", "vite"}}, testSearch)
 	if strings.Join(got, ",") != "node.js,php,vite" {
 		t.Fatalf("got %v", got)
+	}
+}
+
+var testSearch = source.Search{Aliases: map[string]string{"node": "node.js"}, Skip: []string{"swift", "npm"}}
+
+func TestSearchTermsSkipTags(t *testing.T) {
+	if got := searchTerms(Query{Tags: []string{"swift", "astro"}}, testSearch); strings.Join(got, ",") != "astro" {
+		t.Fatalf("the swift tag must not be searched: %v", got)
+	}
+	if got := searchTerms(Query{Tags: []string{"swift"}, Keywords: []string{"swift"}}, testSearch); strings.Join(got, ",") != "swift" {
+		t.Fatalf("an explicit keyword must still be searched: %v", got)
+	}
+}
+
+func TestSkippedTagsStillMatchGeneralSources(t *testing.T) {
+	feed := `<rss><channel>
+<item><title>Self-replicating worm in npm packages</title><pubDate>Fri, 23 Oct 2026 10:00:00 +0000</pubDate></item>
+<item><title>Windows kernel flaw</title><pubDate>Fri, 23 Oct 2026 10:00:00 +0000</pubDate></item>
+</channel></rss>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(feed)) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Search: testSearch, Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "cert", Type: source.TypeFeed, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageAlert}},
+		Query{Tags: []string{"npm"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if len(res.Items) != 1 || !strings.Contains(res.Items[0].Title, "npm") {
+		t.Fatalf("only the npm alert must remain: %+v", res.Items)
 	}
 }
 
@@ -322,7 +349,7 @@ func TestSearchResultsMustContainTheTerm(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(body)) }))
 	defer srv.Close()
 	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
-	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	f := &Fetcher{Client: srv.Client(), Search: testSearch, Now: func() time.Time { return now }}
 	res := f.Fetch(context.Background(), []source.Source{{ID: "euvd", Type: source.TypeEUVDSearch, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageAdvisory}},
 		Query{Tags: []string{"node"}, Since: now.Add(-7 * 24 * time.Hour)})
 	if len(res.Items) != 1 || !strings.Contains(res.Items[0].Title, "Node.js") {

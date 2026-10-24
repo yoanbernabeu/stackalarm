@@ -1,0 +1,27 @@
+# How the CVE databases (NVD, EUVD) are searched for each tag. Not a source.
+
+# Ambiguous tags, replaced by a precise word in searches and when matching
+# the entries of general sources: "node" alone matches hundreds of Linux
+# kernel CVEs (NUMA nodes, inodes), "go" almost anything.
+aliases:
+  node: node.js
+  nextjs: next.js
+  go: golang
+  dotnet: .net
+
+# Tags the CVE databases are not searched for. General sources (CERTs, KEV,
+# press) still match them, and an explicit --keyword is still searched.
+skip:
+  # The word means something else: OpenStack Swift, ms-swift; the MediaWiki
+  # Cargo extension; Windows Internet Connection Sharing, Ivanti ICS; Visual
+  # Composer, Oracle BPM Composer.
+  - swift
+  - cargo
+  - ics
+  - composer
+  # Package managers: every CVE of the ecosystem names them. Their GitHub
+  # Advisory Database source, narrowed with --package, covers the project.
+  - npm
+  - pip
+  - maven
+  - nuget

@@ -38,8 +38,8 @@ AI now turns a security patch into a working exploit in hours. In October 2026, 
 Neither half is useful alone.
 
 - **The skill is the analyst.** It reads the project (manifests, lockfiles, Dockerfiles, CI, git remotes) to find the technologies and their versions, runs the CLI, and completes it with a web search and your ecosystem's dependency audits (`composer audit`, `npm audit`, `pip-audit`, `govulncheck`…). It decides what actually applies, says how sure it is (exact version, branch or range), asks the one question that would change the verdict, explains, and offers to fix what lives in the repository, one change at a time, after asking.
-- **The CLI is its eyes.** It reads 90 sources first-hand, so the agent sees an announcement minutes after it is published, before search engines index it:
-  - Projects and vendors: release feeds, security announcements and advisories (PHP, Node.js, Python, Ruby, GitLab, Symfony, Laravel, Django, Rails, Astro, Vite, Next.js, Nuxt, SvelteKit, React, WordPress, Drupal, Netlify, GitHub, Microsoft, Cisco, Fortinet, Palo Alto…) and the GitHub Advisory Database per ecosystem.
+- **The CLI is its eyes.** It reads 92 sources first-hand, so the agent sees an announcement minutes after it is published, before search engines index it:
+  - Projects and vendors: release feeds, security announcements and advisories (PHP, Node.js, Python, Ruby, Go, GitLab, Symfony, Laravel, Django, Rails, Astro, Vite, Next.js, Nuxt, SvelteKit, React, WordPress, Drupal, Netlify, GitHub, Microsoft, Cisco, Fortinet, Palo Alto…) and the GitHub Advisory Database per ecosystem.
   - CVE databases: NIST NVD (US) and ENISA EUVD (EU), searched for the project's technologies.
   - Governments and CERTs: CISA (KEV catalog and advisories), CERT/CC, CERT-FR, CERT-EU, NCSC UK, CERT-Bund, NCSC-NL, CERT Polska, Canadian Centre for Cyber Security, JPCERT/CC, JVN.
   - Exploits and research: Exploit-DB, Zero Day Initiative, Full Disclosure, oss-security, Project Zero, SANS ISC, watchTowr, and the security press.
@@ -139,7 +139,7 @@ A check only helps when someone runs it. The scheduled watch runs the CLI every 
    ```
 
 2. **The schedule.** No agent runs here: the CLI reads the profile, which keeps every run free.
-   - **GitHub**: copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`. It uses the `yoanbernabeu/stackalarm` action, which you can also call from your own workflows (inputs: `profile`, `since`, `fail-on`, `issue`, `label`; outputs: `found`, `report`, `issue-url`).
+   - **GitHub**: copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`. It uses the `yoanbernabeu/stackalarm` action, which you can also call from your own workflows (inputs: `profile`, `since`, `fail-on`, `issue`, `label`, `install`, `version`; outputs: `found`, `report`, `issue-url`).
    - **GitLab**: include [`ci/gitlab/stackalarm.yml`](ci/gitlab/stackalarm.yml), add a `STACKALARM_GITLAB_TOKEN` variable and a pipeline schedule (instructions at the top of the file).
 
 3. **The triage (optional, GitHub).** The issue lists raw news, not a verdict. Set the repository variable `STACKALARM_TRIAGE` to `true` and the secret `ANTHROPIC_API_KEY`: when an issue is opened, Claude runs the skill on the project (`/stackalarm triage <issue>`) and posts its verdict as a comment. It changes no file, and costs API usage only on the runs that open an issue. Without it, run `/stackalarm triage <issue link>` in your agent.

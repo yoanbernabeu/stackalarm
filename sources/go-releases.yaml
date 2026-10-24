@@ -1,0 +1,7 @@
+id: go-releases
+name: Go releases (tags of the release branches; minor releases carry the security fixes)
+type: feed
+url: https://github.com/golang/go/tags.atom
+tags: [go]
+stage: release
+keywords: [release-branch]

@@ -1,5 +1,5 @@
 # Written by the stackalarm skill, refreshed on each /stackalarm run.
-tags: [go, github-actions, github]
+tags: [go, github-actions]
 keywords: [goreleaser]
 packages: [github.com/spf13/cobra, github.com/spf13/pflag, gopkg.in/yaml.v3, github.com/inconshreveable/mousetrap, actions/checkout, actions/setup-go, actions/cache, goreleaser/goreleaser-action]
 stack:

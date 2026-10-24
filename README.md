@@ -138,11 +138,13 @@ A check only helps when someone runs it. The scheduled watch runs the CLI every 
      - {name: php, version: "8.3", precision: branch, from: Dockerfile}
    ```
 
-2. **The schedule.** No agent runs here: the CLI reads the profile, which keeps every run free.
-   - **GitHub**: copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`. It uses the `yoanbernabeu/stackalarm` action, which you can also call from your own workflows (inputs: `profile`, `since`, `fail-on`, `issue`, `label`, `install`, `version`; outputs: `found`, `report`, `issue-url`).
+2. **The schedule.** Every run starts with the CLI alone, which reads the profile: quiet runs are free.
+   - **GitHub**: copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`. It uses the `yoanbernabeu/stackalarm` action, which you can also call from your own workflows (inputs: `profile`, `since`, `fail-on`, `anthropic-api-key`, `issue`, `label`, `install`, `version`; outputs: `found`, `decision`, `report`, `issue-url`).
    - **GitLab**: include [`ci/gitlab/stackalarm.yml`](ci/gitlab/stackalarm.yml), add a `STACKALARM_GITLAB_TOKEN` variable and a pipeline schedule (instructions at the top of the file).
 
-3. **The triage (optional, GitHub).** The issue lists raw news, not a verdict. Set the repository variable `STACKALARM_TRIAGE` to `true` and the secret `ANTHROPIC_API_KEY`: when an issue is opened, Claude runs the skill on the project (`/stackalarm triage <issue>`) and posts its verdict as a comment. It changes no file, and costs API usage only on the runs that open an issue. Without it, run `/stackalarm triage <issue link>` in your agent.
+3. **The triage (optional, GitHub).** Raw news is not a verdict: a Go release the project already runs is news, not a reason to act. Set the secret `ANTHROPIC_API_KEY` and, when the CLI finds something new, Claude runs the skill on the project and an issue is opened only when it is concerned (`act` or `prepare`), with the verdict first and the raw news folded below. Otherwise, no issue: the verdict stays in the run summary. Two safety nets: a vulnerability exploited in the wild (CISA KEV, EUVD) that names a watched technology opens an issue whatever the verdict, and if the triage fails, the raw news is posted. The agent can only write its answer files: it cannot open issues nor change the repository. API usage happens only on the runs that find something.
+
+   Without the key, every new heads-up, alert or security release opens an issue with the raw news; run `/stackalarm triage <issue link>` in your agent to judge it.
 
 The CI cache keeps a small state file listing the items already reported, so each item is reported once. It is saved only after the issue is opened: if the cache is lost or the issue fails, an item may be reported twice, never missed.
 

@@ -1,6 +1,6 @@
 # The scheduled watch of this repository, run with the code of the commit:
 # it watches the stack of stackalarm itself, and tests the action and the
-# skill it ships. The triage runs when STACKALARM_TRIAGE is "true".
+# skill it ships.
 name: stackalarm
 
 on:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       since:
-        description: How far back to look (a longer window to test the issue and the triage)
+        description: How far back to look (a longer window to test the triage)
         default: 48h
 
 permissions:
@@ -21,9 +21,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-    outputs:
-      found: ${{ steps.stackalarm.outputs.found }}
-      issue-url: ${{ steps.stackalarm.outputs.issue-url }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,42 +32,9 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/bin/stackalarm" ./cmd/stackalarm
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-      - id: stackalarm
-        uses: ./
+      - uses: ./
         with:
           install: "false"
           since: ${{ inputs.since || '48h' }}
-
-  triage:
-    needs: watch
-    if: needs.watch.outputs.found == 'true' && needs.watch.outputs.issue-url != '' && vars.STACKALARM_TRIAGE == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      - name: Build stackalarm and install the skill of this commit
-        run: |
-          go build -o "$RUNNER_TEMP/bin/stackalarm" ./cmd/stackalarm
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-          mkdir -p .claude/skills/stackalarm
-          cp skills/stackalarm/SKILL.md .claude/skills/stackalarm/SKILL.md
-      - uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ github.token }}
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ github.token }}
-          prompt: |
-            /stackalarm triage ${{ needs.watch.outputs.issue-url }}
-
-            Run the stackalarm skill in triage mode on the items of that issue, then post
-            your verdict as a comment on it with `gh issue comment`. Change no file.
-          claude_args: >-
-            --allowedTools "Skill,Read,Glob,Grep,WebSearch,WebFetch,Bash(stackalarm:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(go list:*),Bash(git remote:*)"
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          nvd-api-key: ${{ secrets.NVD_API_KEY }}

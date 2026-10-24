@@ -1,5 +1,5 @@
 name: stackalarm watch
-description: Watch the security news of your stack on a schedule, and open an issue when a heads-up, an alert or a security release needs a look.
+description: Watch the security news of your stack on a schedule, have Claude judge whether the project is concerned, and open an issue only when it is.
 author: Yoan Bernabeu
 branding:
   icon: bell
@@ -13,10 +13,13 @@ inputs:
     description: How far back to look. Longer than the schedule interval, so a delayed run misses nothing; the state removes the duplicates.
     default: 48h
   fail-on:
-    description: The stages that open an issue (heads-up, alert, release, advisory, news).
+    description: The stages that wake the watch up (heads-up, alert, release, advisory, news).
     default: heads-up,alert,release
+  anthropic-api-key:
+    description: Optional. With it, Claude runs the stackalarm skill on the new items, and an issue is opened only when the project is concerned. Without it, every new item opens an issue.
+    default: ""
   issue:
-    description: Open an issue when new items are found ("true" or "false").
+    description: Open an issue ("true" or "false").
     default: "true"
   label:
     description: The label of the issues, created if missing.
@@ -38,6 +41,9 @@ outputs:
   found:
     description: '"true" when new items with one of the fail-on stages were found.'
     value: ${{ steps.watch.outputs.found }}
+  decision:
+    description: 'What decided the issue: act, prepare or none (from the triage), exploited (an exploited vulnerability overrode "none"), untriaged (no key, or the triage failed). Empty when nothing was found.'
+    value: ${{ steps.issue.outputs.decision }}
   report:
     description: Path of the Markdown report.
     value: ${{ steps.watch.outputs.report }}
@@ -67,8 +73,8 @@ runs:
         STACKALARM_VERSION="$version" INSTALL_DIR="$bin" sh "$GITHUB_ACTION_PATH/install.sh"
         echo "$bin" >> "$GITHUB_PATH"
 
-    # The state remembers what earlier runs reported. A new cache entry is saved
-    # per run that reports something; the latest one is restored.
+    # The state remembers what earlier runs handled. A new cache entry is saved
+    # per run that found something; the latest one is restored.
     - name: Restore the state
       uses: actions/cache/restore@v6
       with:
@@ -101,24 +107,108 @@ runs:
           *) exit "$code" ;;
         esac
 
+    - name: Prepare the triage
+      if: steps.watch.outputs.found == 'true' && inputs.anthropic-api-key != ''
+      shell: bash
+      env:
+        REPORT: ${{ steps.watch.outputs.report }}
+      run: |
+        mkdir -p .stackalarm-triage .claude/skills/stackalarm
+        cp "$REPORT" .stackalarm-triage/report.md
+        cp "$GITHUB_ACTION_PATH/skills/stackalarm/SKILL.md" .claude/skills/stackalarm/SKILL.md
+
+    # The agent reads third-party text (feeds, web pages): it can only write
+    # its two answer files, never open an issue nor run gh. If it fails, the
+    # next step falls back to the raw report: a silent watch is worse than a
+    # noisy one.
+    - name: Triage
+      id: triage
+      if: steps.watch.outputs.found == 'true' && inputs.anthropic-api-key != ''
+      continue-on-error: true
+      uses: anthropics/claude-code-action@v1
+      with:
+        anthropic_api_key: ${{ inputs.anthropic-api-key }}
+        github_token: ${{ inputs.github-token }}
+        prompt: |
+          /stackalarm triage .stackalarm-triage/report.md
+
+          Unattended triage: judge the items of this report against the project in this
+          directory. Write your answer, in the usual format and verdict first, to
+          .stackalarm-triage/verdict.md. Then write one word to .stackalarm-triage/decision.txt:
+          act (the project is affected now), prepare (it will be, or a heads-up concerns it)
+          or none (nothing in the report concerns the project). Change no other file.
+        claude_args: >-
+          --allowedTools "Skill,Read,Glob,Grep,WebSearch,WebFetch,Write(./.stackalarm-triage/**),Bash(stackalarm:*),Bash(git remote:*),Bash(go list:*),Bash(composer audit:*),Bash(npm audit:*),Bash(pnpm audit:*)"
+
     - name: Open an issue
       id: issue
-      if: steps.watch.outputs.found == 'true' && inputs.issue == 'true'
+      if: steps.watch.outputs.found == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+        ISSUE: ${{ inputs.issue }}
         LABEL: ${{ inputs.label }}
         REPORT: ${{ steps.watch.outputs.report }}
+        TRIAGE: ${{ steps.triage.outcome }}
       run: |
+        decision=untriaged
+        if [ "$TRIAGE" = success ] && [ -s .stackalarm-triage/verdict.md ]; then
+          d=$(tr -d '[:space:]' < .stackalarm-triage/decision.txt 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
+          case "$d" in act | prepare | none) decision="$d" ;; esac
+        fi
+        # A vulnerability exploited in the wild that names a watched technology
+        # always reaches a person, whatever the triage concluded.
+        if [ "$decision" = none ] && grep -qE '\*\* · (cisa-kev|euvd-exploited)([ ,]|$)' "$REPORT"; then
+          decision=exploited
+        fi
+        echo "decision=$decision" >> "$GITHUB_OUTPUT"
+
+        body="$RUNNER_TEMP/stackalarm/issue.md"
+        raw() {
+          printf '\n<details><summary>Raw news gathered by stackalarm</summary>\n\n'
+          cat "$REPORT"
+          printf '\n</details>\n'
+        }
+        case "$decision" in
+          act) title="stackalarm: act now" ;;
+          prepare) title="stackalarm: prepare" ;;
+          exploited) title="stackalarm: exploited vulnerability to check" ;;
+          none) title="" ;;
+          *) title="stackalarm: security news to check" ;;
+        esac
+        case "$decision" in
+          act | prepare)
+            { cat .stackalarm-triage/verdict.md; raw; } > "$body" ;;
+          exploited)
+            { printf '> The triage found nothing that concerns the project, but the report lists a vulnerability exploited in the wild: please check it.\n\n'
+              cat .stackalarm-triage/verdict.md; raw; } > "$body" ;;
+          none)
+            { printf '\n## Triage: nothing concerns the project\n\n'; cat .stackalarm-triage/verdict.md; } >> "$GITHUB_STEP_SUMMARY"
+            echo "The triage found nothing that concerns the project: no issue."
+            exit 0 ;;
+          *)
+            if [ "$TRIAGE" != skipped ]; then
+              printf '> The triage did not complete: here is the raw news, to check by hand or with `/stackalarm triage <link to this issue>`.\n\n' > "$body"
+            else
+              : > "$body"
+            fi
+            cat "$REPORT" >> "$body" ;;
+        esac
+        if [ "$decision" != untriaged ]; then
+          cat "$body" >> "$GITHUB_STEP_SUMMARY" # the raw report is already there
+        fi
+        if [ "$ISSUE" != true ]; then
+          exit 0
+        fi
         gh label create "$LABEL" --repo "$GITHUB_REPOSITORY" --color B60205 \
           --description "Security news found by stackalarm" >/dev/null 2>&1 || true
-        head -c 60000 "$REPORT" > "$REPORT.issue" # the issue body limit is 65536 characters
-        url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label "$LABEL" --body-file "$REPORT.issue" \
-          --title "stackalarm: security news to check ($(date -u +%F))")
+        head -c 60000 "$body" > "$body.cut" # the issue body limit is 65536 characters
+        url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label "$LABEL" --body-file "$body.cut" \
+          --title "$title ($(date -u +%F))")
         echo "url=$url" >> "$GITHUB_OUTPUT"
 
-    # Saved only once the issue exists: if it could not be opened, the next run
-    # reports the same items again rather than losing them.
+    # Saved only once the issue exists or the triage decided none was needed:
+    # if the issue could not be opened, the next run handles the items again.
     - name: Save the state
       if: steps.watch.outputs.found == 'true'
       uses: actions/cache/save@v6

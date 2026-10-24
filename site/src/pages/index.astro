@@ -18,7 +18,8 @@ const heroImage = ["hero.webp", "hero.jpg", "hero.png"].find((f) => existsSync(r
 const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 
 const title = "stackalarm: security news, matched to your stack";
-const description = `Type /stackalarm in your AI agent and find out what to patch first: this week's advisories, releases and CERT alerts from ${sources.length} official sources, checked against your project.`;
+// Kept under 125 characters: social previews cut longer ones.
+const description = "Type /stackalarm in your AI agent and find out what to patch first: this week's security news, checked against your project.";
 const canonical = new URL("/", Astro.site).href;
 const ogImage = new URL("/og.png", Astro.site).href;
 const jsonLd = {

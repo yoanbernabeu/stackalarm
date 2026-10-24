@@ -5,7 +5,7 @@ description: "Up-to-date security check of the project at hand. Your training da
 
 # stackalarm
 
-If the user added text after `/stackalarm` (a technology, "before the deploy", a CVE…), treat it as the focus of the check.
+If the user added text after `/stackalarm` (a technology, "before the deploy", a CVE…), treat it as the focus of the check. If it starts with `triage`, follow **Triage mode** at the end instead of a full check.
 
 Help the user answer one question about the project open in front of you: **is there anything in the security news that affects us, and what should we do?**
 
@@ -24,6 +24,8 @@ curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install
 ```
 
 ## 1. Map the project
+
+If the project has a `.stackalarm.yaml` profile (written by an earlier run, see step 8), start from its tags, keywords, packages and stack, but still read the files below: dependencies change, and a stale profile watches the wrong things. Note what differs; you will offer to update the profile at the end.
 
 Read the files that declare what the project runs on. Typical ones:
 
@@ -129,3 +131,32 @@ Once the user has read the report, offer to fix what lives in the repository, on
 - Add a documented temporary mitigation in configuration when no fix exists yet, with a comment saying when to remove it.
 
 Never change several things in one go, and never push, deploy or touch a server. What lives outside the repository (production servers, a self-hosted GitLab, the hosting provider) gets explained, step by step, for the user to do.
+
+## 8. Offer the scheduled watch
+
+A check only helps when someone runs it; a heads-up published on a Tuesday evening is worth most that same night. After the fixes, offer once, in one sentence, to set up the scheduled watch. If the user agrees, one change at a time:
+
+1. **Write the profile** `.stackalarm.yaml` at the root of the project, from what you mapped in step 1:
+
+   ```yaml
+   # Written by the stackalarm skill, refreshed on each /stackalarm run.
+   tags: [php, symfony, composer, gitlab, docker]
+   keywords: [frankenphp]
+   packages: [symfony/http-kernel, twig/twig]
+   stack:
+     - {name: php, version: "8.3", precision: branch, from: Dockerfile}
+     - {name: gitlab, version: unknown, precision: unknown, from: git remote}
+   ```
+
+   `precision` is `exact`, `branch`, `range` or `unknown`. The file is committed and may be public: never write host names, internal URLs, IP addresses or anything secret in it (`gitlab`, not `gitlab.acme.internal`). Check it with `stackalarm news --profile .stackalarm.yaml --since 24h`.
+2. **Add the schedule**, depending on where the project lives:
+   - GitHub: copy https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/github/stackalarm.yml to `.github/workflows/stackalarm.yml`. It opens an issue when a heads-up, an alert or a security release is new. Tell the user about the optional triage (a `STACKALARM_TRIAGE` variable and an `ANTHROPIC_API_KEY` secret) and that it costs API usage only on the runs that open an issue.
+   - GitLab: add the `include:` shown at the top of https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/gitlab/stackalarm.yml to `.gitlab-ci.yml`, then explain the two steps only the user can do: the `STACKALARM_GITLAB_TOKEN` variable and the pipeline schedule.
+
+When the project already has a profile, update it instead if step 1 found differences, and say what changed.
+
+## Triage mode
+
+`/stackalarm triage <issue link or report>` comes from the scheduled watch: an issue listing new items, raw news and not a verdict. Read the issue (`gh issue view <link>`) or the report, then judge **those items** against the project with steps 1, 3, 5 and 6: map the project (the profile helps), complete with a web search, decide what applies. Run `stackalarm news` again only to get details of an item, and skip the dependency audits unless an item names a library.
+
+Answer with the usual format, verdict first. When asked to post it (`gh issue comment <link> --body-file <file>`), post it once. In triage mode, never change a file, even when a fix is obvious: say what to change, so that someone can run `/stackalarm` in their editor to apply it.

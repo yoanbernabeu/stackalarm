@@ -67,8 +67,10 @@ var (
 	idPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	tagPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
 	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD}
-	stages     = []Stage{StageHeadsUp, StageRelease, StageAdvisory, StageAlert, StageNews}
 )
+
+// Stages lists every stage, in the order they usually happen.
+var Stages = []Stage{StageHeadsUp, StageRelease, StageAdvisory, StageAlert, StageNews}
 
 // Parse reads and validates one source definition.
 func Parse(data []byte) (Source, error) {
@@ -95,8 +97,8 @@ func (s Source) Validate() error {
 	if !slices.Contains(types, s.Type) {
 		fail("type %q must be one of %v", s.Type, types)
 	}
-	if !slices.Contains(stages, s.Stage) {
-		fail("stage %q must be one of %v", s.Stage, stages)
+	if !slices.Contains(Stages, s.Stage) {
+		fail("stage %q must be one of %v", s.Stage, Stages)
 	}
 	if len(s.Tags) == 0 {
 		fail("tags are required (use %q for a source that covers everything)", General)

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/yoanbernabeu/stackalarm/internal/news"
 	"github.com/yoanbernabeu/stackalarm/internal/source"
+	"github.com/yoanbernabeu/stackalarm/internal/watch"
 	"github.com/yoanbernabeu/stackalarm/sources"
 )
 
@@ -69,21 +71,32 @@ func (a *App) Execute(ctx context.Context) int {
 		root.SetArgs(a.Args)
 	}
 	if err := root.ExecuteContext(ctx); err != nil {
+		if errors.Is(err, errFound) {
+			return 2
+		}
 		fmt.Fprintln(a.Err, "Error:", err)
 		return 1
 	}
 	return 0
 }
 
+// errFound makes the command exit with code 2: --fail-on found new items.
+var errFound = errors.New("new items found")
+
 type newsReport struct {
 	GeneratedAt time.Time         `json:"generated_at"`
 	Since       time.Time         `json:"since"`
 	Tags        []string          `json:"tags"`
 	Keywords    []string          `json:"keywords"`
+	Packages    []string          `json:"packages,omitempty"`
+	Stack       []watch.Component `json:"stack,omitempty"` // from the profile
 	Items       []news.Item       `json:"items"`
 	Failures    []news.Failure    `json:"failures"`
 	Truncated   []news.Truncation `json:"truncated"`
 	Warnings    []string          `json:"warnings"`
+	// AlreadyReported counts the items left out because the state file says
+	// an earlier run reported them.
+	AlreadyReported int `json:"already_reported,omitempty"`
 }
 
 func (a *App) newsCommand() *cobra.Command {
@@ -92,6 +105,9 @@ func (a *App) newsCommand() *cobra.Command {
 		packages       []string
 		since, format  string
 		noCache        bool
+		profilePath    string
+		statePath      string
+		failOn         []string
 	)
 	cmd := &cobra.Command{
 		Use:   "news",
@@ -103,16 +119,42 @@ sources (CERTs, CVE databases, exploit feeds, security press) whose entries
 mention one of the tags or --keyword values. The CVE databases (NVD, EUVD) are
 searched for each tag and keyword, and only when there is one: without a key,
 the NVD allows one request every 6 seconds (set NVD_API_KEY to go faster).
-Run "stackalarm sources" to see the available tags.`,
-		Example: "  stackalarm news --tag php --tag symfony --since 7d\n  stackalarm news --tag node --tag npm --package express,dompurify --format json",
-		Args:    cobra.NoArgs,
+Run "stackalarm sources" to see the available tags.
+
+For a scheduled watch, --profile reads the tags, keywords and packages from a
+file the agent wrote, --state shows only the items no earlier run reported, and
+--fail-on exits with code 2 when a new item has one of the given stages.`,
+		Example: "  stackalarm news --tag php --tag symfony --since 7d\n" +
+			"  stackalarm news --tag node --tag npm --package express,dompurify --format json\n" +
+			"  stackalarm news --profile .stackalarm.yaml --state .stackalarm-state --fail-on heads-up,alert,release --since 48h --format markdown",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			window, err := news.ParseSince(since)
 			if err != nil {
 				return fmt.Errorf("--since %q: %w", since, err)
 			}
-			if format != "text" && format != "json" && format != "summary" {
-				return fmt.Errorf("--format %q: use text, summary or json", format)
+			if !slices.Contains([]string{"text", "summary", "json", "markdown"}, format) {
+				return fmt.Errorf("--format %q: use text, summary, json or markdown", format)
+			}
+			for _, st := range lower(failOn) {
+				if !slices.Contains(source.Stages, source.Stage(st)) {
+					return fmt.Errorf("--fail-on %q: use stages among %v", st, source.Stages)
+				}
+			}
+			var stack []watch.Component
+			if profilePath != "" {
+				p, err := watch.LoadProfile(profilePath)
+				if err != nil {
+					return fmt.Errorf("--profile: %w", err)
+				}
+				tags, keywords, packages = union(p.Tags, tags), union(p.Keywords, keywords), union(p.Packages, packages)
+				stack = p.Stack
+			}
+			var state watch.State
+			if statePath != "" {
+				if state, err = watch.LoadState(statePath); err != nil {
+					return fmt.Errorf("--state: %w", err)
+				}
 			}
 			// An unknown tag is searched as a keyword in the general sources rather
 			// than failing: agents guess tags, and a guess should still help.
@@ -140,19 +182,47 @@ Run "stackalarm sources" to see the available tags.`,
 			now := a.Now().UTC()
 			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages})
 			report := newsReport{
-				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords),
+				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Stack: stack,
 				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Warnings: nonNil(warnings),
 			}
-			if format == "json" {
+			if statePath != "" {
+				report.Items = slices.DeleteFunc(report.Items, func(it news.Item) bool {
+					if state.Seen(it.ID) {
+						report.AlreadyReported++
+						return true
+					}
+					return false
+				})
+			}
+			found := slices.ContainsFunc(report.Items, func(it news.Item) bool { return slices.Contains(lower(failOn), string(it.Stage)) })
+			switch format {
+			case "json":
 				enc := json.NewEncoder(a.Out)
 				enc.SetIndent("", "  ")
-				return enc.Encode(report)
-			}
-			if format == "summary" {
+				if err := enc.Encode(report); err != nil {
+					return err
+				}
+			case "summary":
 				a.printSummary(report)
-				return nil
+			case "markdown":
+				a.printMarkdown(report)
+			default:
+				a.printNews(report)
 			}
-			a.printNews(report)
+			// With --fail-on, items count as reported only when the run says so:
+			// the quiet runs keep them for the next report.
+			if statePath != "" && (len(failOn) == 0 || found) {
+				for _, it := range report.Items {
+					state.Add(it.ID, now)
+				}
+				if err := state.Save(statePath, now); err != nil {
+					return fmt.Errorf("--state: %w", err)
+				}
+			}
+			if found {
+				fmt.Fprintf(a.Err, "stackalarm: new items at stage %s\n", strings.Join(lower(failOn), ", "))
+				return errFound
+			}
 			return nil
 		},
 	}
@@ -160,8 +230,11 @@ Run "stackalarm sources" to see the available tags.`,
 	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (frankenphp, express…)")
 	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "package names from the lockfile, repeatable: GitHub Advisory Database sources then return only their advisories")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
-	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents) or json")
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json or markdown (an issue body)")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")
+	cmd.Flags().StringVar(&profilePath, "profile", "", "project profile written by the agent (.stackalarm.yaml): tags, keywords and packages to watch")
+	cmd.Flags().StringVar(&statePath, "state", "", "file remembering the items already reported: only new ones are shown")
+	cmd.Flags().StringSliceVar(&failOn, "fail-on", nil, "exit with code 2 when a new item has one of these stages (heads-up, alert, release…)")
 	return cmd
 }
 
@@ -176,6 +249,9 @@ func (a *App) printNews(r newsReport) {
 	fmt.Fprintf(a.Out, "Security news since %s (%s)\n\n", r.Since.Format("2006-01-02 15:04 MST"), scope)
 	if len(r.Items) == 0 {
 		fmt.Fprintln(a.Out, "Nothing new.")
+	}
+	if r.AlreadyReported > 0 {
+		fmt.Fprintf(a.Out, "(%d items already reported by an earlier run are left out)\n", r.AlreadyReported)
 	}
 	for _, it := range r.Items {
 		fmt.Fprintf(a.Out, "%s  %-9s %-24s %s\n", it.Published.Format("2006-01-02"), it.Stage, it.Source, it.Title)
@@ -220,6 +296,9 @@ func (a *App) printSummary(r newsReport) {
 	for _, w := range r.Warnings {
 		fmt.Fprintf(a.Out, "WARNING | %s\n", w)
 	}
+	if r.AlreadyReported > 0 {
+		fmt.Fprintf(a.Out, "ALREADY REPORTED | %d items left out\n", r.AlreadyReported)
+	}
 }
 
 func (a *App) sourcesCommand() *cobra.Command {
@@ -255,6 +334,17 @@ func lower(s []string) []string {
 	out := make([]string, 0, len(s))
 	for _, v := range s {
 		out = append(out, strings.ToLower(strings.TrimSpace(v)))
+	}
+	return out
+}
+
+// union appends the values of b missing from a.
+func union(a, b []string) []string {
+	out := slices.Clone(a)
+	for _, v := range b {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
 	}
 	return out
 }

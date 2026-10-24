@@ -1,0 +1,72 @@
+# Scheduled stackalarm watch for GitHub.
+# Copy this file to .github/workflows/stackalarm.yml, next to the
+# .stackalarm.yaml profile the stackalarm skill wrote at the root of the project.
+#
+# Every 4 hours, the CLI reads the news of the stack in the profile. When a
+# heads-up, an alert or a security release is new, it opens an issue. Quiet
+# runs cost nothing and open nothing.
+#
+# Optional triage: set the repository variable STACKALARM_TRIAGE to "true" and
+# the secret ANTHROPIC_API_KEY, and Claude runs the stackalarm skill on the
+# project and posts its verdict on the issue. It only runs when an issue was
+# opened, and it changes no file.
+name: stackalarm
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      found: ${{ steps.stackalarm.outputs.found }}
+      issue-url: ${{ steps.stackalarm.outputs.issue-url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: stackalarm
+        uses: yoanbernabeu/stackalarm@v0.5.0
+        with:
+          nvd-api-key: ${{ secrets.NVD_API_KEY }}
+
+  triage:
+    needs: watch
+    if: needs.watch.outputs.found == 'true' && needs.watch.outputs.issue-url != '' && vars.STACKALARM_TRIAGE == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install stackalarm and its skill
+        run: |
+          curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | INSTALL_DIR="$RUNNER_TEMP/bin" sh
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          mkdir -p .claude/skills/stackalarm
+          curl -fsSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/skills/stackalarm/SKILL.md \
+            -o .claude/skills/stackalarm/SKILL.md
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            /stackalarm triage ${{ needs.watch.outputs.issue-url }}
+
+            Run the stackalarm skill in triage mode on the items of that issue, then post
+            your verdict as a comment on it with `gh issue comment`. Change no file.
+          claude_args: >-
+            --allowedTools "Skill,Read,Glob,Grep,WebSearch,WebFetch,Bash(stackalarm:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(composer audit:*),Bash(npm audit:*),Bash(pnpm audit:*),Bash(git remote:*)"

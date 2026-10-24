@@ -1,0 +1,122 @@
+name: stackalarm watch
+description: Watch the security news of your stack on a schedule, and open an issue when a heads-up, an alert or a security release needs a look.
+author: Yoan Bernabeu
+branding:
+  icon: bell
+  color: red
+
+inputs:
+  profile:
+    description: The project profile written by the stackalarm skill.
+    default: .stackalarm.yaml
+  since:
+    description: How far back to look. Longer than the schedule interval, so a delayed run misses nothing; the state removes the duplicates.
+    default: 48h
+  fail-on:
+    description: The stages that open an issue (heads-up, alert, release, advisory, news).
+    default: heads-up,alert,release
+  issue:
+    description: Open an issue when new items are found ("true" or "false").
+    default: "true"
+  label:
+    description: The label of the issues, created if missing.
+    default: stackalarm
+  version:
+    description: The stackalarm version to install (v0.5.0). Empty means the version of this action when it is pinned to a release, the latest release otherwise.
+    default: ""
+  github-token:
+    description: Token used to open the issue and to raise the GitHub API rate limit of the CLI.
+    default: ${{ github.token }}
+  nvd-api-key:
+    description: Optional NVD API key, to search the NVD faster.
+    default: ""
+
+outputs:
+  found:
+    description: '"true" when new items with one of the fail-on stages were found.'
+    value: ${{ steps.watch.outputs.found }}
+  report:
+    description: Path of the Markdown report.
+    value: ${{ steps.watch.outputs.report }}
+  issue-url:
+    description: URL of the issue opened, if any.
+    value: ${{ steps.issue.outputs.url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install stackalarm
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        version="$VERSION"
+        if [ -z "$version" ] && [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          version="$ACTION_REF"
+        fi
+        if [ -z "$version" ]; then
+          version=$(gh release view --repo yoanbernabeu/stackalarm --json tagName --jq .tagName)
+        fi
+        bin="$RUNNER_TEMP/stackalarm/bin"
+        STACKALARM_VERSION="$version" INSTALL_DIR="$bin" sh "$GITHUB_ACTION_PATH/install.sh"
+        echo "$bin" >> "$GITHUB_PATH"
+
+    # The state remembers what earlier runs reported. A new cache entry is saved
+    # per run that reports something; the latest one is restored.
+    - name: Restore the state
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/stackalarm/state
+        key: stackalarm-state-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: stackalarm-state-
+
+    - name: Gather the news
+      id: watch
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        NVD_API_KEY: ${{ inputs.nvd-api-key }}
+        PROFILE: ${{ inputs.profile }}
+        SINCE: ${{ inputs.since }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        report="$RUNNER_TEMP/stackalarm/report.md"
+        set +e
+        stackalarm news --profile "$PROFILE" --since "$SINCE" --fail-on "$FAIL_ON" \
+          --state "$RUNNER_TEMP/stackalarm/state" --format markdown > "$report"
+        code=$?
+        set -e
+        cat "$report" >> "$GITHUB_STEP_SUMMARY"
+        echo "report=$report" >> "$GITHUB_OUTPUT"
+        case "$code" in
+          0) echo "found=false" >> "$GITHUB_OUTPUT" ;;
+          2) echo "found=true" >> "$GITHUB_OUTPUT" ;;
+          *) exit "$code" ;;
+        esac
+
+    - name: Open an issue
+      id: issue
+      if: steps.watch.outputs.found == 'true' && inputs.issue == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        LABEL: ${{ inputs.label }}
+        REPORT: ${{ steps.watch.outputs.report }}
+      run: |
+        gh label create "$LABEL" --repo "$GITHUB_REPOSITORY" --color B60205 \
+          --description "Security news found by stackalarm" >/dev/null 2>&1 || true
+        head -c 60000 "$REPORT" > "$REPORT.issue" # the issue body limit is 65536 characters
+        url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label "$LABEL" --body-file "$REPORT.issue" \
+          --title "stackalarm: security news to check ($(date -u +%F))")
+        echo "url=$url" >> "$GITHUB_OUTPUT"
+
+    # Saved only once the issue exists: if it could not be opened, the next run
+    # reports the same items again rather than losing them.
+    - name: Save the state
+      if: steps.watch.outputs.found == 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}/stackalarm/state
+        key: stackalarm-state-${{ github.run_id }}-${{ github.run_attempt }}

@@ -13,9 +13,12 @@ cmd/stackalarm/     entry point
 internal/cli/       Cobra commands (news, sources); App holds every dependency
 internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, KEV), filtering, cache
 internal/source/    the source format and its validation
+internal/watch/     the project profile and the state of a scheduled watch
 sources/            one YAML file per source, embedded in the binary
 skills/stackalarm/  the agent skill (published on skills.sh)
 evals/              test prompts and assertions for the skill (kept out of the skill folder)
+action.yml          the GitHub Action of the scheduled watch
+ci/                 ready-to-copy scheduled watch for GitHub and GitLab
 ```
 
 ## Adding a source (from a "New source" issue)

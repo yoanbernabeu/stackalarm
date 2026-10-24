@@ -412,3 +412,26 @@ func TestCVEsAreMergedAcrossGitHubAndCVEDatabases(t *testing.T) {
 		t.Fatalf("CVE-2026-110264 appears %d times: %+v", n, res.Items)
 	}
 }
+
+func TestItemIDsAreStableAcrossDatabases(t *testing.T) {
+	nvd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(nvdBody)) }))
+	defer nvd.Close()
+	euvd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(euvdSearch)) }))
+	defer euvd.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: http.DefaultClient, Now: func() time.Time { return now }}
+	q := Query{Keywords: []string{"gitlab"}, Since: now.Add(-7 * 24 * time.Hour)}
+	id := func(s source.Source) string { // the run where only one database answers must give the same id
+		for _, it := range f.Fetch(context.Background(), []source.Source{s}, q).Items {
+			if strings.HasPrefix(it.Title, "CVE-2026-110264") {
+				return it.ID
+			}
+		}
+		return ""
+	}
+	fromNVD := id(source.Source{ID: "nvd", Type: source.TypeNVD, URL: nvd.URL, Tags: []string{"general"}, Stage: source.StageAdvisory})
+	fromEUVD := id(source.Source{ID: "euvd-search", Type: source.TypeEUVDSearch, URL: euvd.URL, Tags: []string{"general"}, Stage: source.StageAdvisory})
+	if fromNVD == "" || fromNVD != fromEUVD {
+		t.Fatalf("ids: nvd %q, euvd %q", fromNVD, fromEUVD)
+	}
+}

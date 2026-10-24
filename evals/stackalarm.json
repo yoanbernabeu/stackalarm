@@ -63,6 +63,35 @@
         "Mentions the release may come earlier if details leak or exploitation is seen",
         "Did not modify any project file"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "/stackalarm puis mets en place la veille automatique",
+      "expected_output": "Full check of the Symfony project, then writes .stackalarm.yaml (php, symfony, composer, gitlab, docker tags; frankenphp keyword if relevant; packages from composer.lock; stack with php 8.3 branch from the Dockerfile) and, after asking, the GitLab include since the remote is a self-hosted GitLab.",
+      "files": [
+        "fixtures/symfony-app"
+      ],
+      "assertions": [
+        "Writes .stackalarm.yaml with the tags, packages and a stack entry for php 8.3 marked as branch precision from the Dockerfile",
+        "The profile contains no host name, internal URL or IP address (gitlab, not the self-hosted host name)",
+        "Proposes the GitLab include rather than the GitHub workflow, because the remote is a self-hosted GitLab",
+        "Explains the steps only the user can do: the STACKALARM_GITLAB_TOKEN variable and the pipeline schedule",
+        "Makes one change at a time, asking before each file"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/stackalarm triage https://github.com/acme/express-api/issues/42",
+      "expected_output": "Reads the issue listing the Node.js security release and the Brotli RCE, judges them against the project (node:22.23.3 affected), answers with the verdict format, changes no file.",
+      "files": [
+        "fixtures/express-api"
+      ],
+      "assertions": [
+        "Reads the issue with gh issue view instead of running a full news gathering first",
+        "Judges each listed item against the project, saying node:22.23.3 is affected and 22.23.4 fixes it",
+        "Answers with the verdict first and the findings grouped by urgency",
+        "Says what to change but did not modify any project file"
+      ]
     }
   ]
 }

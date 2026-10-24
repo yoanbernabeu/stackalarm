@@ -118,6 +118,33 @@ Every item has a **stage**: `heads-up` (a security release is announced ahead), 
 | `--since` | `7d` | `24h`, `7d`, `2w`… |
 | `--format` | `text` | `text`, `summary` (one line per item, compact for agents) or `json` |
 | `--no-cache` | | responses are otherwise reused for an hour (in your user cache directory) |
+| `--profile` | | read the tags, keywords and packages from a project profile (`.stackalarm.yaml`) |
+| `--state` | | file remembering the items already reported: only new ones are shown |
+| `--fail-on` | | exit with code `2` when a new item has one of these stages (`heads-up,alert,release`) |
+
+`--format markdown` prints the report as an issue body. Exit codes: `0` nothing to report, `1` error, `2` new items matching `--fail-on`.
+
+## Scheduled watch
+
+A check only helps when someone runs it. The scheduled watch runs the CLI every few hours in your CI, and opens an issue when a heads-up, an alert or a security release concerns your stack. Quiet runs cost nothing and open nothing.
+
+1. **The profile.** At the end of a `/stackalarm` run, the agent offers to write `.stackalarm.yaml`: the tags, keywords and packages to watch, and the stack they come from. It is refreshed on each run. It never holds host names or secrets.
+
+   ```yaml
+   tags: [php, symfony, composer, docker]
+   keywords: [frankenphp]
+   packages: [symfony/http-kernel, twig/twig]
+   stack:
+     - {name: php, version: "8.3", precision: branch, from: Dockerfile}
+   ```
+
+2. **The schedule.** No agent runs here: the CLI reads the profile, which keeps every run free.
+   - **GitHub**: copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`. It uses the `yoanbernabeu/stackalarm` action, which you can also call from your own workflows (inputs: `profile`, `since`, `fail-on`, `issue`, `label`; outputs: `found`, `report`, `issue-url`).
+   - **GitLab**: include [`ci/gitlab/stackalarm.yml`](ci/gitlab/stackalarm.yml), add a `STACKALARM_GITLAB_TOKEN` variable and a pipeline schedule (instructions at the top of the file).
+
+3. **The triage (optional, GitHub).** The issue lists raw news, not a verdict. Set the repository variable `STACKALARM_TRIAGE` to `true` and the secret `ANTHROPIC_API_KEY`: when an issue is opened, Claude runs the skill on the project (`/stackalarm triage <issue>`) and posts its verdict as a comment. It changes no file, and costs API usage only on the runs that open an issue. Without it, run `/stackalarm triage <issue link>` in your agent.
+
+The CI cache keeps a small state file listing the items already reported, so each item is reported once. It is saved only after the issue is opened: if the cache is lost or the issue fails, an item may be reported twice, never missed.
 
 ## Privacy
 

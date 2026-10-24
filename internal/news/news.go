@@ -25,6 +25,7 @@ import (
 
 // Item is one entry of a source.
 type Item struct {
+	ID        string       `json:"id"` // stable across runs, so a scheduled watch knows what it already reported
 	Source    string       `json:"source"`
 	Tags      []string     `json:"tags"`
 	Stage     source.Stage `json:"stage"`
@@ -143,6 +144,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				if mergeable(s.Type) {
 					item.cve = cveID.FindString(e.Title)
 				}
+				item.ID = itemID(item)
 				res.Items = append(res.Items, item)
 			}
 		})
@@ -191,6 +193,17 @@ func mergeDuplicateCVEs(items []Item) []Item {
 		out = append(out, it)
 	}
 	return out
+}
+
+// itemID identifies an item by its CVE when databases may merge it (the one
+// listing it first can change between runs), otherwise by its source and link.
+func itemID(it Item) string {
+	key := it.cve
+	if key == "" {
+		key = it.Source + "\n" + cmp.Or(it.URL, it.Title)
+	}
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:6])
 }
 
 // absolute resolves a link found in a feed against the feed URL.

@@ -309,7 +309,7 @@ func TestSearchCapKeepsTheMostSevere(t *testing.T) {
 }
 
 func TestSearchTermsUseAliasesForAmbiguousTags(t *testing.T) {
-	got := searchTerms(Query{Tags: []string{"node", "php", "general"}, Keywords: []string{"Node.js", "vite"}}, testSearch)
+	got, _ := searchTerms(Query{Tags: []string{"node", "php", "general"}, Keywords: []string{"Node.js", "vite"}}, testSearch)
 	if strings.Join(got, ",") != "node.js,php,vite" {
 		t.Fatalf("got %v", got)
 	}
@@ -318,11 +318,38 @@ func TestSearchTermsUseAliasesForAmbiguousTags(t *testing.T) {
 var testSearch = source.Search{Aliases: map[string]string{"node": "node.js"}, Skip: []string{"swift", "npm"}}
 
 func TestSearchTermsSkipTags(t *testing.T) {
-	if got := searchTerms(Query{Tags: []string{"swift", "astro"}}, testSearch); strings.Join(got, ",") != "astro" {
+	if got, _ := searchTerms(Query{Tags: []string{"swift", "astro"}}, testSearch); strings.Join(got, ",") != "astro" {
 		t.Fatalf("the swift tag must not be searched: %v", got)
 	}
-	if got := searchTerms(Query{Tags: []string{"swift"}, Keywords: []string{"swift"}}, testSearch); strings.Join(got, ",") != "swift" {
+	if got, _ := searchTerms(Query{Tags: []string{"swift"}, Keywords: []string{"swift"}}, testSearch); strings.Join(got, ",") != "swift" {
 		t.Fatalf("an explicit keyword must still be searched: %v", got)
+	}
+}
+
+func TestSearchTermsBeyondTheLimitAreReported(t *testing.T) {
+	tags := []string{"t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10"}
+	got, left := searchTerms(Query{Tags: tags}, testSearch)
+	if len(got) != MaxTerms || strings.Join(left, ",") != "t9,t10" {
+		t.Fatalf("searched %v, left %v", got, left)
+	}
+
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), nil, Query{Tags: tags, Since: now})
+	if len(res.NotSearched) != 0 {
+		t.Fatalf("without a search source, nothing is left out: %v", res.NotSearched)
+	}
+}
+
+func TestFetchReportsTheWordsNotSearched(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"vulnerabilities": []}`)) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "nvd", Type: source.TypeNVD, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageAdvisory}},
+		Query{Keywords: []string{"k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"}, Since: now.Add(-24 * time.Hour)})
+	if strings.Join(res.NotSearched, ",") != "k9" || len(res.Failures) != 0 {
+		t.Fatalf("not searched %v, failures %v", res.NotSearched, res.Failures)
 	}
 }
 

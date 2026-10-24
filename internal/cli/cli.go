@@ -186,6 +186,10 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			}
 			now := a.Now().UTC()
 			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages})
+			if len(res.NotSearched) > 0 {
+				warnings = append(warnings, fmt.Sprintf("the CVE databases are searched for %d words at most, in the order given: %s not searched (their tagged sources were still read); put the most important tags and keywords first, or run again for these",
+					news.MaxTerms, strings.Join(res.NotSearched, ", ")))
+			}
 			report := newsReport{
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Stack: stack,
 				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Warnings: nonNil(warnings),

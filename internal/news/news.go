@@ -58,6 +58,9 @@ type Result struct {
 	Items     []Item       `json:"items"`
 	Failures  []Failure    `json:"failures"`
 	Truncated []Truncation `json:"truncated"`
+	// NotSearched lists the words left out of the CVE database searches,
+	// beyond MaxTerms: like a failure, a gap in the watch is always reported.
+	NotSearched []string `json:"not_searched"`
 }
 
 // MaxPerSource keeps the output readable for a person or an agent: a CVE
@@ -91,15 +94,18 @@ type Fetcher struct {
 // Fetch reads the sources selected by q, in parallel.
 func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
 	selected := selectSources(sources, q.Tags)
-	terms := searchTerms(q, f.Search)
+	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
 	nvd := &gate{delay: f.NVDDelay}
 
 	var (
 		mu  sync.Mutex
-		res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}}
+		res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}, NotSearched: []string{}}
 		wg  sync.WaitGroup
 	)
+	if slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type.IsSearch() }) {
+		res.NotSearched = append(res.NotSearched, left...)
+	}
 	for _, s := range selected {
 		if s.Type.IsSearch() && len(terms) == 0 {
 			continue // nothing to search for
@@ -272,8 +278,9 @@ func priority(score float64) float64 {
 	return score
 }
 
-// maxTerms bounds the requests made to search sources.
-const maxTerms = 8
+// MaxTerms bounds the requests made to search sources: without a key, the
+// NVD allows one every 6 seconds.
+const MaxTerms = 8
 
 // matchTerms returns the words entries of general sources are matched
 // against: every tag and keyword, with the aliases of sources/search.yaml.
@@ -292,14 +299,15 @@ func matchTerms(q Query, s source.Search) []string {
 }
 
 // searchTerms returns the words search sources are queried with: the match
-// terms, minus the tags sources/search.yaml skips. An explicit keyword is
-// always searched.
-func searchTerms(q Query, s source.Search) []string {
+// terms, minus the tags sources/search.yaml skips (an explicit keyword is
+// still searched), up to MaxTerms in the order given; left holds the rest.
+func searchTerms(q Query, s source.Search) (searched, left []string) {
 	tags := slices.DeleteFunc(slices.Clone(q.Tags), func(t string) bool {
 		return slices.Contains(s.Skip, strings.ToLower(strings.TrimSpace(t)))
 	})
 	out := matchTerms(Query{Tags: tags, Keywords: q.Keywords}, s)
-	return out[:min(len(out), maxTerms)]
+	n := min(len(out), MaxTerms)
+	return out[:n], out[n:]
 }
 
 // gate spaces out requests to an API with a strict rate limit.

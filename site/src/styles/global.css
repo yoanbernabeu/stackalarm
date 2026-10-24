@@ -290,8 +290,10 @@ code {
 .command code {
   flex: 1;
   min-width: 0;
-  font-size: clamp(0.82rem, 0.75rem + 0.4vw, 1rem);
-  overflow-wrap: anywhere;
+  font-size: clamp(0.72rem, 0.5rem + 1vw, 1rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-note {

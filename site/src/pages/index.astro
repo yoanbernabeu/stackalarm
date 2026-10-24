@@ -5,6 +5,7 @@ import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "../styles/global.css";
+import FontPreload from "../components/FontPreload.astro";
 import Code from "../components/Code.astro";
 import { loadSources, stages } from "../lib/sources";
 import { latestTag } from "../lib/version";
@@ -74,6 +75,7 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
+    <FontPreload />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />

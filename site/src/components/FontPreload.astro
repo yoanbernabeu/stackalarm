@@ -1,0 +1,8 @@
+---
+// Preloads the two fonts the first screen uses, so they are there for the first
+// paint: swapping them in later moved the text (layout shift).
+import sans from "@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url";
+import mono from "@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2?url";
+---
+<link rel="preload" href={sans} as="font" type="font/woff2" crossorigin />
+<link rel="preload" href={mono} as="font" type="font/woff2" crossorigin />

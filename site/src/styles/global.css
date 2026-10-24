@@ -1157,3 +1157,44 @@ main > section:not(.hero) {
 .prose td:first-child code {
   white-space: nowrap;
 }
+
+/* Motion (dial 2): two light movements, both once, both off for reduced motion.
+   Only transform and opacity move, so nothing shifts the layout, and the headline
+   is never animated, so the largest paint is not delayed. */
+@media (prefers-reduced-motion: no-preference) {
+  /* The dawn image settles in once: the page arrives, the light is already on. */
+  .hero-image {
+    animation: settle 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  /* Sections below the hero rise in as they enter the screen, to pace the reading.
+     Browsers without scroll-driven animations show everything at once. */
+  @supports (animation-timeline: view()) {
+    main > section:not(.hero) .wrap > * {
+      --reveal-timeline: view(); /* through a variable: the minifier would merge it into an "animation" shorthand Chrome rejects */
+      animation: rise linear both;
+      animation-timeline: var(--reveal-timeline);
+      animation-range: entry 0% entry 35%;
+    }
+  }
+}
+
+@keyframes settle {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

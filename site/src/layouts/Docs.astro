@@ -3,6 +3,7 @@ import "@fontsource-variable/bricolage-grotesque/opsz.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "../styles/global.css";
+import FontPreload from "../components/FontPreload.astro";
 import { repo } from "../lib/repo";
 
 interface Props {
@@ -31,6 +32,7 @@ const next = pages[index + 1];
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
+    <FontPreload />
     <title>{title}: stackalarm docs</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />

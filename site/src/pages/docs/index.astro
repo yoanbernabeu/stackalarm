@@ -2,6 +2,9 @@
 import Docs from "../../layouts/Docs.astro";
 import Code from "../../components/Code.astro";
 import { repo, raw } from "../../lib/repo";
+import { loadSources } from "../../lib/sources";
+
+const githubSources = loadSources().filter((s) => s.type.startsWith("github-")).length;
 ---
 <Docs title="Getting started" description="Install the stackalarm skill, run your first check, and read the answer.">
   <p class="lead-in">
@@ -34,7 +37,7 @@ import { repo, raw } from "../../lib/repo";
       <tr>
         <td><code>GITHUB_TOKEN</code> or <code>GH_TOKEN</code></td>
         <td>
-          Lifts the GitHub API cap. 26 sources go through it (the GitHub Advisory Database per ecosystem, and the security advisories of
+          Lifts the GitHub API cap. {githubSources} sources go through it (the GitHub Advisory Database per ecosystem, and the security advisories of
           projects such as Astro or Next.js); only those matching your tags are read. Anonymous requests are capped at 60 per hour per IP:
           past that, those sources fail, and the output says so. Any token works, with no permission at all: the data is public.
         </td>

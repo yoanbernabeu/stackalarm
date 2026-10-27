@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,8 +39,11 @@ type Item struct {
 	AlsoIn    []string     `json:"also_in,omitempty"` // other databases listing the same CVE
 	// EPSS is the probability of exploitation in the next 30 days (0 to 1),
 	// from FIRST, when known.
-	EPSS     float64    `json:"epss,omitempty"`
-	Affected []Affected `json:"affected,omitempty"` // packages and versions, for GitHub advisories
+	EPSS float64 `json:"epss,omitempty"`
+	// ExploitedIn names the sources reporting the CVE exploited in the wild
+	// (CISA KEV, EUVD), at any date: an old flaw can be exploited today.
+	ExploitedIn []string   `json:"exploited_in,omitempty"`
+	Affected    []Affected `json:"affected,omitempty"` // packages and versions, for GitHub advisories
 
 	cve  string // CVE id of a CVE database entry, used to merge duplicates
 	rank int    // order within its source, for the cap
@@ -97,6 +101,7 @@ type Fetcher struct {
 	GitHubToken string        // optional, raises the GitHub API rate limit
 	GitHubAPI   string        // https://api.github.com unless a test changes it
 	NVDAPIKey   string        // optional, raises the NVD API rate limit
+	EPSSAPI     string        // FIRST EPSS API, completing the scores of CVE records; empty skips it
 	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
 	EUVDDelay   time.Duration // pause between two EUVD search requests, which answer HTTP 429 to bursts
 	CacheDir    string        // empty disables the cache
@@ -111,6 +116,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
 	nvd, euvd := &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
+	exploited := map[string][]string{} // CVE: the sources reporting it exploited
 
 	var (
 		mu  sync.Mutex
@@ -130,6 +136,13 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 			defer mu.Unlock()
 			if err != nil { // a search may fail for one word and succeed for others
 				res.Failures = append(res.Failures, Failure{Source: s.ID, Error: err.Error()})
+			}
+			for _, e := range entries { // the whole catalog, before the date and word filters
+				if exploitedTitle.MatchString(e.Title) {
+					if c := cveID.FindString(e.Title); c != "" && !slices.Contains(exploited[c], s.ID) {
+						exploited[c] = append(exploited[c], s.ID)
+					}
+				}
 			}
 			entries = slices.DeleteFunc(entries, func(e entry) bool {
 				if e.Published.IsZero() || e.Published.Before(q.Since) {
@@ -172,7 +185,16 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	slices.SortFunc(res.Items, func(a, b Item) int {
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))
 	})
+	for i, it := range res.Items {
+		if sources := exploited[it.cve]; it.cve != "" && len(sources) > 0 {
+			res.Items[i].ExploitedIn = slices.Sorted(slices.Values(sources))
+			res.Items[i].rank -= 1 << 20 // kept first under the cap
+		}
+	}
 	res.Items, res.Truncated = mergeAndCap(res.Items)
+	if err := f.addEPSS(ctx, res.Items); err != nil {
+		res.Failures = append(res.Failures, Failure{Source: "epss", Error: err.Error()})
+	}
 	slices.SortStableFunc(res.Items, func(a, b Item) int { return b.Published.Compare(a.Published) }) // a merged CVE carries the date of the entry kept
 	if res.Items == nil {
 		res.Items = []Item{}
@@ -186,8 +208,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 }
 
 var (
-	releasedTitle = regexp.MustCompile(`(?i)\breleased\b`)
-	cveID         = regexp.MustCompile(`CVE-\d{4}-\d+`)
+	exploitedTitle = regexp.MustCompile(`(?i)\bexploited in the wild\b`)
+	releasedTitle  = regexp.MustCompile(`(?i)\breleased\b`)
+	cveID          = regexp.MustCompile(`CVE-\d{4}-\d+`)
 )
 
 // mergeable tells whether the entries of a source are vulnerability records
@@ -199,6 +222,51 @@ func mergeable(t source.Type) bool {
 		return true
 	}
 	return false
+}
+
+// epssBatch is the number of CVEs the EPSS API answers in one request.
+const epssBatch = 100
+
+// addEPSS completes the CVE records lacking an EPSS, from the FIRST API.
+func (f *Fetcher) addEPSS(ctx context.Context, items []Item) error {
+	if f.EPSSAPI == "" {
+		return nil
+	}
+	var cves []string
+	for _, it := range items {
+		if it.cve != "" && it.EPSS == 0 {
+			cves = append(cves, it.cve)
+		}
+	}
+	slices.Sort(cves) // a stable URL, for the cache
+	cves = slices.Compact(cves)
+	scores := map[string]float64{}
+	for batch := range slices.Chunk(cves, epssBatch) {
+		data, _, err := f.get(ctx, f.EPSSAPI+"?cve="+strings.Join(batch, ","), "")
+		if err != nil {
+			return err
+		}
+		var r struct {
+			Data []struct {
+				CVE  string `json:"cve"`
+				EPSS string `json:"epss"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(data, &r); err != nil {
+			return fmt.Errorf("unexpected EPSS response: %w", err)
+		}
+		for _, d := range r.Data {
+			var p float64
+			fmt.Sscan(d.EPSS, &p)
+			scores[d.CVE] = p
+		}
+	}
+	for i := range items {
+		if items[i].EPSS == 0 {
+			items[i].EPSS = scores[items[i].cve]
+		}
+	}
+	return nil
 }
 
 // watchedFirst puts the packages the query names first, and among them the

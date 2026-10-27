@@ -55,6 +55,7 @@ func Default(version string) (*App, error) {
 			CacheTTL:  time.Hour,
 			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key
 			EUVDDelay: time.Second,
+			EPSSAPI:   "https://api.first.org/data/v1/epss",
 			Search:    search,
 		},
 	}, nil
@@ -297,6 +298,9 @@ func (a *App) printSummary(r newsReport) {
 		line := strings.Join([]string{it.Published.Format("2006-01-02"), string(it.Stage), it.Source, score, it.Title, it.URL}, " | ")
 		if len(it.AlsoIn) > 0 {
 			line += " | also in " + strings.Join(it.AlsoIn, ",")
+		}
+		if len(it.ExploitedIn) > 0 {
+			line += " | EXPLOITED in the wild (" + strings.Join(it.ExploitedIn, ",") + ")"
 		}
 		if aff := affected(it); aff != "" {
 			line += " | affects " + aff

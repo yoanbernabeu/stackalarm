@@ -42,6 +42,13 @@ const stageText: Record<string, string> = {
     code, the mark of a compromised maintainer account. They are not read without packages: npm alone gets about a thousand a month.
   </p>
 
+  <h3 id="exploitation">Exploitation and EPSS</h3>
+  <p>
+    A CVE listed in the CISA KEV catalog or the EUVD list of exploited flaws is marked exploited wherever it appears, whatever the date it
+    was added: an old flaw can be exploited today. Exploited CVEs are kept first under the cap. Each CVE also gets its EPSS, the probability
+    of exploitation in the next 30 days computed by FIRST, from GitHub or from the FIRST API.
+  </p>
+
   <h3 id="stages">Stages</h3>
   <table>
     <thead><tr><th scope="col">Stage</th><th scope="col">Meaning</th></tr></thead>
@@ -55,7 +62,7 @@ const stageText: Record<string, string> = {
     <thead><tr><th scope="col">Format</th><th scope="col">For</th></tr></thead>
     <tbody>
       <tr><td><code>text</code></td><td>Reading in a terminal. The default.</td></tr>
-      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE, affected packages with the first fixed version, EPSS), then the failed and truncated sources.</td></tr>
+      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE, affected packages with the first fixed version, EPSS, the sources reporting it exploited), then the failed and truncated sources.</td></tr>
       <tr><td><code>json</code></td><td>Scripts: the items with their summaries, plus <code>failures</code>, <code>truncated</code> and <code>warnings</code>.</td></tr>
       <tr><td><code>markdown</code></td><td>An issue body, used by the scheduled watch.</td></tr>
     </tbody>

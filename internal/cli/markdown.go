@@ -90,6 +90,9 @@ func (a *App) printMarkdown(r newsReport) {
 			if it.EPSS > 0 {
 				line += ", EPSS " + epss(it.EPSS)
 			}
+			if len(it.ExploitedIn) > 0 {
+				line += ", **exploited in the wild** (" + strings.Join(it.ExploitedIn, ", ") + ")"
+			}
 			if aff := affected(it); aff != "" {
 				line += "\n  Affects " + mdText(aff)
 			}

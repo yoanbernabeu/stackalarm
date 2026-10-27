@@ -742,3 +742,40 @@ func TestMalwareIsAnAlertForTheGivenPackages(t *testing.T) {
 		t.Fatalf("malware must be an alert: %+v", res.Items)
 	}
 }
+
+func TestExploitedCVEsAreMarkedAndScored(t *testing.T) {
+	oldKEV := strings.ReplaceAll(kev, `"dateAdded":"2026-10-23"`, `"dateAdded":"2024-01-10"`) // in the catalog for long
+	var epssQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/kev":
+			w.Write([]byte(oldKEV))
+		case "/nvd":
+			w.Write([]byte(nvdBody))
+		case "/epss":
+			epssQuery = r.URL.Query().Get("cve")
+			w.Write([]byte(`{"status":"OK","data":[{"cve":"CVE-2026-110264","epss":"0.420000000","percentile":"0.97"}]}`))
+		}
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), EPSSAPI: srv.URL + "/epss", Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{
+		{ID: "cisa-kev", Type: source.TypeKEV, URL: srv.URL + "/kev", Tags: []string{"general"}, Stage: source.StageAlert},
+		{ID: "nvd", Type: source.TypeNVD, URL: srv.URL + "/nvd", Tags: []string{"general"}, Stage: source.StageAdvisory},
+	}, Query{Keywords: []string{"gitlab"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if len(res.Failures) != 0 {
+		t.Fatalf("failures: %+v", res.Failures)
+	}
+	i := slices.IndexFunc(res.Items, func(it Item) bool { return strings.HasPrefix(it.Title, "CVE-2026-110264") })
+	if i < 0 || res.Items[i].EPSS != 0.42 || !strings.Contains(epssQuery, "CVE-2026-110264") {
+		t.Fatalf("EPSS: %+v (query %q)", res.Items, epssQuery)
+	}
+	i = slices.IndexFunc(res.Items, func(it Item) bool { return strings.HasPrefix(it.Title, "CVE-2026-1:") })
+	if i < 0 || strings.Join(res.Items[i].ExploitedIn, ",") != "cisa-kev" {
+		t.Fatalf("a CVE in the KEV catalog, added long ago, is exploited: %+v", res.Items)
+	}
+	if slices.ContainsFunc(res.Items, func(it Item) bool { return it.Source == "cisa-kev" }) {
+		t.Fatal("the old KEV entries stay out of the window")
+	}
+}

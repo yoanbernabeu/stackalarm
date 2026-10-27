@@ -45,7 +45,7 @@ Copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflow
 
 ## Privacy
 
-The CLI downloads public feeds and queries public APIs. It sends only what it is given: tags and keywords, as search terms to the CVE databases (NVD, EUVD), and package names (with their version when given), to the GitHub Advisory Database. Nothing else about your project, and no telemetry.
+The CLI downloads public feeds and queries public APIs. It sends only what it is given: tags and keywords, as search terms to the CVE databases (NVD, EUVD), package names (with their version when given), to the GitHub Advisory Database, and the ids of the CVEs found, to the FIRST EPSS API. Nothing else about your project, and no telemetry.
 
 ## Contributing
 

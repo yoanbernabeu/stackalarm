@@ -200,3 +200,42 @@ func TestEOLReadsTheStackOfTheProfile(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
 }
+
+func TestScheduledWatchReportsTheEndOfSupportOnce(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/eol/products":
+			w.Write([]byte(`{"result":[{"name":"php","aliases":[]}]}`))
+		case "/eol/products/php":
+			w.Write([]byte(`{"result":{"releases":[{"name":"8.1","isEol":true,"eolFrom":"2025-12-31"}]}}`))
+		default:
+			w.Write([]byte(`<rss><channel></channel></rss>`))
+		}
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	profile, state := filepath.Join(dir, ".stackalarm.yaml"), filepath.Join(dir, "state")
+	os.WriteFile(profile, []byte("tags: [php]\nstack:\n  - {name: php, version: \"8.1\", precision: branch, from: Dockerfile}\n"), 0o600)
+	run := func() (int, string) {
+		app, out, _ := newTestApp(t, "news", "--profile", profile, "--state", state, "--fail-on", "heads-up,alert,release", "--format", "markdown")
+		app.Fetcher = &news.Fetcher{Client: srv.Client(), UserAgent: "test", EOLAPI: srv.URL + "/eol"}
+		for i := range app.Sources {
+			app.Sources[i].URL = srv.URL
+		}
+		return app.Execute(context.Background()), out.String()
+	}
+	code, out := run()
+	if code != 2 || !strings.Contains(out, "## stackalarm: 1 alert") || !strings.Contains(out, "End of life: php 8.1 (from Dockerfile)") {
+		t.Fatalf("first run: exit %d\n%s", code, out)
+	}
+	if code, out = run(); code != 0 || !strings.Contains(out, "nothing new") {
+		t.Fatalf("the end of life is reported once: exit %d\n%s", code, out)
+	}
+
+	app, out2, _ := newTestApp(t, "news", "--tag", "php", "--format", "json")
+	app.Fetcher.EOLAPI = srv.URL + "/eol"
+	app.Execute(context.Background())
+	if strings.Contains(out2.String(), "End of life") {
+		t.Fatal("without a profile, no version is known: nothing is looked up")
+	}
+}

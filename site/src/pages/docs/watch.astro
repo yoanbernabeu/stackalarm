@@ -32,7 +32,7 @@ stack:
       <tr><td><code>tags</code></td><td>Technologies to watch, as in <code>--tag</code>.</td></tr>
       <tr><td><code>keywords</code></td><td>Words searched in the general sources, as in <code>--keyword</code>.</td></tr>
       <tr><td><code>packages</code></td><td>Package names from the lockfile, as in <code>--package</code>.</td></tr>
-      <tr><td><code>stack</code></td><td>What the skill found, with the version, its precision (<code>exact</code>, <code>branch</code>, <code>range</code>, <code>unknown</code>) and the file it came from. Shown in reports, never used to filter.</td></tr>
+      <tr><td><code>stack</code></td><td>What the skill found, with the version, its precision (<code>exact</code>, <code>branch</code>, <code>range</code>, <code>unknown</code>) and the file it came from. Shown in reports, never used to filter the news; its versions are looked up on endoflife.date (see below).</td></tr>
     </tbody>
   </table>
   <p>
@@ -134,6 +134,14 @@ stack:
   <p>
     GitLab has no triage by Claude: every new heads-up, alert or security release opens an issue with the raw news, to judge with
     <code>/stackalarm triage &lt;issue link&gt;</code>. Without the token, the job fails instead of staying silent.
+  </p>
+
+  <h2 id="eol">End of support</h2>
+  <p>
+    No advisory announces that a runtime stops getting security fixes. The watch looks up the versions of the <code>stack</code> on
+    endoflife.date: when the security fixes of one stop within 180 days, it raises a heads-up; once they have stopped, an alert. Each change is
+    reported once. The versions come from the profile: if the project has moved on, run <code>/stackalarm</code> to refresh it, and the
+    triage by Claude checks the repository files before calling the project affected.
   </p>
 
   <h2 id="state">Each item reported once</h2>

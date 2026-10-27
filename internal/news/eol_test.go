@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/yoanbernabeu/stackalarm/internal/source"
+	"github.com/yoanbernabeu/stackalarm/internal/watch"
 )
 
 const eolProducts = `{"result":[{"name":"nodejs","aliases":["node"]},{"name":"php","aliases":[]},{"name":"go","aliases":["golang"]}]}`
@@ -68,5 +71,52 @@ func TestSupport(t *testing.T) {
 
 	if _, err := f.Support(context.Background(), []string{"node@22"}); err == nil {
 		t.Fatal("a product that cannot be read fails the lookup")
+	}
+}
+
+func TestSupportItemsForAScheduledWatch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/products":
+			w.Write([]byte(eolProducts))
+		case "/products/php":
+			w.Write([]byte(eolPHP))
+		}
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), EOLAPI: srv.URL, Now: func() time.Time { return now }}
+	stack := []watch.Component{
+		{Name: "php", Version: "8.1", From: "Dockerfile"},
+		{Name: "php", Version: "8.3.20"}, // ending
+		{Name: "php", Version: "8.5.12"}, // supported: no item
+		{Name: "gitlab", Version: "unknown"},
+	}
+	items, err := f.SupportItems(context.Background(), stack)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("%+v %v", items, err)
+	}
+	if it := items[0]; it.Stage != source.StageAlert || it.Source != SupportSource ||
+		!strings.HasPrefix(it.Title, "End of life: php 8.1 (from Dockerfile): no security fixes since 2025-12-31") {
+		t.Fatalf("eol: %+v", it)
+	}
+	if items[1].Stage != source.StageHeadsUp || items[0].ID == items[1].ID {
+		t.Fatalf("ending: %+v", items[1])
+	}
+
+	f.Now = func() time.Time { return now.Add(30 * 24 * time.Hour) }
+	later, _ := f.SupportItems(context.Background(), stack)
+	if later[1].ID != items[1].ID {
+		t.Fatal("the same status keeps its id from one day to the next, so it is reported once")
+	}
+	f.Now = func() time.Time { return time.Date(2027, 4, 1, 0, 0, 0, 0, time.UTC) }
+	eol, _ := f.SupportItems(context.Background(), []watch.Component{{Name: "php", Version: "8.3.20"}})
+	if len(eol) != 1 || eol[0].ID == items[1].ID {
+		t.Fatalf("ending then eol are two reports: %+v", eol)
+	}
+
+	f.EOLAPI = ""
+	if items, err := f.SupportItems(context.Background(), stack); items != nil || err != nil {
+		t.Fatal("without the API, nothing is looked up")
 	}
 }

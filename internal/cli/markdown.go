@@ -17,8 +17,8 @@ var markdownSections = []struct {
 	noun   string
 	folded bool
 }{
-	{source.StageHeadsUp, "Heads-up: security releases announced", "heads-up", false},
-	{source.StageAlert, "Alerts: CERT alerts, public exploits, exploitation in the wild", "alert", false},
+	{source.StageHeadsUp, "Heads-up: security releases and ends of support announced", "heads-up", false},
+	{source.StageAlert, "Alerts: CERT alerts, public exploits, exploitation in the wild, ends of support", "alert", false},
 	{source.StageRelease, "Releases with security fixes", "release", false},
 	{source.StageAdvisory, "Advisories", "advisory", true},
 	{source.StageNews, "Press and research", "news item", true},

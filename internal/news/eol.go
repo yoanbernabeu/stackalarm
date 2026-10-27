@@ -2,12 +2,17 @@ package news
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	neturl "net/url"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/yoanbernabeu/stackalarm/internal/source"
+	"github.com/yoanbernabeu/stackalarm/internal/watch"
 )
 
 // Support statuses, from the most to the least urgent.
@@ -134,7 +139,7 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 	eol, _ := time.Parse(time.DateOnly, r.EOLFrom)
 	now := f.Now()
 	switch {
-	case r.IsEOL:
+	case r.IsEOL || !eol.IsZero() && !now.Before(eol): // the date passed before the data says so
 		s.Status, s.Note = StatusEOL, "no security fixes since "+r.EOLFrom+": upgrade to a maintained cycle"
 	case !eol.IsZero() && eol.Sub(now) < EndingWithin:
 		s.Status, s.Note = StatusEnding, fmt.Sprintf("security fixes stop on %s, in %d days: plan the upgrade", r.EOLFrom, int(eol.Sub(now).Hours()/24)+1)
@@ -149,4 +154,60 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 	if r.IsEOAS && !r.IsEOL {
 		s.Note += " (active support has ended, only security fixes are published)"
 	}
+}
+
+// SupportSource names the items SupportItems makes.
+const SupportSource = "endoflife.date"
+
+// SupportItems turns the components of a profile whose security fixes stop
+// into items for a scheduled watch: ending as a heads-up, eol as an alert.
+// Their id holds the status, so each change is reported once. behind is
+// left out: the release sources already announce the new patch releases.
+func (f *Fetcher) SupportItems(ctx context.Context, stack []watch.Component) ([]Item, error) {
+	if f.EOLAPI == "" {
+		return nil, nil
+	}
+	var (
+		components []string
+		from       []string
+	)
+	for _, c := range stack {
+		if c.Version != "" && c.Version != "unknown" {
+			components = append(components, c.Name+"@"+c.Version)
+			from = append(from, c.From)
+		}
+	}
+	if len(components) == 0 {
+		return nil, nil
+	}
+	support, err := f.Support(ctx, components)
+	if err != nil {
+		return nil, err
+	}
+	var out []Item
+	for i, s := range support {
+		var stage source.Stage
+		switch s.Status {
+		case StatusEOL:
+			stage = source.StageAlert
+		case StatusEnding:
+			stage = source.StageHeadsUp
+		default:
+			continue
+		}
+		where := ""
+		if from[i] != "" {
+			where = " (from " + from[i] + ")"
+		}
+		it := Item{
+			Source: SupportSource, Tags: []string{strings.ToLower(s.Name)}, Stage: stage, URL: s.URL, Published: f.Now().UTC(),
+			Title: "End of life: " + s.Name + " " + s.Version + where + ": " + s.Note,
+			Summary: "The version comes from the project profile written by the stackalarm skill. If the project has moved on, " +
+				"run /stackalarm to refresh .stackalarm.yaml.",
+		}
+		sum := sha256.Sum256([]byte(SupportSource + "\n" + s.Product + "\n" + s.Cycle + "\n" + s.Status))
+		it.ID = hex.EncodeToString(sum[:6])
+		out = append(out, it)
+	}
+	return out, nil
 }

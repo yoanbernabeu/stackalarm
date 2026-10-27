@@ -189,7 +189,23 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				}
 			}
 			now := a.Now().UTC()
+			// A profile tells the versions in use: a scheduled watch also learns
+			// when their security fixes stop, which no advisory announces.
+			var (
+				eol     []news.Item
+				eolErr  error
+				eolDone = make(chan struct{})
+			)
+			go func() {
+				defer close(eolDone)
+				eol, eolErr = f.SupportItems(cmd.Context(), stack)
+			}()
 			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages})
+			<-eolDone
+			if eolErr != nil {
+				res.Failures = append(res.Failures, news.Failure{Source: news.SupportSource, Error: eolErr.Error()})
+			}
+			res.Items = append(eol, res.Items...)
 			if len(res.NotSearched) > 0 {
 				warnings = append(warnings, fmt.Sprintf("the CVE databases are searched for %d words at most, in the order given: %s not searched (their tagged sources were still read); put the most important tags and keywords first, or run again for these",
 					news.MaxTerms, strings.Join(res.NotSearched, ", ")))

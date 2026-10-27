@@ -37,7 +37,8 @@ type Item struct {
 	Language  string       `json:"language,omitempty"`
 	AlsoIn    []string     `json:"also_in,omitempty"` // other databases listing the same CVE
 
-	cve string // CVE id of a CVE database entry, used to merge duplicates
+	cve  string // CVE id of a CVE database entry, used to merge duplicates
+	rank int    // order within its source, for the cap
 }
 
 // Failure is a source that could not be read. It is always reported: a
@@ -135,11 +136,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 				return b.Published.Compare(a.Published)
 			})
-			if len(entries) > MaxPerSource {
-				res.Truncated = append(res.Truncated, Truncation{Source: s.ID, Dropped: len(entries) - MaxPerSource})
-				entries = entries[:MaxPerSource]
-			}
-			for _, e := range entries {
+			for rank, e := range entries {
 				stage := s.Stage
 				if stage == source.StageHeadsUp && releasedTitle.MatchString(e.Title) {
 					stage = source.StageRelease // a heads-up feed also announces the release itself
@@ -152,6 +149,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 					item.cve = cveID.FindString(e.Title)
 				}
 				item.ID = itemID(item)
+				item.rank = rank
 				res.Items = append(res.Items, item)
 			}
 		})
@@ -160,8 +158,15 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	slices.SortFunc(res.Items, func(a, b Item) int {
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))
 	})
-	res.Items = mergeDuplicateCVEs(res.Items)
+	res.Items, res.Truncated = mergeAndCap(res.Items)
+	slices.SortStableFunc(res.Items, func(a, b Item) int { return b.Published.Compare(a.Published) }) // a merged CVE carries the date of the entry kept
+	if res.Items == nil {
+		res.Items = []Item{}
+	}
 	slices.SortFunc(res.Failures, func(a, b Failure) int { return cmp.Compare(a.Source, b.Source) })
+	if res.Truncated == nil {
+		res.Truncated = []Truncation{}
+	}
 	slices.SortFunc(res.Truncated, func(a, b Truncation) int { return cmp.Compare(a.Source, b.Source) })
 	return res
 }
@@ -182,24 +187,88 @@ func mergeable(t source.Type) bool {
 	return false
 }
 
-// mergeDuplicateCVEs keeps one entry per CVE across the vulnerability
-// databases (GitHub advisories, NVD, EUVD), noting where else it appears.
-func mergeDuplicateCVEs(items []Item) []Item {
-	first := map[string]int{}
-	out := items[:0]
-	for _, it := range items {
-		if it.cve != "" {
-			if i, seen := first[it.cve]; seen {
-				if out[i].Source != it.Source && !slices.Contains(out[i].AlsoIn, it.Source) {
-					out[i].AlsoIn = append(out[i].AlsoIn, it.Source)
-				}
-				continue
+// mergeAndCap keeps one entry per CVE across the vulnerability databases
+// (GitHub advisories, NVD, EUVD), noting where else it appears, and at most
+// MaxPerSource entries per source, in the order of the source (the most
+// severe first for CVE databases). A merged CVE takes one place, in the
+// source that ranks it highest, or in another listing it when that source
+// is full: a CVE is dropped only when no source has room for it.
+func mergeAndCap(items []Item) ([]Item, []Truncation) {
+	key := func(i int) string {
+		if items[i].cve != "" {
+			return items[i].cve
+		}
+		return fmt.Sprint("#", i)
+	}
+	var (
+		keys    []string             // in the order of items
+		holders = map[string][]int{} // the items sharing a key, in the order of items
+		owner   = map[string]int{}
+		count   = map[string]int{} // keys owned, per source
+	)
+	for i := range items {
+		k := key(i)
+		if _, seen := holders[k]; !seen {
+			keys = append(keys, k)
+			owner[k] = i
+		} else if items[i].rank < items[owner[k]].rank {
+			owner[k] = i
+		}
+		holders[k] = append(holders[k], i)
+	}
+	for _, k := range keys {
+		count[items[owner[k]].Source]++
+	}
+	// Move shared CVEs out of the full sources, the least ranked first.
+	byRank := slices.Clone(keys)
+	slices.SortStableFunc(byRank, func(a, b string) int { return cmp.Compare(items[owner[b]].rank, items[owner[a]].rank) })
+	for _, k := range byRank {
+		src := items[owner[k]].Source
+		if count[src] <= MaxPerSource {
+			continue
+		}
+		for _, h := range holders[k] {
+			if other := items[h].Source; other != src && count[other] < MaxPerSource {
+				owner[k] = h
+				count[src]--
+				count[other]++
+				break
 			}
-			first[it.cve] = len(out)
+		}
+	}
+	// Keep the best ranked keys of each source.
+	owned := map[string][]string{}
+	for _, k := range keys {
+		owned[items[owner[k]].Source] = append(owned[items[owner[k]].Source], k)
+	}
+	var (
+		dropped   = map[string]bool{}
+		truncated []Truncation
+	)
+	for src, ks := range owned {
+		if len(ks) <= MaxPerSource {
+			continue
+		}
+		slices.SortStableFunc(ks, func(a, b string) int { return cmp.Compare(items[owner[a]].rank, items[owner[b]].rank) })
+		for _, k := range ks[MaxPerSource:] {
+			dropped[k] = true
+		}
+		truncated = append(truncated, Truncation{Source: src, Dropped: len(ks) - MaxPerSource})
+	}
+	var out []Item
+	for _, k := range keys {
+		if dropped[k] {
+			continue
+		}
+		it := items[owner[k]]
+		for _, h := range holders[k] {
+			if s := items[h].Source; s != it.Source && !slices.Contains(it.AlsoIn, s) {
+				it.AlsoIn = append(it.AlsoIn, s)
+			}
 		}
 		out = append(out, it)
 	}
-	return out
+	return out, truncated
 }
 
 // itemID identifies an item by its CVE when databases may merge it (the one
@@ -337,14 +406,14 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Q
 	now := f.Now().UTC()
 	switch s.Type {
 	case source.TypeGitHubAdvisories:
-		return f.readOne(ctx, github+"/repos/"+s.Repo+"/security-advisories?per_page=30&sort=published&direction=desc", "github", parseGitHubAdvisories)
+		return f.readGitHub(ctx, github+"/repos/"+s.Repo+"/security-advisories?per_page=100&sort=published&direction=desc", since, parseGitHubAdvisories)
 	case source.TypeGitHubAdvisoryDatabase:
 		u := github + "/advisories?type=reviewed&per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
 			"&published=" + neturl.QueryEscape(">="+since.UTC().Format(time.DateOnly))
 		if len(q.Packages) > 0 {
 			u += "&affects=" + neturl.QueryEscape(strings.Join(q.Packages, ","))
 		}
-		return f.readOne(ctx, u, "github", parseGitHubAdvisoryDatabase)
+		return f.readGitHub(ctx, u, since, parseGitHubAdvisoryDatabase)
 	case source.TypeKEV:
 		return f.readOne(ctx, s.URL, "", parseKEV)
 	case source.TypeEUVD:
@@ -359,26 +428,81 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Q
 		const layout = "2006-01-02T15:04:05.000Z"
 		return f.search(ctx, terms, func(term string) string {
 			return s.URL + "?keywordSearch=" + neturl.QueryEscape(term) + "&pubStartDate=" + start.Format(layout) + "&pubEndDate=" + end.Format(layout)
-		}, "nvd", nvd, parseNVD)
+		}, "nvd", nvd, func(ctx context.Context, u, api string) ([]entry, error) { return f.readOne(ctx, u, api, parseNVD) })
 	case source.TypeEUVDSearch:
+		// The scores below 7 are dropped anyway: filtering them here saves pages.
 		return f.search(ctx, terms, func(term string) string {
-			return s.URL + "?size=100&text=" + neturl.QueryEscape(term) + "&fromDate=" + since.UTC().Format(time.DateOnly) + "&toDate=" + now.Format(time.DateOnly)
-		}, "", nil, parseEUVD)
+			return s.URL + "?size=" + fmt.Sprint(euvdPageSize) + "&fromScore=7&toScore=10&text=" + neturl.QueryEscape(term) +
+				"&fromDate=" + since.UTC().Format(time.DateOnly) + "&toDate=" + now.Format(time.DateOnly)
+		}, "", nil, f.readEUVDPages)
 	default:
 		return f.readOne(ctx, s.URL, "", parseFeed)
 	}
 }
 
 func (f *Fetcher) readOne(ctx context.Context, url, api string, parse func([]byte) ([]entry, error)) ([]entry, error) {
-	data, err := f.get(ctx, url, api)
+	data, _, err := f.get(ctx, url, api)
 	if err != nil {
 		return nil, err
 	}
 	return parse(data)
 }
 
+// MaxPages bounds the pages read from a paginated API for one query: beyond,
+// the query is too broad to be useful, and the gap is reported.
+const MaxPages = 10
+
+// readGitHub follows the pages of a GitHub list sorted newest first, until
+// an entry is older than since. A list cut short is reported with what was read.
+func (f *Fetcher) readGitHub(ctx context.Context, url string, since time.Time, parse func([]byte) ([]entry, error)) ([]entry, error) {
+	var out []entry
+	for page := 1; ; page++ {
+		data, next, err := f.get(ctx, url, "github")
+		if err != nil {
+			return out, err
+		}
+		entries, err := parse(data)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, entries...)
+		if next == "" || len(entries) > 0 && entries[len(entries)-1].Published.Before(since) {
+			return out, nil
+		}
+		if page == MaxPages {
+			return out, fmt.Errorf("partial: more than %d pages of advisories, only the most recent were read (narrow with --package or --since)", MaxPages)
+		}
+		url = next
+	}
+}
+
+const euvdPageSize = 100
+
+// readEUVDPages reads every page of an EUVD search, which gives its total.
+func (f *Fetcher) readEUVDPages(ctx context.Context, url, _ string) ([]entry, error) {
+	var out []entry
+	for page := 0; ; page++ {
+		data, _, err := f.get(ctx, url+"&page="+fmt.Sprint(page), "")
+		if err != nil {
+			return out, err
+		}
+		entries, err := parseEUVD(data)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, entries...)
+		total := euvdTotal(data)
+		if (page+1)*euvdPageSize >= total {
+			return out, nil
+		}
+		if page+1 == MaxPages {
+			return out, fmt.Errorf("partial: %d records, only %d read (use more precise keywords or a shorter --since)", total, MaxPages*euvdPageSize)
+		}
+	}
+}
+
 // search queries a search source once per term and merges the results.
-func (f *Fetcher) search(ctx context.Context, terms []string, url func(string) string, api string, g *gate, parse func([]byte) ([]entry, error)) ([]entry, error) {
+func (f *Fetcher) search(ctx context.Context, terms []string, url func(string) string, api string, g *gate, read func(ctx context.Context, url, api string) ([]entry, error)) ([]entry, error) {
 	var (
 		out  []entry
 		errs []error
@@ -391,10 +515,9 @@ func (f *Fetcher) search(ctx context.Context, terms []string, url func(string) s
 				return out, err
 			}
 		}
-		entries, err := f.readOne(ctx, u, api, parse)
-		if err != nil {
+		entries, err := read(ctx, u, api)
+		if err != nil { // a partial read keeps what it got
 			errs = append(errs, fmt.Errorf("%q: %w", term, err))
-			continue
 		}
 		for _, e := range entries {
 			if !seen[e.URL] {
@@ -413,17 +536,21 @@ func (f *Fetcher) isCached(url string) bool {
 	return ok
 }
 
-// get downloads url. api names the API it belongs to ("github", "nvd"), so
-// the right headers and rate-limit hints are used.
-func (f *Fetcher) get(ctx context.Context, url, api string) ([]byte, error) {
+// get downloads url, and returns the link to the next page a GitHub list
+// gives. api names the API it belongs to ("github", "nvd"), so the right
+// headers and rate-limit hints are used.
+func (f *Fetcher) get(ctx context.Context, url, api string) (data []byte, next string, err error) {
 	github := api == "github"
 	cache := f.cachePath(url)
 	if data, ok := f.cached(cache); ok {
-		return data, nil
+		if link, ok := f.cached(cache + ".next"); ok {
+			next = string(link)
+		}
+		return data, next, nil
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	req.Header.Set("User-Agent", f.UserAgent)
 	if github {
@@ -437,30 +564,44 @@ func (f *Fetcher) get(ctx context.Context, url, api string) ([]byte, error) {
 	}
 	resp, err := f.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("unreachable: %w", err)
+		return nil, "", fmt.Errorf("unreachable: %w", err)
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	data, err = io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
-		return nil, fmt.Errorf("read failed: %w", err)
+		return nil, "", fmt.Errorf("read failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		if github && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
-			return nil, fmt.Errorf("GitHub API rate limit reached (HTTP %d): set GITHUB_TOKEN to raise it", resp.StatusCode)
+			return nil, "", fmt.Errorf("GitHub API rate limit reached (HTTP %d): set GITHUB_TOKEN to raise it", resp.StatusCode)
 		}
 		if api == "nvd" && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
-			return nil, fmt.Errorf("NVD API rate limit reached (HTTP %d): set NVD_API_KEY to raise it", resp.StatusCode)
+			return nil, "", fmt.Errorf("NVD API rate limit reached (HTTP %d): set NVD_API_KEY to raise it", resp.StatusCode)
 		}
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	if github {
+		if m := nextLink.FindStringSubmatch(resp.Header.Get("Link")); m != nil {
+			next = m[1]
+		}
 	}
 	if cache != "" {
 		_ = os.MkdirAll(filepath.Dir(cache), 0o700)
 		// A cache that cannot be written only costs a refetch.
-		if os.WriteFile(cache, data, 0o600) == nil {
-			_ = os.Chtimes(cache, f.Now(), f.Now()) // age is measured with the same clock
+		f.writeCache(cache, data)
+		if next != "" {
+			f.writeCache(cache+".next", []byte(next))
 		}
 	}
-	return data, nil
+	return data, next, nil
+}
+
+var nextLink = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
+
+func (f *Fetcher) writeCache(path string, data []byte) {
+	if os.WriteFile(path, data, 0o600) == nil {
+		_ = os.Chtimes(path, f.Now(), f.Now()) // age is measured with the same clock
+	}
 }
 
 func (f *Fetcher) cachePath(url string) string {

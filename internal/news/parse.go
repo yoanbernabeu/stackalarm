@@ -253,6 +253,7 @@ const minScore = 7.0
 // parseNVD reads a response of the NVD CVE API 2.0.
 func parseNVD(data []byte) ([]entry, error) {
 	var r struct {
+		TotalResults    int `json:"totalResults"`
 		Vulnerabilities []struct {
 			CVE struct {
 				ID           string `json:"id"`
@@ -294,7 +295,19 @@ func parseNVD(data []byte) ([]entry, error) {
 		e.Published, _ = parseDate(v.CVE.Published)
 		out = append(out, e)
 	}
+	if r.TotalResults > len(r.Vulnerabilities) { // one page holds 2,000 records
+		return out, fmt.Errorf("partial: %d records, only %d read (use more precise keywords or a shorter --since)", r.TotalResults, len(r.Vulnerabilities))
+	}
 	return out, nil
+}
+
+// euvdTotal reads the number of records an EUVD search matched, over all pages.
+func euvdTotal(data []byte) int {
+	var r struct {
+		Total int `json:"total"`
+	}
+	_ = json.Unmarshal(data, &r) // a list endpoint has no total: one page
+	return r.Total
 }
 
 // parseEUVD reads a list or a search result of the ENISA EUVD API.

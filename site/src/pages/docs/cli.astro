@@ -51,7 +51,8 @@ const stageText: Record<string, string> = {
 
   <h3 id="limits">Limits, failures and cache</h3>
   <ul>
-    <li>Each source shows at most 30 entries. For the CVE databases, the most severe come first, so the cap drops the minor ones. The output lists the sources that had more.</li>
+    <li>Each source shows at most 30 entries. For the CVE databases, the most severe come first, so the cap drops the minor ones. A CVE found in several databases is shown once and takes one place. The output lists the sources that had more.</li>
+    <li>Paginated APIs (GitHub, EUVD) are read page by page, up to 10 pages per query. A query that matches more is reported as a <code>partial</code> failure, with what was read.</li>
     <li>A source that cannot be read is always listed: a silent watch tool is worse than a noisy one.</li>
     <li>Responses are reused for an hour, from <code>stackalarm</code> in your user cache folder. <code>--no-cache</code> fetches everything again.</li>
     <li>Without <code>NVD_API_KEY</code>, the NVD allows one request every 6 seconds; with it, about one every 0.7 seconds.</li>

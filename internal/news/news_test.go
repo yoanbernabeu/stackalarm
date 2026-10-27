@@ -510,3 +510,119 @@ func TestLinksDoNotMatchTags(t *testing.T) {
 		t.Fatalf("items: %v", titles)
 	}
 }
+
+// advisoryPage is one page of GitHub advisories, all critical, dated day.
+func advisoryPage(from, n, day int) string {
+	var b strings.Builder
+	b.WriteString("[")
+	for i := range n {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, `{"ghsa_id":"GHSA-%d","html_url":"https://github.com/advisories/GHSA-%d","summary":"flaw %d","severity":"critical","published_at":"2026-10-%02dT10:00:00Z"}`, from+i, from+i, from+i, day)
+	}
+	b.WriteString("]")
+	return b.String()
+}
+
+func TestGitHubListsAreReadPageByPage(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := 1
+		fmt.Sscan(r.URL.Query().Get("after"), &page)
+		if page < MaxPages+5 {
+			w.Header().Set("Link", fmt.Sprintf(`<%s%s?after=%d>; rel="next"`, srv.URL, r.URL.Path, page+1))
+		}
+		day := 22
+		if r.URL.Path == "/repos/o/r/security-advisories" {
+			day = 23 - page // newest first: page 3 is older than the window
+		}
+		w.Write([]byte(advisoryPage(page*100, 2, day)))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), GitHubAPI: srv.URL, Now: func() time.Time { return now }}
+	since := time.Date(2026, 10, 21, 0, 0, 0, 0, time.UTC)
+
+	res := f.Fetch(context.Background(), []source.Source{{ID: "ghsa-npm", Type: source.TypeGitHubAdvisoryDatabase, Ecosystem: "npm", Tags: []string{"npm"}, Stage: source.StageAdvisory}}, Query{Since: since})
+	if len(res.Items) != 2*MaxPages {
+		t.Fatalf("every page up to the limit must be read: %d items", len(res.Items))
+	}
+	if len(res.Failures) != 1 || !strings.Contains(res.Failures[0].Error, "partial") {
+		t.Fatalf("a list cut short must be reported: %+v", res.Failures)
+	}
+
+	res = f.Fetch(context.Background(), []source.Source{{ID: "r", Type: source.TypeGitHubAdvisories, Repo: "o/r", Tags: []string{"r"}, Stage: source.StageAdvisory}}, Query{Since: since})
+	if len(res.Items) != 4 || len(res.Failures) != 0 {
+		t.Fatalf("a repository list stops at the first page older than the window: %d items, %+v", len(res.Items), res.Failures)
+	}
+}
+
+func TestEUVDSearchIsReadPageByPage(t *testing.T) {
+	var pages []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pages = append(pages, r.URL.Query().Get("page"))
+		if r.URL.Query().Get("fromScore") != "7" {
+			t.Errorf("low scores must be filtered by the API: %s", r.URL.RawQuery)
+		}
+		fmt.Fprintf(w, `{"total":%d,"items":[{"id":"EUVD-%s","description":"php flaw","datePublished":"Oct 21, 2026, 6:00:19 PM","baseScore":9.8}]}`, 2*euvdPageSize+1, r.URL.Query().Get("page"))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), []source.Source{{ID: "euvd", Type: source.TypeEUVDSearch, URL: srv.URL, Tags: []string{"general"}, Stage: source.StageAdvisory}},
+		Query{Keywords: []string{"php"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if strings.Join(pages, ",") != "0,1,2" || len(res.Items) != 3 || len(res.Failures) != 0 {
+		t.Fatalf("pages %v, items %d, failures %+v", pages, len(res.Items), res.Failures)
+	}
+}
+
+func TestNVDReportsRecordsBeyondOnePage(t *testing.T) {
+	entries, err := parseNVD([]byte(`{"totalResults":2500,"vulnerabilities":[{"cve":{"id":"CVE-2026-1","published":"2026-10-21T10:00:00.000","descriptions":[{"lang":"en","value":"x"}]}}]}`))
+	if len(entries) != 1 || err == nil || !strings.Contains(err.Error(), "2500 records") {
+		t.Fatalf("%+v %v", entries, err)
+	}
+}
+
+func TestMergedCVEsTakeOnePlaceInTheCap(t *testing.T) {
+	var nvd, euvd strings.Builder
+	nvd.WriteString(`{"vulnerabilities":[`)
+	euvd.WriteString(`[`)
+	for i := range MaxPerSource + 5 {
+		if i > 0 {
+			euvd.WriteString(",")
+		}
+		score := 9.8
+		if i >= MaxPerSource {
+			score = 7.5 // only in the EUVD, and less severe than the shared ones
+		} else {
+			if i > 0 {
+				nvd.WriteString(",")
+			}
+			fmt.Fprintf(&nvd, `{"cve":{"id":"CVE-2026-%d","published":"2026-10-20T10:00:00.000","descriptions":[{"lang":"en","value":"php flaw"}],"metrics":{"cvssMetricV31":[{"cvssData":{"baseScore":9.8}}]}}}`, i)
+		}
+		fmt.Fprintf(&euvd, `{"id":"EUVD-%d","description":"php flaw","datePublished":"Oct 20, 2026, 10:00:00 AM","baseScore":%.1f,"aliases":"CVE-2026-%d"}`, i, score, i)
+	}
+	nvd.WriteString("]}")
+	euvd.WriteString("]")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/nvd" {
+			w.Write([]byte(nvd.String()))
+		} else {
+			w.Write([]byte(euvd.String()))
+		}
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	// Whichever database lists the shared CVEs first, the five others fit.
+	for _, id := range []string{"euvd-search", "z-euvd"} {
+		res := f.Fetch(context.Background(), []source.Source{
+			{ID: id, Type: source.TypeEUVDSearch, URL: srv.URL + "/euvd", Tags: []string{"general"}, Stage: source.StageAdvisory},
+			{ID: "nvd", Type: source.TypeNVD, URL: srv.URL + "/nvd", Tags: []string{"general"}, Stage: source.StageAdvisory},
+		}, Query{Keywords: []string{"php"}, Since: now.Add(-7 * 24 * time.Hour)})
+		if len(res.Items) != MaxPerSource+5 || len(res.Truncated) != 0 {
+			t.Fatalf("%s: every distinct CVE must be shown: %d items, truncated %+v", id, len(res.Items), res.Truncated)
+		}
+	}
+}

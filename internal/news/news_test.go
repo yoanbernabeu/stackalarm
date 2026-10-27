@@ -796,3 +796,25 @@ func TestShortFeedsAreReported(t *testing.T) {
 		t.Fatalf("short: %+v", res.Short)
 	}
 }
+
+func TestGitHubRequestsAreBounded(t *testing.T) {
+	var inFlight, peak atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := inFlight.Add(1)
+		for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
+		}
+		time.Sleep(20 * time.Millisecond)
+		inFlight.Add(-1)
+		w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+	var srcs []source.Source
+	for i := range 3 * GitHubConcurrency {
+		srcs = append(srcs, source.Source{ID: fmt.Sprint("r", i), Type: source.TypeGitHubAdvisories, Repo: fmt.Sprint("o/r", i), Tags: []string{"x"}, Stage: source.StageAdvisory})
+	}
+	f := &Fetcher{Client: srv.Client(), GitHubAPI: srv.URL, Now: time.Now}
+	f.Fetch(context.Background(), srcs, Query{})
+	if p := peak.Load(); p > GitHubConcurrency {
+		t.Fatalf("%d GitHub requests at once", p)
+	}
+}

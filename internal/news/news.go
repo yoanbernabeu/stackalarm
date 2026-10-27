@@ -118,11 +118,18 @@ type Fetcher struct {
 	CacheTTL    time.Duration // how long a cached response is reused
 	Search      source.Search // how tags become CVE database search terms
 	Now         func() time.Time
+
+	github chan struct{} // bounds the GitHub requests in flight
 }
+
+// GitHubConcurrency bounds the GitHub requests in flight: beyond, its
+// secondary rate limit answers HTTP 403, even with a token.
+const GitHubConcurrency = 16
 
 // Fetch reads the sources selected by q, in parallel.
 func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
 	selected := selectSources(sources, q.Tags)
+	f.github = make(chan struct{}, GitHubConcurrency)
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
 	nvd, euvd := &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
@@ -705,6 +712,14 @@ func (f *Fetcher) get(ctx context.Context, url, api string) (data []byte, next s
 		return nil, "", err
 	}
 	req.Header.Set("User-Agent", f.UserAgent)
+	if github && f.github != nil {
+		select {
+		case f.github <- struct{}{}:
+			defer func() { <-f.github }()
+		case <-ctx.Done():
+			return nil, "", ctx.Err()
+		}
+	}
 	if github {
 		req.Header.Set("Accept", "application/vnd.github+json")
 		if f.GitHubToken != "" {
@@ -725,6 +740,9 @@ func (f *Fetcher) get(ctx context.Context, url, api string) (data []byte, next s
 	}
 	if resp.StatusCode != http.StatusOK {
 		if github && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
+			if f.GitHubToken != "" {
+				return nil, "", fmt.Errorf("GitHub API rate limit reached (HTTP %d) despite the token: run again in a few minutes", resp.StatusCode)
+			}
 			return nil, "", fmt.Errorf("GitHub API rate limit reached (HTTP %d): set GITHUB_TOKEN to raise it", resp.StatusCode)
 		}
 		if api == "nvd" && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {

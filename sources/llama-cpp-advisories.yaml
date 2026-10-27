@@ -1,0 +1,6 @@
+id: llama-cpp-advisories
+name: llama.cpp security advisories (GitHub)
+type: github-advisories
+repo: ggml-org/llama.cpp
+tags: [llama.cpp]
+stage: advisory

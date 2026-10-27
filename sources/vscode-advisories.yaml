@@ -1,0 +1,6 @@
+id: vscode-advisories
+name: Visual Studio Code security advisories (GitHub)
+type: github-advisories
+repo: microsoft/vscode
+tags: [vscode]
+stage: advisory

@@ -1,0 +1,6 @@
+id: synacktiv-blog
+name: Synacktiv research
+type: feed
+url: "https://www.synacktiv.com/en/feed/lastblog.xml"
+tags: [general]
+stage: news

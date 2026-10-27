@@ -1,0 +1,6 @@
+id: harbor-advisories
+name: Harbor security advisories (GitHub)
+type: github-advisories
+repo: goharbor/harbor
+tags: [harbor]
+stage: advisory

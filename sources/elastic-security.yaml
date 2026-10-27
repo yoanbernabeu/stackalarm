@@ -1,0 +1,6 @@
+id: elastic-security
+name: Elastic security announcements (Elasticsearch, Kibana, Logstash)
+type: feed
+url: "https://discuss.elastic.co/c/announcements/security-announcements/31.rss"
+tags: [elasticsearch, kibana, logstash]
+stage: advisory

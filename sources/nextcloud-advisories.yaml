@@ -1,0 +1,6 @@
+id: nextcloud-advisories
+name: Nextcloud security advisories (GitHub)
+type: github-advisories
+repo: nextcloud/security-advisories
+tags: [nextcloud]
+stage: advisory

@@ -1,0 +1,6 @@
+id: joomla-security
+name: Joomla security centre
+type: feed
+url: "https://developer.joomla.org/security-centre.feed?type=rss"
+tags: [joomla]
+stage: advisory

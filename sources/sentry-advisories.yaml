@@ -1,0 +1,6 @@
+id: sentry-advisories
+name: Sentry security advisories (GitHub)
+type: github-advisories
+repo: getsentry/sentry
+tags: [sentry]
+stage: advisory

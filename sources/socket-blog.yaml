@@ -1,0 +1,6 @@
+id: socket-blog
+name: Socket blog (malicious packages, supply chain)
+type: feed
+url: "https://socket.dev/api/blog/feed.atom"
+tags: [general]
+stage: news

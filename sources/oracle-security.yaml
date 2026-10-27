@@ -1,0 +1,6 @@
+id: oracle-security
+name: Oracle Critical Patch Updates and Security Alerts (Java, MySQL)
+type: feed
+url: "https://www.oracle.com/ocom/groups/public/@otn/documents/webcontent/rss-otn-sec.xml"
+tags: [oracle, java, mysql]
+stage: release

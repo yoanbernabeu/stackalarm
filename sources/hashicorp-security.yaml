@@ -1,0 +1,6 @@
+id: hashicorp-security
+name: HashiCorp security bulletins (Vault, Terraform, Consul, Nomad)
+type: feed
+url: "https://discuss.hashicorp.com/c/security/52.rss"
+tags: [hashicorp, vault, terraform, consul, nomad]
+stage: advisory

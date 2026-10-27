@@ -10,6 +10,9 @@ aliases:
   dotnet: .net
   # "echo" alone matches kernel and network CVEs (echo requests, Junos).
   echo: labstack
+  # "vault" alone matches Azure Key Vault and note-taking vaults.
+  vault: hashicorp vault
+  consul: hashicorp consul
 
 # Tags the CVE databases are not searched for. General sources (CERTs, KEV,
 # press) still match them, and an explicit --keyword is still searched.
@@ -35,3 +38,6 @@ skip:
   - vue
   - twig
   - mcp
+  # Every product of the vendor: hundreds of CVEs a month. The oracle-security
+  # source carries its patch updates.
+  - oracle

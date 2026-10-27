@@ -1,0 +1,6 @@
+id: wiz-blog
+name: Wiz research and blog
+type: feed
+url: "https://www.wiz.io/feed/rss.xml"
+tags: [general]
+stage: news

@@ -1,0 +1,6 @@
+id: alpine-releases
+name: Alpine Linux releases
+type: feed
+url: "https://www.alpinelinux.org/atom.xml"
+tags: [alpine]
+stage: release

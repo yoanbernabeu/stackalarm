@@ -1,0 +1,7 @@
+id: typo3-security
+name: TYPO3 news, security bulletins and releases
+type: feed
+url: "https://typo3.org/rss"
+tags: [typo3]
+stage: advisory
+keywords: [security, TYPO3-CORE-SA, TYPO3-PSA]

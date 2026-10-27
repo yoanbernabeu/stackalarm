@@ -1,0 +1,6 @@
+id: multer-advisories
+name: Multer security advisories (GitHub)
+type: github-advisories
+repo: expressjs/multer
+tags: [express, multer]
+stage: advisory

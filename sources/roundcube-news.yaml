@@ -1,0 +1,7 @@
+id: roundcube-news
+name: Roundcube news and security updates
+type: feed
+url: "https://roundcube.net/feeds/atom.xml"
+tags: [roundcube]
+stage: release
+keywords: [security]

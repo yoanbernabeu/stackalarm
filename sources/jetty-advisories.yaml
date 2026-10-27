@@ -1,0 +1,6 @@
+id: jetty-advisories
+name: Eclipse Jetty security advisories (GitHub)
+type: github-advisories
+repo: jetty/jetty.project
+tags: [jetty]
+stage: advisory

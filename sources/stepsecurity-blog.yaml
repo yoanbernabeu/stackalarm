@@ -1,0 +1,6 @@
+id: stepsecurity-blog
+name: StepSecurity blog (supply chain attacks, GitHub Actions)
+type: feed
+url: "https://www.stepsecurity.io/blog/rss.xml"
+tags: [general]
+stage: news

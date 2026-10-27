@@ -1,0 +1,6 @@
+id: aws-security-bulletins
+name: AWS security bulletins
+type: feed
+url: "https://aws.amazon.com/security/security-bulletins/rss/feed/"
+tags: [aws]
+stage: advisory

@@ -9,7 +9,7 @@ If the user added text after `/stackalarm` (a technology, "before the deploy", a
 
 Help the user answer one question about the project open in front of you: **is there anything in the security news that affects us, and what should we do?**
 
-The `stackalarm` CLI gathers the news from about 180 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, exploit databases and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
+The `stackalarm` CLI gathers the news from about 200 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, exploit databases and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
 
 Why this matters: since AI turned patches into working exploits within hours, the window between a fix and its exploitation is measured in hours, not weeks. The most valuable signal is often the **heads-up**: maintainers announcing a critical release a day or a week ahead. Catching it lets the user prepare before the attackers read the patch.
 

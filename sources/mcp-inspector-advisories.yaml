@@ -1,0 +1,6 @@
+id: mcp-inspector-advisories
+name: MCP Inspector security advisories (GitHub)
+type: github-advisories
+repo: modelcontextprotocol/inspector
+tags: [mcp]
+stage: advisory

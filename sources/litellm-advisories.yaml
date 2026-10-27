@@ -1,0 +1,6 @@
+id: litellm-advisories
+name: LiteLLM security advisories (GitHub)
+type: github-advisories
+repo: BerriAI/litellm
+tags: [litellm]
+stage: advisory

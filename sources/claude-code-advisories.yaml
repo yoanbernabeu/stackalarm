@@ -1,0 +1,6 @@
+id: claude-code-advisories
+name: Claude Code security advisories (GitHub)
+type: github-advisories
+repo: anthropics/claude-code
+tags: [claude-code]
+stage: advisory

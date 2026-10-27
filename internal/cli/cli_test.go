@@ -107,6 +107,18 @@ func TestNewsSummary(t *testing.T) {
 	}
 }
 
+func TestSummaryShowsAffectedVersionsAndEPSS(t *testing.T) {
+	app, out, _ := newTestApp(t)
+	app.printSummary(newsReport{Items: []news.Item{{
+		Published: time.Date(2026, 10, 21, 0, 0, 0, 0, time.UTC), Stage: source.StageAdvisory, Source: "ghsa-npm", Score: 8.7, EPSS: 0.004, Title: "Token leak",
+		Affected: []news.Affected{{Package: "a", Versions: "< 7.1.0", Fixed: "7.1.0"}, {Package: "b", Versions: "<= 2.0.0"}, {Package: "c"}, {Package: "d"}},
+	}}})
+	want := " | affects a < 7.1.0 (fixed in 7.1.0); b <= 2.0.0 (no fix yet); c all versions (no fix yet); and 1 more | EPSS 0.4%"
+	if !strings.HasSuffix(strings.TrimSpace(out.String()), want) {
+		t.Fatalf("got:\n%s", out)
+	}
+}
+
 func TestScheduledWatch(t *testing.T) {
 	dir := t.TempDir()
 	profile, state := filepath.Join(dir, ".stackalarm.yaml"), filepath.Join(dir, "state")

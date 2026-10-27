@@ -43,7 +43,7 @@ const stageText: Record<string, string> = {
     <thead><tr><th scope="col">Format</th><th scope="col">For</th></tr></thead>
     <tbody>
       <tr><td><code>text</code></td><td>Reading in a terminal. The default.</td></tr>
-      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE), then the failed and truncated sources.</td></tr>
+      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE, affected packages with the first fixed version, EPSS), then the failed and truncated sources.</td></tr>
       <tr><td><code>json</code></td><td>Scripts: the items with their summaries, plus <code>failures</code>, <code>truncated</code> and <code>warnings</code>.</td></tr>
       <tr><td><code>markdown</code></td><td>An issue body, used by the scheduled watch.</td></tr>
     </tbody>

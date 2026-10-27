@@ -626,3 +626,25 @@ func TestMergedCVEsTakeOnePlaceInTheCap(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubAdvisoriesCarryVersionsAndScores(t *testing.T) {
+	db := `[{"ghsa_id":"GHSA-a","cve_id":"CVE-2026-2","html_url":"https://github.com/advisories/GHSA-a","summary":"Token leak","severity":"high","published_at":"2026-10-21T10:00:00Z",
+"cvss":{"score":7.5},"cvss_severities":{"cvss_v3":{"score":7.5},"cvss_v4":{"score":8.7}},"epss":{"percentage":0.42,"percentile":0.97},
+"vulnerabilities":[{"package":{"ecosystem":"npm","name":"@azure/msal-node"},"vulnerable_version_range":">= 5.0.0, < 7.1.0","first_patched_version":"7.1.0"}]}]`
+	entries, err := parseGitHubAdvisoryDatabase([]byte(db))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("%+v %v", entries, err)
+	}
+	if e := entries[0]; e.Score != 8.7 || e.EPSS != 0.42 || len(e.Affected) != 1 ||
+		e.Affected[0] != (Affected{Package: "@azure/msal-node", Versions: ">= 5.0.0, < 7.1.0", Fixed: "7.1.0"}) {
+		t.Fatalf("entry: %+v", e)
+	}
+
+	repo := `[{"ghsa_id":"GHSA-b","html_url":"https://github.com/vitejs/vite/security/advisories/GHSA-b","summary":"fs.deny bypass","severity":"medium","published_at":"2026-10-21T10:00:00Z",
+"cvss":{"score":null},"cvss_severities":{"cvss_v3":{"score":null},"cvss_v4":{"score":6.9}},"epss":null,
+"vulnerabilities":[{"package":{"ecosystem":"npm","name":"vite"},"vulnerable_version_range":"6.4.4","patched_versions":"6.4.5"}]}]`
+	entries, err = parseGitHubAdvisories([]byte(repo))
+	if err != nil || entries[0].Score != 6.9 || entries[0].Affected[0].Fixed != "6.4.5" {
+		t.Fatalf("repository advisory: %+v %v", entries, err)
+	}
+}

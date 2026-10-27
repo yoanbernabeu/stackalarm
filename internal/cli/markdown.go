@@ -87,6 +87,12 @@ func (a *App) printMarkdown(r newsReport) {
 			if len(it.AlsoIn) > 0 {
 				line += ", also in " + strings.Join(it.AlsoIn, ", ")
 			}
+			if it.EPSS > 0 {
+				line += ", EPSS " + epss(it.EPSS)
+			}
+			if aff := affected(it); aff != "" {
+				line += "\n  Affects " + mdText(aff)
+			}
 			if link := mdLink(it.URL); link != "" {
 				line += "\n  " + link
 			}

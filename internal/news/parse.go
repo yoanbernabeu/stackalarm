@@ -21,6 +21,8 @@ type entry struct {
 	Published time.Time
 	Summary   string
 	Score     float64 // CVSS base score, when the source gives one
+	EPSS      float64
+	Affected  []Affected
 }
 
 type xmlLink struct {
@@ -155,14 +157,30 @@ func parseGitHubAdvisories(data []byte) ([]entry, error) {
 }
 
 func parseGitHub(data []byte, keepSeverity func(string) bool) ([]entry, error) {
+	type score struct {
+		Score float64 `json:"score"`
+	}
 	var advisories []struct {
-		GHSA        string `json:"ghsa_id"`
-		CVE         string `json:"cve_id"`
-		URL         string `json:"html_url"`
-		Summary     string `json:"summary"`
-		Description string `json:"description"`
-		Severity    string `json:"severity"`
-		PublishedAt string `json:"published_at"`
+		GHSA           string           `json:"ghsa_id"`
+		CVE            string           `json:"cve_id"`
+		URL            string           `json:"html_url"`
+		Summary        string           `json:"summary"`
+		Description    string           `json:"description"`
+		Severity       string           `json:"severity"`
+		PublishedAt    string           `json:"published_at"`
+		CVSS           score            `json:"cvss"`
+		CVSSSeverities map[string]score `json:"cvss_severities"`
+		EPSS           struct {
+			Percentage float64 `json:"percentage"`
+		} `json:"epss"`
+		Vulnerabilities []struct {
+			Package struct {
+				Name string `json:"name"`
+			} `json:"package"`
+			Range        string `json:"vulnerable_version_range"`
+			FirstPatched string `json:"first_patched_version"` // GitHub Advisory Database
+			Patched      string `json:"patched_versions"`      // repository advisories
+		} `json:"vulnerabilities"`
 	}
 	if err := json.Unmarshal(data, &advisories); err != nil {
 		return nil, fmt.Errorf("unexpected GitHub response: %w", err)
@@ -179,7 +197,15 @@ func parseGitHub(data []byte, keepSeverity func(string) bool) ([]entry, error) {
 		if id := firstNonEmpty(a.CVE, a.GHSA); id != "" {
 			title += " (" + id + ")"
 		}
-		e := entry{Title: clean(title), URL: a.URL, Summary: clean(a.Description)}
+		e := entry{Title: clean(title), URL: a.URL, Summary: clean(a.Description), Score: a.CVSS.Score, EPSS: a.EPSS.Percentage}
+		for _, s := range a.CVSSSeverities {
+			e.Score = max(e.Score, s.Score)
+		}
+		for _, v := range a.Vulnerabilities {
+			if v.Package.Name != "" {
+				e.Affected = append(e.Affected, Affected{Package: v.Package.Name, Versions: v.Range, Fixed: cmp.Or(v.FirstPatched, v.Patched)})
+			}
+		}
 		e.Published, _ = parseDate(a.PublishedAt)
 		out = append(out, e)
 	}

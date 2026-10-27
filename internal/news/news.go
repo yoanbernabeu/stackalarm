@@ -36,9 +36,21 @@ type Item struct {
 	Score     float64      `json:"score,omitempty"` // CVSS base score, for CVE databases
 	Language  string       `json:"language,omitempty"`
 	AlsoIn    []string     `json:"also_in,omitempty"` // other databases listing the same CVE
+	// EPSS is the probability of exploitation in the next 30 days (0 to 1),
+	// from FIRST, when known.
+	EPSS     float64    `json:"epss,omitempty"`
+	Affected []Affected `json:"affected,omitempty"` // packages and versions, for GitHub advisories
 
 	cve  string // CVE id of a CVE database entry, used to merge duplicates
 	rank int    // order within its source, for the cap
+}
+
+// Affected is a package an advisory names, with the vulnerable versions and
+// the first fixed one.
+type Affected struct {
+	Package  string `json:"package"`
+	Versions string `json:"versions"`
+	Fixed    string `json:"fixed,omitempty"`
 }
 
 // Failure is a source that could not be read. It is always reported: a
@@ -86,6 +98,7 @@ type Fetcher struct {
 	GitHubAPI   string        // https://api.github.com unless a test changes it
 	NVDAPIKey   string        // optional, raises the NVD API rate limit
 	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
+	EUVDDelay   time.Duration // pause between two EUVD search requests, which answer HTTP 429 to bursts
 	CacheDir    string        // empty disables the cache
 	CacheTTL    time.Duration // how long a cached response is reused
 	Search      source.Search // how tags become CVE database search terms
@@ -97,7 +110,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	selected := selectSources(sources, q.Tags)
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
-	nvd := &gate{delay: f.NVDDelay}
+	nvd, euvd := &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
 
 	var (
 		mu  sync.Mutex
@@ -112,7 +125,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 			continue // nothing to search for
 		}
 		wg.Go(func() {
-			entries, err := f.read(ctx, s, terms, q, nvd)
+			entries, err := f.read(ctx, s, terms, q, nvd, euvd)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil { // a search may fail for one word and succeed for others
@@ -129,7 +142,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				return !keep(s, e, words)
 			})
 			slices.SortStableFunc(entries, func(a, b entry) int {
-				if s.Type.IsSearch() { // most severe first, so the cap drops the minor ones
+				if s.Type.IsSearch() || s.Type == source.TypeGitHubAdvisoryDatabase { // most severe first, so the cap drops the minor ones
 					if c := cmp.Compare(priority(b.Score), priority(a.Score)); c != 0 {
 						return c
 					}
@@ -143,7 +156,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 				item := Item{
 					Source: s.ID, Tags: s.Tags, Stage: stage, Title: e.Title, URL: absolute(s.URL, e.URL),
-					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language,
+					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language, EPSS: e.EPSS, Affected: e.Affected,
 				}
 				if mergeable(s.Type) {
 					item.cve = cveID.FindString(e.Title)
@@ -400,7 +413,7 @@ func (g *gate) wait(ctx context.Context) error {
 	return nil
 }
 
-func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Query, nvd *gate) ([]entry, error) {
+func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Query, nvd, euvd *gate) ([]entry, error) {
 	since := q.Since
 	github := cmp.Or(f.GitHubAPI, "https://api.github.com")
 	now := f.Now().UTC()
@@ -434,7 +447,7 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Q
 		return f.search(ctx, terms, func(term string) string {
 			return s.URL + "?size=" + fmt.Sprint(euvdPageSize) + "&fromScore=7&toScore=10&text=" + neturl.QueryEscape(term) +
 				"&fromDate=" + since.UTC().Format(time.DateOnly) + "&toDate=" + now.Format(time.DateOnly)
-		}, "", nil, f.readEUVDPages)
+		}, "", nil, func(ctx context.Context, u, _ string) ([]entry, error) { return f.readEUVDPages(ctx, u, euvd) })
 	default:
 		return f.readOne(ctx, s.URL, "", parseFeed)
 	}
@@ -479,10 +492,16 @@ func (f *Fetcher) readGitHub(ctx context.Context, url string, since time.Time, p
 const euvdPageSize = 100
 
 // readEUVDPages reads every page of an EUVD search, which gives its total.
-func (f *Fetcher) readEUVDPages(ctx context.Context, url, _ string) ([]entry, error) {
+func (f *Fetcher) readEUVDPages(ctx context.Context, url string, g *gate) ([]entry, error) {
 	var out []entry
 	for page := 0; ; page++ {
-		data, _, err := f.get(ctx, url+"&page="+fmt.Sprint(page), "")
+		u := url + "&page=" + fmt.Sprint(page)
+		if !f.isCached(u) {
+			if err := g.wait(ctx); err != nil {
+				return out, err
+			}
+		}
+		data, _, err := f.get(ctx, u, "")
 		if err != nil {
 			return out, err
 		}

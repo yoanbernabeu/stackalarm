@@ -54,6 +54,7 @@ func Default(version string) (*App, error) {
 			UserAgent: "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
 			CacheTTL:  time.Hour,
 			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key
+			EUVDDelay: time.Second,
 			Search:    search,
 		},
 	}, nil
@@ -264,6 +265,9 @@ func (a *App) printNews(r newsReport) {
 	}
 	for _, it := range r.Items {
 		fmt.Fprintf(a.Out, "%s  %-9s %-24s %s\n", it.Published.Format("2006-01-02"), it.Stage, it.Source, it.Title)
+		if aff := affected(it); aff != "" {
+			fmt.Fprintf(a.Out, "%38saffects %s\n", "", aff)
+		}
 		if it.URL != "" {
 			fmt.Fprintf(a.Out, "%38s%s\n", "", it.URL)
 		}
@@ -293,6 +297,12 @@ func (a *App) printSummary(r newsReport) {
 		line := strings.Join([]string{it.Published.Format("2006-01-02"), string(it.Stage), it.Source, score, it.Title, it.URL}, " | ")
 		if len(it.AlsoIn) > 0 {
 			line += " | also in " + strings.Join(it.AlsoIn, ",")
+		}
+		if aff := affected(it); aff != "" {
+			line += " | affects " + aff
+		}
+		if it.EPSS > 0 {
+			line += " | EPSS " + epss(it.EPSS)
 		}
 		fmt.Fprintln(a.Out, line)
 	}
@@ -337,6 +347,36 @@ func (a *App) sourcesCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	return cmd
+}
+
+// maxAffected keeps a line short: some advisories name dozens of packages.
+const maxAffected = 3
+
+// affected describes the packages of an advisory: "vite 6.4.4 (fixed in 6.4.5)".
+func affected(it news.Item) string {
+	var parts []string
+	for i, af := range it.Affected {
+		if i == maxAffected {
+			parts = append(parts, fmt.Sprintf("and %d more", len(it.Affected)-maxAffected))
+			break
+		}
+		part := af.Package + " " + cmp.Or(af.Versions, "all versions")
+		if af.Fixed != "" {
+			part += " (fixed in " + af.Fixed + ")"
+		} else {
+			part += " (no fix yet)"
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// epss writes a probability as a percentage: "0.4%", "37%".
+func epss(p float64) string {
+	if p < 0.1 {
+		return fmt.Sprintf("%.1f%%", p*100)
+	}
+	return fmt.Sprintf("%.0f%%", p*100)
 }
 
 func lower(s []string) []string {

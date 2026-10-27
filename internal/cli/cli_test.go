@@ -172,3 +172,31 @@ func TestMarkdownEscapesThirdPartyText(t *testing.T) {
 		}
 	}
 }
+
+func TestEOLReadsTheStackOfTheProfile(t *testing.T) {
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Path)
+		if r.URL.Path == "/products" {
+			w.Write([]byte(`{"result":[{"name":"php","aliases":[]}]}`))
+			return
+		}
+		w.Write([]byte(`{"result":{"releases":[{"name":"8.1","isEol":true,"eolFrom":"2025-12-31"}]}}`))
+	}))
+	defer srv.Close()
+	profile := filepath.Join(t.TempDir(), ".stackalarm.yaml")
+	os.WriteFile(profile, []byte("tags: [php]\nstack:\n  - {name: php, version: \"8.1\", precision: branch}\n  - {name: gitlab, version: unknown}\n"), 0o600)
+	app, out, errOut := newTestApp(t, "eol", "--profile", profile)
+	app.Fetcher = &news.Fetcher{Client: srv.Client(), EOLAPI: srv.URL}
+	if code := app.Execute(context.Background()); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if !strings.Contains(out.String(), "php 8.1    8.1    eol") || !strings.Contains(out.String(), "gitlab     -      unknown") {
+		t.Fatalf("got:\n%s", out)
+	}
+
+	app, _, errOut = newTestApp(t, "eol")
+	if code := app.Execute(context.Background()); code != 1 || !strings.Contains(errOut.String(), "name the components") {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+}

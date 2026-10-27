@@ -56,6 +56,7 @@ func Default(version string) (*App, error) {
 			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key
 			EUVDDelay: time.Second,
 			EPSSAPI:   "https://api.first.org/data/v1/epss",
+			EOLAPI:    "https://endoflife.date/api/v1",
 			Search:    search,
 		},
 	}, nil
@@ -73,7 +74,7 @@ func (a *App) Execute(ctx context.Context) int {
 	}
 	root.SetOut(a.Out)
 	root.SetErr(a.Err)
-	root.AddCommand(a.newsCommand(), a.sourcesCommand())
+	root.AddCommand(a.newsCommand(), a.sourcesCommand(), a.eolCommand())
 	if a.Args != nil {
 		root.SetArgs(a.Args)
 	}
@@ -322,6 +323,67 @@ func (a *App) printSummary(r newsReport) {
 	if r.AlreadyReported > 0 {
 		fmt.Fprintf(a.Out, "ALREADY REPORTED | %d items left out\n", r.AlreadyReported)
 	}
+}
+
+func (a *App) eolCommand() *cobra.Command {
+	var format, profilePath string
+	cmd := &cobra.Command{
+		Use:   "eol [name@version...]",
+		Short: "Tell whether the runtimes and frameworks in use still get security fixes",
+		Long: `Look up the support status of each component on endoflife.date: the cycle
+its version belongs to, when its security fixes stop, and whether a newer
+release of the same cycle is out.
+
+Statuses, from the most urgent: eol (no more security fixes), ending (they
+stop within 180 days), behind (a newer patch release is out), supported, and
+unknown (not on endoflife.date, or a version too vague to find its cycle).
+With --profile, the components are read from the stack of the profile.`,
+		Example: "  stackalarm eol php@8.3.35 node@22 gitlab@17.5\n" +
+			"  stackalarm eol --profile .stackalarm.yaml --format json",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !slices.Contains([]string{"text", "json"}, format) {
+				return fmt.Errorf("--format %q: use text or json", format)
+			}
+			if profilePath != "" {
+				p, err := watch.LoadProfile(profilePath)
+				if err != nil {
+					return fmt.Errorf("--profile: %w", err)
+				}
+				for _, c := range p.Stack {
+					if c.Version == "unknown" {
+						c.Version = ""
+					}
+					args = append(args, strings.TrimSuffix(c.Name+"@"+c.Version, "@"))
+				}
+			}
+			if len(args) == 0 {
+				return errors.New("name the components (php@8.3.35 node@22) or give --profile")
+			}
+			f := *a.Fetcher
+			f.Now = a.Now
+			if dir, err := a.CacheRoot(); err == nil {
+				f.CacheDir = filepath.Join(dir, "stackalarm")
+			}
+			support, err := f.Support(cmd.Context(), args)
+			if err != nil {
+				return err
+			}
+			if format == "json" {
+				enc := json.NewEncoder(a.Out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(map[string]any{"generated_at": a.Now().UTC(), "components": support})
+			}
+			w := tabwriter.NewWriter(a.Out, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "COMPONENT\tCYCLE\tSTATUS\tNOTE")
+			for _, s := range support {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", strings.TrimSuffix(s.Name+" "+s.Version, " "), cmp.Or(s.Cycle, "-"), s.Status, s.Note)
+			}
+			return w.Flush()
+		},
+	}
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text or json")
+	cmd.Flags().StringVar(&profilePath, "profile", "", "project profile written by the agent (.stackalarm.yaml): its stack is looked up")
+	return cmd
 }
 
 func (a *App) sourcesCommand() *cobra.Command {

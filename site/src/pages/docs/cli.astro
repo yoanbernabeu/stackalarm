@@ -6,6 +6,7 @@ import { stages } from "../../lib/sources";
 
 const newsHelp = cliHelp("news");
 const sourcesHelp = cliHelp("sources");
+const eolHelp = cliHelp("eol");
 const stageText: Record<string, string> = {
   "heads-up": "A security release is announced ahead. When the same feed announces the release itself, the item becomes a release.",
   release: "The fix is out.",
@@ -14,7 +15,7 @@ const stageText: Record<string, string> = {
   news: "Security press and research: context, never enough on its own to call a project affected.",
 };
 ---
-<Docs title="The CLI" description="stackalarm news and stackalarm sources: options, output formats, stages, limits, cache and exit codes.">
+<Docs title="The CLI" description="stackalarm news, eol and sources: options, output formats, stages, limits, cache and exit codes.">
   <p class="lead-in">
     The CLI gathers the news; it does no project analysis. The skill runs it for you, but it works on its own too. The help below is printed by
     the CLI itself when this page is built.
@@ -94,6 +95,14 @@ const stageText: Record<string, string> = {
     keeps the previous state. <code>--fail-on</code> turns new items into exit code 2. See <a href="/docs/watch/">Scheduled watch</a>.
   </p>
   <Code code="stackalarm news --profile .stackalarm.yaml --state .stackalarm-state --fail-on heads-up,alert,release --since 48h --format markdown" copy={false} />
+
+  <h2 id="eol"><code>stackalarm eol</code></h2>
+  <Code label="stackalarm eol --help" code={eolHelp} copy={false} />
+  <p>
+    A runtime past its end of life gets no fix for the next flaw, and no advisory will say so: the news only covers what is still
+    maintained. <code>eol</code> reads <a href="https://endoflife.date">endoflife.date</a> for each component and gives its cycle, the date
+    its security fixes stop, and the latest release of the cycle. Only names and versions are sent, never the project.
+  </p>
 
   <h2 id="sources"><code>stackalarm sources</code></h2>
   <Code label="stackalarm sources --help" code={sourcesHelp} copy={false} />

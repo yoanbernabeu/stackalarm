@@ -102,6 +102,7 @@ type Fetcher struct {
 	GitHubAPI   string        // https://api.github.com unless a test changes it
 	NVDAPIKey   string        // optional, raises the NVD API rate limit
 	EPSSAPI     string        // FIRST EPSS API, completing the scores of CVE records; empty skips it
+	EOLAPI      string        // endoflife.date API, for the support status of components
 	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
 	EUVDDelay   time.Duration // pause between two EUVD search requests, which answer HTTP 429 to bursts
 	CacheDir    string        // empty disables the cache

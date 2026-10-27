@@ -35,6 +35,7 @@ The CLI also works on its own:
 
 ```sh
 stackalarm news --tag php --tag gitlab --since 7d
+stackalarm eol php@8.3.20 node@20            # still getting security fixes?
 stackalarm sources                          # the sources and their tags
 stackalarm news --help                      # every option
 ```

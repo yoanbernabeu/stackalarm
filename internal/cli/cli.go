@@ -101,6 +101,7 @@ type newsReport struct {
 	Items       []news.Item       `json:"items"`
 	Failures    []news.Failure    `json:"failures"`
 	Truncated   []news.Truncation `json:"truncated"`
+	Short       []news.Coverage   `json:"short"` // feeds that do not reach back to Since
 	Warnings    []string          `json:"warnings"`
 	// AlreadyReported counts the items left out because the state file says
 	// an earlier run reported them.
@@ -195,7 +196,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			}
 			report := newsReport{
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Stack: stack,
-				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Warnings: nonNil(warnings),
+				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Short: res.Short, Warnings: nonNil(warnings),
 			}
 			if statePath != "" {
 				report.Items = slices.DeleteFunc(report.Items, func(it news.Item) bool {
@@ -280,6 +281,12 @@ func (a *App) printNews(r newsReport) {
 			fmt.Fprintf(a.Out, "  %s: %d older entries left out (narrow with --since or more precise keywords)\n", t.Source, t.Dropped)
 		}
 	}
+	if len(r.Short) > 0 {
+		fmt.Fprintln(a.Out, "\nFeeds that do not go back to the start of the period (older news may be missing):")
+		for _, c := range r.Short {
+			fmt.Fprintf(a.Out, "  %s: since %s\n", c.Source, c.Since.Format("2006-01-02 15:04"))
+		}
+	}
 	if len(r.Failures) > 0 {
 		fmt.Fprintln(a.Out, "\nSources that could not be read (their news may be missing):")
 		for _, f := range r.Failures {
@@ -316,6 +323,9 @@ func (a *App) printSummary(r newsReport) {
 	}
 	for _, t := range r.Truncated {
 		fmt.Fprintf(a.Out, "TRUNCATED | %s | %d older entries left out\n", t.Source, t.Dropped)
+	}
+	for _, c := range r.Short {
+		fmt.Fprintf(a.Out, "SHORT | %s | its feed only goes back to %s\n", c.Source, c.Since.Format("2006-01-02 15:04"))
 	}
 	for _, w := range r.Warnings {
 		fmt.Fprintf(a.Out, "WARNING | %s\n", w)

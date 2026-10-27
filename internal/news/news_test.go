@@ -779,3 +779,20 @@ func TestExploitedCVEsAreMarkedAndScored(t *testing.T) {
 		t.Fatal("the old KEV entries stay out of the window")
 	}
 }
+
+func TestShortFeedsAreReported(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(rss)) }))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	src := []source.Source{{ID: "internals", Type: source.TypeFeed, URL: srv.URL, Tags: []string{"php"}, Stage: source.StageHeadsUp}}
+	if res := f.Fetch(context.Background(), src, Query{Since: now.Add(-7 * 24 * time.Hour)}); len(res.Short) != 0 {
+		t.Fatalf("the feed goes back to 2024: %+v", res.Short)
+	}
+	short := strings.Replace(rss, "Mon, 01 Jan 2024", "Mon, 19 Oct 2026", 1) // its oldest entry is 4 days old
+	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(short)) })
+	res := f.Fetch(context.Background(), src, Query{Since: now.Add(-7 * 24 * time.Hour)})
+	if len(res.Short) != 1 || !res.Short[0].Since.Equal(time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("short: %+v", res.Short)
+	}
+}

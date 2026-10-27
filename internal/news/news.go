@@ -78,6 +78,15 @@ type Result struct {
 	// NotSearched lists the words left out of the CVE database searches,
 	// beyond MaxTerms: like a failure, a gap in the watch is always reported.
 	NotSearched []string `json:"not_searched"`
+	// Short lists the feeds whose oldest entry is newer than the start of the
+	// period: they keep few entries, so older news may be missing.
+	Short []Coverage `json:"short"`
+}
+
+// Coverage tells how far back a feed reaches.
+type Coverage struct {
+	Source string    `json:"source"`
+	Since  time.Time `json:"since"` // its oldest entry
 }
 
 // MaxPerSource keeps the output readable for a person or an agent: a CVE
@@ -121,7 +130,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 
 	var (
 		mu  sync.Mutex
-		res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}, NotSearched: []string{}}
+		res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}, NotSearched: []string{}, Short: []Coverage{}}
 		wg  sync.WaitGroup
 	)
 	if slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type.IsSearch() }) {
@@ -137,6 +146,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 			defer mu.Unlock()
 			if err != nil { // a search may fail for one word and succeed for others
 				res.Failures = append(res.Failures, Failure{Source: s.ID, Error: err.Error()})
+			}
+			if oldest := oldestEntry(entries); s.Type == source.TypeFeed && err == nil && oldest.After(q.Since) {
+				res.Short = append(res.Short, Coverage{Source: s.ID, Since: oldest})
 			}
 			for _, e := range entries { // the whole catalog, before the date and word filters
 				if exploitedTitle.MatchString(e.Title) {
@@ -205,6 +217,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		res.Truncated = []Truncation{}
 	}
 	slices.SortFunc(res.Truncated, func(a, b Truncation) int { return cmp.Compare(a.Source, b.Source) })
+	slices.SortFunc(res.Short, func(a, b Coverage) int { return cmp.Compare(a.Source, b.Source) })
 	return res
 }
 
@@ -223,6 +236,17 @@ func mergeable(t source.Type) bool {
 		return true
 	}
 	return false
+}
+
+// oldestEntry returns the date of the oldest dated entry, or zero.
+func oldestEntry(entries []entry) time.Time {
+	var oldest time.Time
+	for _, e := range entries {
+		if !e.Published.IsZero() && (oldest.IsZero() || e.Published.Before(oldest)) {
+			oldest = e.Published
+		}
+	}
+	return oldest
 }
 
 // epssBatch is the number of CVEs the EPSS API answers in one request.

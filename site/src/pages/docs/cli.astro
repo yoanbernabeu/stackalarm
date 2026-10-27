@@ -64,7 +64,7 @@ const stageText: Record<string, string> = {
     <tbody>
       <tr><td><code>text</code></td><td>Reading in a terminal. The default.</td></tr>
       <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE, affected packages with the first fixed version, EPSS, the sources reporting it exploited), then the failed and truncated sources.</td></tr>
-      <tr><td><code>json</code></td><td>Scripts: the items with their summaries, plus <code>failures</code>, <code>truncated</code> and <code>warnings</code>.</td></tr>
+      <tr><td><code>json</code></td><td>Scripts: the items with their summaries, plus <code>failures</code>, <code>truncated</code>, <code>short</code> and <code>warnings</code>.</td></tr>
       <tr><td><code>markdown</code></td><td>An issue body, used by the scheduled watch.</td></tr>
     </tbody>
   </table>
@@ -74,6 +74,7 @@ const stageText: Record<string, string> = {
     <li>Each source shows at most 30 entries. For the CVE databases, the most severe come first, so the cap drops the minor ones. A CVE found in several databases is shown once and takes one place. The output lists the sources that had more.</li>
     <li>Paginated APIs (GitHub, EUVD) are read page by page, up to 10 pages per query. A query that matches more is reported as a <code>partial</code> failure, with what was read.</li>
     <li>A source that cannot be read is always listed: a silent watch tool is worse than a noisy one.</li>
+    <li>A feed keeps only its latest entries: when its oldest one is newer than the start of the period, it is listed as <code>short</code>, since older news may be missing. A scheduled watch that runs every few hours is not affected.</li>
     <li>Responses are reused for an hour, from <code>stackalarm</code> in your user cache folder. <code>--no-cache</code> fetches everything again.</li>
     <li>Without <code>NVD_API_KEY</code>, the NVD allows one request every 6 seconds; with it, about one every 0.7 seconds.</li>
   </ul>

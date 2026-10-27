@@ -37,6 +37,10 @@ const stageText: Record<string, string> = {
     are returned; on a typical Next.js project, that leaves out two advisories in three. Each advisory shows the affected packages, the
     vulnerable range and the first fixed version, the range holding your version first.
   </p>
+  <p>
+    With <code>--package</code>, the GitHub malware advisories of those packages are read too, as alerts: a version published with malicious
+    code, the mark of a compromised maintainer account. They are not read without packages: npm alone gets about a thousand a month.
+  </p>
 
   <h3 id="stages">Stages</h3>
   <table>

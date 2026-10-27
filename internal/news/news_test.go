@@ -706,3 +706,39 @@ func TestTheRangeOfTheVersionInUseComesFirst(t *testing.T) {
 		t.Fatalf("a package given without version still comes first: %+v", got)
 	}
 }
+
+func TestMalwareIsAnAlertForTheGivenPackages(t *testing.T) {
+	var types []string
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		types = append(types, r.URL.Query().Get("type"))
+		mu.Unlock()
+		if r.URL.Query().Get("type") == "malware" {
+			w.Write([]byte(`[{"ghsa_id":"GHSA-m","html_url":"https://github.com/advisories/GHSA-m","summary":"Malware in left-pad","severity":"critical","published_at":"2026-10-22T10:00:00Z",
+"vulnerabilities":[{"package":{"ecosystem":"npm","name":"left-pad"},"vulnerable_version_range":"= 1.3.1","first_patched_version":null}]}]`))
+			return
+		}
+		w.Write([]byte(ghsa))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), GitHubAPI: srv.URL, Now: func() time.Time { return now }}
+	src := []source.Source{{ID: "ghsa-npm", Type: source.TypeGitHubAdvisoryDatabase, Ecosystem: "npm", Tags: []string{"npm"}, Stage: source.StageAdvisory}}
+
+	f.Fetch(context.Background(), src, Query{Tags: []string{"npm"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if strings.Join(types, ",") != "reviewed" {
+		t.Fatalf("without packages, malware is not read: %v", types)
+	}
+
+	types = nil
+	res := f.Fetch(context.Background(), src, Query{Tags: []string{"npm"}, Packages: []string{"left-pad@1.3.1"}, Since: now.Add(-7 * 24 * time.Hour)})
+	slices.Sort(types)
+	if strings.Join(types, ",") != "malware,reviewed" {
+		t.Fatalf("types: %v", types)
+	}
+	i := slices.IndexFunc(res.Items, func(it Item) bool { return strings.HasPrefix(it.Title, "[malware] Malware in left-pad") })
+	if i < 0 || res.Items[i].Stage != source.StageAlert {
+		t.Fatalf("malware must be an alert: %+v", res.Items)
+	}
+}

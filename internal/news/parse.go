@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/yoanbernabeu/stackalarm/internal/source"
 )
 
 // entry is what every parser returns, before the source fields are added.
@@ -23,6 +25,7 @@ type entry struct {
 	Score     float64 // CVSS base score, when the source gives one
 	EPSS      float64
 	Affected  []Affected
+	Stage     source.Stage // when the entry says more than its source
 }
 
 type xmlLink struct {
@@ -149,6 +152,17 @@ func parseGitHubAdvisoryDatabase(data []byte) ([]entry, error) {
 	return parseGitHub(data, func(severity string) bool {
 		return severity == "high" || severity == "critical" || severity == "" || severity == "unknown"
 	})
+}
+
+// parseGitHubMalware reads GET /advisories?type=malware: a package version
+// published with malicious code, an alert for a project that installs it.
+func parseGitHubMalware(data []byte) ([]entry, error) {
+	entries, err := parseGitHub(data, func(string) bool { return true })
+	for i := range entries {
+		entries[i].Title = "[malware] " + strings.TrimPrefix(strings.TrimPrefix(entries[i].Title, "[critical] "), "[unknown] ")
+		entries[i].Stage = source.StageAlert
+	}
+	return entries, err
 }
 
 // parseGitHubAdvisories reads GET /repos/{owner}/{repo}/security-advisories.

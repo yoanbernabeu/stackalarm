@@ -150,7 +150,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				return b.Published.Compare(a.Published)
 			})
 			for rank, e := range entries {
-				stage := s.Stage
+				stage := cmp.Or(e.Stage, s.Stage)
 				if stage == source.StageHeadsUp && releasedTitle.MatchString(e.Title) {
 					stage = source.StageRelease // a heads-up feed also announces the release itself
 				}
@@ -456,12 +456,17 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Q
 	case source.TypeGitHubAdvisories:
 		return f.readGitHub(ctx, github+"/repos/"+s.Repo+"/security-advisories?per_page=100&sort=published&direction=desc", since, parseGitHubAdvisories)
 	case source.TypeGitHubAdvisoryDatabase:
-		u := github + "/advisories?type=reviewed&per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
+		u := github + "/advisories?per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
 			"&published=" + neturl.QueryEscape(">="+since.UTC().Format(time.DateOnly))
-		if len(q.Packages) > 0 {
-			u += "&affects=" + neturl.QueryEscape(strings.Join(q.Packages, ","))
+		if len(q.Packages) == 0 {
+			return f.readGitHub(ctx, u+"&type=reviewed", since, parseGitHubAdvisoryDatabase)
 		}
-		return f.readGitHub(ctx, u, since, parseGitHubAdvisoryDatabase)
+		u += "&affects=" + neturl.QueryEscape(strings.Join(q.Packages, ","))
+		reviewed, err := f.readGitHub(ctx, u+"&type=reviewed", since, parseGitHubAdvisoryDatabase)
+		// Malicious versions of the project's packages: a thousand a month in npm,
+		// so they are only read for the packages given.
+		malware, merr := f.readGitHub(ctx, u+"&type=malware", since, parseGitHubMalware)
+		return append(reviewed, malware...), errors.Join(err, merr)
 	case source.TypeKEV:
 		return f.readOne(ctx, s.URL, "", parseKEV)
 	case source.TypeEUVD:

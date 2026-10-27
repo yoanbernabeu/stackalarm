@@ -30,6 +30,14 @@ const stageText: Record<string, string> = {
     An unknown tag is searched as a keyword, with a warning that lists the known tags. Each tag and keyword costs one search per CVE database.
   </p>
 
+  <h3 id="packages">Packages and versions</h3>
+  <p>
+    With an ecosystem tag (<code>npm</code>, <code>composer</code>, <code>pip</code>…), <code>--package</code> narrows the GitHub Advisory
+    Database to the packages of the project. Give the locked version (<code>next@15.1.0</code>) and only the advisories that hit that version
+    are returned; on a typical Next.js project, that leaves out two advisories in three. Each advisory shows the affected packages, the
+    vulnerable range and the first fixed version, the range holding your version first.
+  </p>
+
   <h3 id="stages">Stages</h3>
   <table>
     <thead><tr><th scope="col">Stage</th><th scope="col">Meaning</th></tr></thead>

@@ -648,3 +648,61 @@ func TestGitHubAdvisoriesCarryVersionsAndScores(t *testing.T) {
 		t.Fatalf("repository advisory: %+v %v", entries, err)
 	}
 }
+
+func TestWatchedPackagesComeFirst(t *testing.T) {
+	got := watchedFirst([]Affected{{Package: "launch-editor"}, {Package: "@next/env"}, {Package: "next"}}, []string{"next@15.1.0", "@next/env@15.1.0"})
+	if got[0].Package != "@next/env" || got[1].Package != "next" || got[2].Package != "launch-editor" {
+		t.Fatalf("%+v", got)
+	}
+	if packageName("@scope/name") != "@scope/name" || packageName("name@1.0.0") != "name" {
+		t.Fatal("packageName")
+	}
+}
+
+func TestPackageVersionsAreSentToGitHub(t *testing.T) {
+	var affects string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		affects = r.URL.Query().Get("affects")
+		w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), GitHubAPI: srv.URL, Now: func() time.Time { return now }}
+	f.Fetch(context.Background(), []source.Source{{ID: "ghsa-npm", Type: source.TypeGitHubAdvisoryDatabase, Ecosystem: "npm", Tags: []string{"npm"}, Stage: source.StageAdvisory}},
+		Query{Tags: []string{"npm"}, Packages: []string{"next@15.1.0", "@azure/msal-node@7.0.0"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if affects != "next@15.1.0,@azure/msal-node@7.0.0" {
+		t.Fatalf("affects = %q", affects)
+	}
+}
+
+func TestInRange(t *testing.T) {
+	for _, c := range []struct {
+		version, rng string
+		in, ok       bool
+	}{
+		{"6.0.7", ">= 8.3.0, <= 8.3.2", false, true},
+		{"6.0.7", "< 6.4.5", true, true},
+		{"6.4.4", "6.4.4", true, true},
+		{"1.10.0", ">= 1.9.0, < 1.10.0", false, true},
+		{"1.0.0-rc.1", "< 1.0.0", true, true},
+		{"1.4.5-lts.1", "< 2.0.0", true, true},
+		{"15.1.0", ">= 13.0.0, <= 15.5.27", true, true},
+		{"", "< 1.0.0", false, false},
+		{"1.0.0", "", false, false},
+	} {
+		if in, ok := inRange(c.version, c.rng); in != c.in || ok != c.ok {
+			t.Errorf("inRange(%q, %q) = %v, %v", c.version, c.rng, in, ok)
+		}
+	}
+}
+
+func TestTheRangeOfTheVersionInUseComesFirst(t *testing.T) {
+	got := watchedFirst([]Affected{{Package: "vite", Versions: ">= 8.3.0, <= 8.3.2"}, {Package: "vite-plus"}, {Package: "vite", Versions: ">= 6.0.0, < 6.4.5"}}, []string{"vite@6.0.7"})
+	if got[0].Versions != ">= 6.0.0, < 6.4.5" || got[2].Package != "vite-plus" {
+		t.Fatalf("%+v", got)
+	}
+	got = watchedFirst([]Affected{{Package: "other"}, {Package: "vite", Versions: "< 1.0.0"}}, []string{"vite"})
+	if got[0].Package != "vite" {
+		t.Fatalf("a package given without version still comes first: %+v", got)
+	}
+}

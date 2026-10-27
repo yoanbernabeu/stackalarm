@@ -161,6 +161,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				if mergeable(s.Type) {
 					item.cve = cveID.FindString(e.Title)
 				}
+				item.Affected = watchedFirst(item.Affected, q.Packages)
 				item.ID = itemID(item)
 				item.rank = rank
 				res.Items = append(res.Items, item)
@@ -198,6 +199,40 @@ func mergeable(t source.Type) bool {
 		return true
 	}
 	return false
+}
+
+// watchedFirst puts the packages the query names first, and among them the
+// range that holds the version given, so a short display shows the one that
+// matters: an advisory can name a dozen packages or ranges.
+func watchedFirst(affected []Affected, packages []string) []Affected {
+	order := func(a Affected) int {
+		for _, p := range packages {
+			if packageName(p) != a.Package {
+				continue
+			}
+			_, version, _ := strings.Cut(strings.TrimPrefix(p, a.Package), "@") // empty without a version
+			in, ok := inRange(version, a.Versions)
+			switch {
+			case in:
+				return 0
+			case !ok:
+				return 1
+			}
+			return 2
+		}
+		return 3
+	}
+	slices.SortStableFunc(affected, func(a, b Affected) int { return cmp.Compare(order(a), order(b)) })
+	return affected
+}
+
+// packageName drops the version of "name@1.2.3", keeping the scope of
+// "@scope/name@1.2.3".
+func packageName(p string) string {
+	if i := strings.LastIndex(p, "@"); i > 0 {
+		return p[:i]
+	}
+	return p
 }
 
 // mergeAndCap keeps one entry per CVE across the vulnerability databases

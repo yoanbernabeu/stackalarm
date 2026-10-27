@@ -131,7 +131,7 @@ For a scheduled watch, --profile reads the tags, keywords and packages from a
 file the agent wrote, --state shows only the items no earlier run reported, and
 --fail-on exits with code 2 when a new item has one of the given stages.`,
 		Example: "  stackalarm news --tag php --tag symfony --since 7d\n" +
-			"  stackalarm news --tag node --tag npm --package express,dompurify --format json\n" +
+			"  stackalarm news --tag node --tag npm --package express@4.21.2,dompurify@3.2.3 --format json\n" +
 			"  stackalarm news --profile .stackalarm.yaml --state .stackalarm-state --fail-on heads-up,alert,release --since 48h --format markdown",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -238,7 +238,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 	}
 	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "technology to watch, repeatable (php, node, gitlab…)")
 	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (frankenphp, express…)")
-	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "package names from the lockfile, repeatable: GitHub Advisory Database sources then return only their advisories")
+	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "packages from the lockfile, repeatable, with their version or not (next@15.1.0, dompurify): GitHub Advisory Database sources then return only their advisories, for that version")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json or markdown (an issue body)")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")

@@ -27,6 +27,9 @@ const (
 	TypeEUVD                   Type = "euvd"        // a list from the ENISA EU Vulnerability Database API
 	TypeEUVDSearch             Type = "euvd-search" // ENISA EUVD, searched for each requested word
 	TypeNVD                    Type = "nvd"         // NIST NVD, searched for each requested word
+	// TypeNVDProduct reads the NVD records of one product of its dictionary:
+	// the source of a technology that publishes no feed of its own.
+	TypeNVDProduct Type = "nvd-product"
 	// TypeOSV asks OSV.dev which known vulnerabilities hit the package
 	// versions in use, for one ecosystem.
 	TypeOSV Type = "osv"
@@ -68,6 +71,7 @@ type Source struct {
 	URL       string   `yaml:"url,omitempty" json:"url,omitempty"`
 	Repo      string   `yaml:"repo,omitempty" json:"repo,omitempty"`           // owner/name, for github-advisories
 	Ecosystem string   `yaml:"ecosystem,omitempty" json:"ecosystem,omitempty"` // for github-advisory-database (npm, composer, pip…)
+	Product   string   `yaml:"product,omitempty" json:"product,omitempty"`     // vendor:product in the NVD dictionary, for nvd-product
 	Tags      []string `yaml:"tags" json:"tags"`
 	Stage     Stage    `yaml:"stage" json:"stage"`
 	Keywords  []string `yaml:"keywords,omitempty" json:"keywords,omitempty"` // keep only entries containing one of them
@@ -78,7 +82,7 @@ var (
 	idPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	tagPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
 	cpePattern = regexp.MustCompile(`^[a-z0-9._+-]+:[a-z0-9._+-]+$`)
-	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD, TypeOSV, TypeNuclei, TypeMetasploit}
+	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD, TypeNVDProduct, TypeOSV, TypeNuclei, TypeMetasploit}
 )
 
 // Stages lists every stage, in the order they usually happen.
@@ -139,9 +143,15 @@ func (s Source) Validate() error {
 		if s.Type.IsSearch() && !s.IsGeneral() {
 			fail("a search source must be tagged %q: it is queried with the requested words", General)
 		}
+		if s.Type == TypeNVDProduct && (!cpePattern.MatchString(s.Product) || len(s.Tags) != 1 || s.IsGeneral()) {
+			fail("a nvd-product source needs product: vendor:product, in lowercase, and the one tag its version ranges are named after")
+		}
 		if s.Type.IsExploitCatalog() && !s.IsGeneral() {
 			fail("an exploit catalog must be tagged %q: it marks the CVEs of every technology", General)
 		}
+	}
+	if s.Product != "" && s.Type != TypeNVDProduct {
+		fail("product is only for nvd-product sources")
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("source %q: %w", s.ID, errors.Join(errs...))

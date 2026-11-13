@@ -146,6 +146,9 @@ type Fetcher struct {
 	Now         func() time.Time
 
 	github chan struct{} // bounds the GitHub requests in flight
+	// The pauses between two requests to the NVD and the EUVD, kept from one
+	// Fetch to the next: a program that fetches tag after tag stays in the limits.
+	nvdGate, euvdGate *gate
 }
 
 // GitHubConcurrency bounds the GitHub requests in flight: beyond, its
@@ -168,7 +171,10 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	f.github = make(chan struct{}, GitHubConcurrency)
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
-	nvd, euvd := &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
+	if f.nvdGate == nil {
+		f.nvdGate, f.euvdGate = &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
+	}
+	nvd, euvd := f.nvdGate, f.euvdGate
 	exploited := map[string][]string{} // CVE: the sources reporting it exploited
 	exploits := map[string][]string{}  // CVE: the catalogs holding a public exploit
 
@@ -236,7 +242,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 						return c
 					}
 				}
-				if s.Type.IsSearch() || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
+				if s.Type.IsSearch() || s.Type == source.TypeNVDProduct || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
 					if c := cmp.Compare(priority(b), priority(a)); c != 0 {
 						return c
 					}
@@ -305,7 +311,7 @@ var (
 // never merged: their own wording carries information.
 func mergeable(t source.Type) bool {
 	switch t {
-	case source.TypeNVD, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV:
+	case source.TypeNVD, source.TypeNVDProduct, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV:
 		return true
 	}
 	return false
@@ -768,6 +774,24 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 			}
 		}
 		return out, errors.Join(err, werr)
+	case source.TypeNVDProduct:
+		// Every record of the product, whatever its score: it is the source of
+		// the technology, and the cap keeps the most severe.
+		end := now.Truncate(time.Hour).Add(time.Hour)
+		start := since.UTC().Truncate(24 * time.Hour)
+		if oldest := end.Add(-120 * 24 * time.Hour); start.Before(oldest) {
+			start = oldest // the API caps the range at 120 days
+		}
+		const layout = "2006-01-02T15:04:05.000Z"
+		u := s.URL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+s.Product) + "&pubStartDate=" + start.Format(layout) + "&pubEndDate=" + end.Format(layout)
+		if nvd != nil && !f.isCached(u) {
+			if err := nvd.wait(ctx); err != nil {
+				return nil, err
+			}
+		}
+		return f.readOne(ctx, u, "nvd", func(data []byte) ([]entry, error) {
+			return parseNVD(data, map[string]string{s.Tags[0]: s.Product}, 0)
+		})
 	case source.TypeOSV:
 		return f.readOSV(ctx, s.Ecosystem, q.Packages, q.Components)
 	case source.TypeNuclei:

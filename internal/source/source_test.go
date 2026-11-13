@@ -12,6 +12,7 @@ func TestParseValid(t *testing.T) {
 		`{id: php-src, name: php-src advisories, type: github-advisories, repo: php/php-src, tags: [php], stage: advisory}`,
 		`{id: kev, name: CISA KEV, type: kev, url: "https://example.org/kev.json", tags: [general], stage: alert}`,
 		`{id: osv-npm, name: OSV npm, type: osv, ecosystem: npm, tags: [npm], stage: advisory}`,
+		`{id: tomcat-nvd, name: Tomcat in the NVD, type: nvd-product, url: "https://example.org/cves", product: "apache:tomcat", tags: [tomcat], stage: advisory}`,
 		`{id: nuclei, name: Nuclei, type: nuclei, url: "https://example.org/cves.json", tags: [general], stage: alert}`,
 	} {
 		if _, err := Parse([]byte(data)); err != nil {
@@ -31,6 +32,8 @@ func TestParseRejects(t *testing.T) {
 		"github needs repo":   {`{id: x, name: X, type: github-advisories, tags: [php], stage: advisory}`, "owner/name"},
 		"osv needs ecosystem": {`{id: x, name: X, type: osv, tags: [npm], stage: advisory}`, "needs ecosystem"},
 		"catalog is general":  {`{id: x, name: X, type: metasploit, url: "https://x", tags: [php], stage: alert}`, "exploit catalog"},
+		"product needs one":   {`{id: x, name: X, type: nvd-product, url: "https://x", tags: [tomcat], stage: advisory}`, "vendor:product"},
+		"product elsewhere":   {`{id: x, name: X, type: feed, url: "https://x", product: "a:b", tags: [php], stage: release}`, "only for nvd-product"},
 		"uppercase tag":       {`{id: x, name: X, type: feed, url: "https://x", tags: [PHP], stage: release}`, "lowercase"},
 	}
 	for name, c := range cases {

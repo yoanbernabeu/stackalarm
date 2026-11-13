@@ -1876,3 +1876,211 @@ main.news-page .side-card {
     grid-template-columns: 1fr;
   }
 }
+
+/* The pages outside the landing read as a manual: one thing is boxed, the
+   terminal. No pills, no cards, no accent bars; the mono face is kept for what
+   the CLI prints (commands, output, stages), and labels are set in the text face. */
+
+.docs-body .docs-nav a {
+  min-height: 0;
+  padding: 0.35rem 0;
+  border-radius: 0;
+}
+
+.docs-body .docs-nav a:hover {
+  background: none;
+  color: var(--text);
+}
+
+.docs-body .docs-nav a[aria-current="page"] {
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 650;
+}
+
+@media (min-width: 64rem) {
+  .docs-body .docs-nav ul {
+    gap: 0.15rem;
+  }
+}
+
+@media (max-width: 63.99rem) {
+  .docs-body .docs-nav ul {
+    gap: 0 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .docs-body .docs-nav a {
+    min-height: 40px;
+    align-items: center;
+  }
+}
+
+.docs-body .toc {
+  margin: 0 0 2rem;
+  padding: 0;
+  border: 0;
+}
+
+.docs-body .toc p {
+  display: none;
+}
+
+.docs-body .toc ul {
+  gap: 0 1.25rem;
+}
+
+.docs-body .toc a {
+  min-height: 28px;
+  text-decoration: none;
+}
+
+.docs-body .toc a:hover {
+  text-decoration: underline;
+}
+
+.docs-body .code {
+  border: 0;
+  border-radius: 4px;
+}
+
+.docs-body .code figcaption {
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 0 1rem;
+  min-height: 40px;
+  font: 0.85rem var(--sans);
+  color: var(--muted);
+}
+
+.docs-body .copy {
+  min-height: 40px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0;
+  font: 500 0.85rem var(--sans);
+  color: var(--muted);
+}
+
+.docs-body .copy:hover {
+  background: none;
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.docs-body .code.bare .copy {
+  margin-right: 0;
+}
+
+.docs-body .prose th,
+.docs-body .tech-table th,
+.docs-body .news-table th {
+  font: 600 0.85rem var(--sans);
+}
+
+.docs-body .search-open {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-weight: 500;
+  font-size: inherit;
+}
+
+.docs-body .search-open kbd {
+  border: 0;
+  padding: 0;
+  font: 0.8rem var(--sans);
+  opacity: 0.7;
+}
+
+.docs-body .search {
+  border-radius: 6px;
+}
+
+.docs-body .search input,
+.docs-body .filter input {
+  border-radius: 4px;
+}
+
+.docs-body .search-close {
+  border-radius: 0;
+}
+
+/* News pages */
+
+main.news-page .side-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.docs-body .news-alert {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  border-top: 2px solid var(--alert);
+}
+
+.docs-body .news-alert h2 {
+  margin-top: 1rem;
+}
+
+.docs-body .stage-filter {
+  gap: 0 1.25rem;
+  margin-bottom: 0;
+}
+
+.docs-body .stage-filter button {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font: 0.9rem var(--sans);
+}
+
+.docs-body .stage-filter button[aria-pressed="true"] {
+  background: none;
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+
+.docs-body .news-day h3,
+.docs-body .crumbs {
+  font: 600 0.85rem var(--sans);
+}
+
+.docs-body .crumbs {
+  font-weight: 400;
+}
+
+.docs-body .level {
+  font: 0.85rem/1.5 var(--sans);
+}
+
+.docs-body .news-facts {
+  font: 0.82rem/1.6 var(--sans);
+}
+
+.docs-body .news-table .num,
+.docs-body .news-list .count {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.docs-body .news-page h1 code {
+  color: inherit;
+}
+
+.docs-body .news-day h3 time,
+.docs-body .news-table time {
+  font-family: var(--sans);
+}
+
+.docs-body .tech-layout aside > section:first-child h2,
+.docs-body .news-layout aside > section:first-child h2 {
+  margin-top: 1rem;
+}

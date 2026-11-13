@@ -29,7 +29,7 @@ function fix(it: Item): string {
   if (it.affected.length === 0) return "";
   const fixed = [...new Set(it.affected.map((a) => a.fixed).filter(Boolean))];
   const names = [...new Set(it.affected.map((a) => short(a.package)))];
-  const what = names.slice(0, 2).join(", ") + (names.length > 2 || it.more_affected > 0 ? "…" : "");
+  const what = names.slice(0, 2).join(", ") + (names.length > 2 ? " and others" : "");
   return fixed.length ? `${what}: fixed in ${fixed.join(", ")}` : `${what}: no fix yet`;
 }
 const days = [...new Set(items.map((it) => day(it.published)))];

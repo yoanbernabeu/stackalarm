@@ -26,6 +26,10 @@ Prompt used for generation (16:9):
 
 > Soft painterly illustration, 16:9. Blue hour just before dawn over a calm sea. A small white lighthouse on a low rocky point in the right third of the frame, its lamp glowing warm orange, a gentle beam sweeping across light mist. Far on the horizon, a thin line of distant clouds catches the first pale light. Muted palette of slate blue, dusty lavender and soft peach, the only saturated colour is the warm lamp. Smooth gradients, gentle brush texture, quiet and peaceful mood. The centre and upper half are open, softly graded sky with little detail, leaving room for a large headline; the bottom edge fades into deep navy. No text, no letters, no logos, no interface.
 
+## Docs and news pages: a manual
+
+Everything outside the landing reads as a manual. One thing is boxed, the terminal (commands and CLI output, on a recessed panel with square corners). No pills, no cards, no accent bars: the current page in the sidebar is marked by weight, the sections of a page are a plain line of links under its title, a filter is underlined text. The mono face is kept for what the CLI prints (commands, output, stage names); labels, dates and table headers are in the text face. Orange stays on the `heads-up` stage and the focus ring, red on what is exploited.
+
 ## News pages
 
 `/news/` and `/news/<tag>/` show what the CLI gathers for one tag over the last 30 days, for people who have not installed anything. `cmd/sitenews` (`npm run news`) reads the sources once and writes `.data/news/<tag>.json`; the site workflow runs it once a day and keeps the result in the Actions cache, so a build started by a push reuses it. Without the data, a page lists the sources of the tag and says the news is missing.

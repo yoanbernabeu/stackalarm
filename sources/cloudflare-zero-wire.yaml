@@ -1,0 +1,6 @@
+id: cloudflare-zero-wire
+name: Cloudflare Radar Zero Wire (curated briefings on critical, often exploited flaws)
+type: feed
+url: https://radar.cloudflare.com/zero-wire/rss
+tags: [general]
+stage: alert

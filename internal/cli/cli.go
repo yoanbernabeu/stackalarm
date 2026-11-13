@@ -119,7 +119,7 @@ type ignoredItem struct {
 	Title     string `json:"title"`
 	Reason    string `json:"reason"`
 	Until     string `json:"until,omitempty"`
-	Exploited bool   `json:"exploited,omitempty"` // reported exploited in the wild since
+	Exploited bool   `json:"exploited,omitempty"` // exploited in the wild, and kept ignored by even_if_exploited
 }
 
 func (a *App) newsCommand() *cobra.Command {
@@ -262,11 +262,21 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					continue
 				}
 				match := ignoreMatcher(ig.ID)
+				matches := func(it news.Item) bool { return it.ID == ig.ID || match.MatchString(it.Title+" "+it.URL) }
+				// Exploitation in the wild ends the decision, unless it says otherwise:
+				// every item of the vulnerability is then reported again.
+				exploited := slices.ContainsFunc(report.Items, func(it news.Item) bool {
+					return matches(it) && (len(it.ExploitedIn) > 0 || exploitedInTheWild.MatchString(it.Title))
+				})
+				if exploited && !ig.EvenIfExploited {
+					warnings = append(warnings, fmt.Sprintf("the profile ignores %s (%s), but it is now reported exploited in the wild: it is reported again; review the decision, or set even_if_exploited on it if the reason still holds", ig.ID, ig.Reason))
+					continue
+				}
 				report.Items = slices.DeleteFunc(report.Items, func(it news.Item) bool {
-					if it.ID != ig.ID && !match.MatchString(it.Title+" "+it.URL) {
+					if !matches(it) {
 						return false
 					}
-					report.Ignored = append(report.Ignored, ignoredItem{ID: ig.ID, Title: it.Title, Reason: ig.Reason, Until: ig.Until, Exploited: len(it.ExploitedIn) > 0})
+					report.Ignored = append(report.Ignored, ignoredItem{ID: ig.ID, Title: it.Title, Reason: ig.Reason, Until: ig.Until, Exploited: exploited})
 					return true
 				})
 			}
@@ -580,6 +590,8 @@ func nonNil(s []string) []string {
 	return s
 }
 
+var exploitedInTheWild = regexp.MustCompile(`(?i)\bexploited in the wild\b`)
+
 // ignoreMatcher finds a CVE or GHSA id as a whole word, whatever its case.
 func ignoreMatcher(id string) *regexp.Regexp {
 	return regexp.MustCompile(`(?i)(^|[^\w-])` + regexp.QuoteMeta(strings.TrimSpace(id)) + `($|[^\w-])`)
@@ -592,7 +604,7 @@ func ignoredNote(ig ignoredItem) string {
 		note += " (until " + ig.Until + ")"
 	}
 	if ig.Exploited {
-		note += " — now EXPLOITED in the wild: review the decision"
+		note += " — EXPLOITED in the wild, kept ignored by even_if_exploited"
 	}
 	return note
 }

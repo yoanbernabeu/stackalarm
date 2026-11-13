@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -77,37 +78,46 @@ func TestTagVersionIsComparedWithTheRanges(t *testing.T) {
 
 func TestProfileIgnoresAreLeftOutAndListed(t *testing.T) {
 	profile := filepath.Join(t.TempDir(), ".stackalarm.yaml")
-	write := func(until string) {
+	write := func(rule string) {
 		os.WriteFile(profile, []byte("tags: [php]\nstack:\n  - {name: php, version: \"8.3.20\", precision: exact}\n"+
-			"ignore:\n  - {id: cve-2026-5000, reason: \"the extension is not loaded\", until: \""+until+"\"}\n"), 0o600)
+			"ignore:\n  - {id: cve-2026-5000, reason: \"the extension is not loaded\""+rule+"}\n"), 0o600)
 	}
-	write("2027-01-31")
-	app, out, _ := newRelevanceApp(t, "news", "--profile", profile, "--format", "summary")
-	if code := app.Execute(context.Background()); code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	var ignored int
-	for _, l := range lines {
-		if strings.HasPrefix(l, "IGNORED | cve-2026-5000 | ") {
-			ignored++
-			if !strings.Contains(l, "the extension is not loaded (until 2027-01-31)") {
-				t.Fatalf("the reason is shown: %s", l)
-			}
-		} else if strings.Contains(l, "CVE-2026-5000") {
-			t.Fatalf("an ignored CVE must not be listed as news: %s", l)
+	run := func(withKEV bool) string {
+		app, out, _ := newRelevanceApp(t, "news", "--profile", profile, "--format", "summary")
+		if !withKEV {
+			app.Sources = slices.DeleteFunc(app.Sources, func(s source.Source) bool { return s.Type == source.TypeKEV })
 		}
-	}
-	if ignored != 2 || !strings.Contains(out.String(), "now EXPLOITED in the wild: review the decision") {
-		t.Fatalf("both items of the CVE are ignored, and its exploitation is told:\n%s", out)
+		if code := app.Execute(context.Background()); code != 0 {
+			t.Fatalf("exit %d", code)
+		}
+		return out.String()
 	}
 
-	write("2026-10-01") // the decision is past its review date
-	app, out, _ = newRelevanceApp(t, "news", "--profile", profile, "--format", "summary")
-	app.Execute(context.Background())
-	if strings.Contains(out.String(), "IGNORED") || !strings.Contains(out.String(), "8.3.20 in use: AFFECTED") ||
-		!strings.Contains(out.String(), "WARNING | the profile ignores cve-2026-5000 until 2026-10-01, which has passed") {
-		t.Fatalf("an expired decision is reported again, with a warning (and the exact version of the stack is compared):\n%s", out)
+	write(", until: \"2027-01-31\"")
+	out := run(false)
+	if strings.Count(out, "CVE-2026-5000") != 1 || !strings.Contains(out, "IGNORED | cve-2026-5000 | CVE-2026-5000") ||
+		!strings.Contains(out, "the extension is not loaded (until 2027-01-31)") {
+		t.Fatalf("an ignored CVE is left out of the news, and listed with its reason:\n%s", out)
+	}
+
+	out = run(true) // the CVE enters the KEV catalog
+	if strings.Contains(out, "IGNORED") || !strings.Contains(out, "8.3.20 in use: AFFECTED") || !strings.Contains(out, "| alert | cisa-kev |") ||
+		!strings.Contains(out, "WARNING | the profile ignores cve-2026-5000 (the extension is not loaded), but it is now reported exploited in the wild") {
+		t.Fatalf("exploitation ends the decision: every item is reported again, with a warning:\n%s", out)
+	}
+
+	write(", even_if_exploited: true")
+	out = run(true)
+	if strings.Count(out, "IGNORED | cve-2026-5000 | ") != 2 || !strings.Contains(out, "EXPLOITED in the wild, kept ignored by even_if_exploited") ||
+		strings.Contains(out, "WARNING") {
+		t.Fatalf("even_if_exploited keeps both items ignored, and says so:\n%s", out)
+	}
+
+	write(", until: \"2026-10-01\"") // the decision is past its review date
+	out = run(false)
+	if strings.Contains(out, "IGNORED") || !strings.Contains(out, "8.3.20 in use: AFFECTED") ||
+		!strings.Contains(out, "WARNING | the profile ignores cve-2026-5000 until 2026-10-01, which has passed") {
+		t.Fatalf("an expired decision is reported again, with a warning:\n%s", out)
 	}
 }
 

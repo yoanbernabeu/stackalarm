@@ -35,7 +35,7 @@ ignore:
       <tr><td><code>keywords</code></td><td>Words searched in the general sources, as in <code>--keyword</code>.</td></tr>
       <tr><td><code>packages</code></td><td>Package names from the lockfile, as in <code>--package</code>.</td></tr>
       <tr><td><code>stack</code></td><td>What the skill found, with the version, its precision (<code>exact</code>, <code>branch</code>, <code>range</code>, <code>unknown</code>) and the file it came from. Shown in reports, never used to filter the news; its versions are looked up on endoflife.date (see below), and the <code>exact</code> ones are compared with the vulnerable ranges of the CVE records.</td></tr>
-      <tr><td><code>ignore</code></td><td>The vulnerabilities the team already judged: a CVE or GHSA <code>id</code>, a required <code>reason</code>, and an optional <code>until</code> date. They are left out of the reports, yet counted and listed with their reason, and flagged if they become exploited in the wild. Past the date, the item is reported again with a warning.</td></tr>
+      <tr><td><code>ignore</code></td><td>The vulnerabilities the team already judged: a CVE or GHSA <code>id</code>, a required <code>reason</code>, and an optional <code>until</code> date. They are left out of the reports, yet counted and listed with their reason. Past the date, or as soon as the vulnerability is reported exploited in the wild, the item is reported again with a warning; <code>even_if_exploited: true</code> keeps it ignored when the reason holds whatever the attackers do.</td></tr>
     </tbody>
   </table>
   <p>

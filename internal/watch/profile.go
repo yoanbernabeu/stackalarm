@@ -32,6 +32,10 @@ type Ignore struct {
 	ID     string `yaml:"id" json:"id"`                           // a CVE or GHSA id, or the id of an item
 	Reason string `yaml:"reason" json:"reason"`                   // why, for the next reader
 	Until  string `yaml:"until,omitempty" json:"until,omitempty"` // YYYY-MM-DD: the decision is reviewed then
+	// EvenIfExploited keeps the vulnerability ignored once it is reported
+	// exploited in the wild. Without it, exploitation ends the decision: most
+	// are "unlikely to be attacked", which exploitation proves wrong.
+	EvenIfExploited bool `yaml:"even_if_exploited,omitempty" json:"even_if_exploited,omitempty"`
 }
 
 // Expired tells whether the decision is past its review date.

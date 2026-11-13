@@ -1,0 +1,7 @@
+id: vcenter-nvd
+name: VMware vCenter Server, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "vmware:vcenter_server"
+tags: [vcenter]
+stage: advisory

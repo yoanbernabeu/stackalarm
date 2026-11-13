@@ -1,0 +1,7 @@
+id: cassandra-nvd
+name: Apache Cassandra, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "apache:cassandra"
+tags: [cassandra]
+stage: advisory

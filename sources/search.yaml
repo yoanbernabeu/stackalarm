@@ -31,6 +31,8 @@ aliases:
   backstage: spotify backstage
   outline: getoutline
   drizzle: drizzle orm
+  # "apache" alone names every project of the foundation.
+  apache: apache http server
   # Written with a dot, a dash or a space in the texts.
   vertx: vert.x
   wikijs: wiki.js

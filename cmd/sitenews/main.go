@@ -70,7 +70,7 @@ func run(out, only string) error {
 		return t == source.General || only != "" && !slices.Contains(strings.Split(only, ","), t)
 	})
 	f := *app.Fetcher
-	f.Client = &http.Client{Timeout: 30 * time.Second}
+	f.Client = &http.Client{Timeout: 60 * time.Second} // the NVD can take most of a minute
 	f.Now = time.Now
 	f.GitHubToken = os.Getenv("GITHUB_TOKEN")
 	if dir, err := os.UserCacheDir(); err == nil {

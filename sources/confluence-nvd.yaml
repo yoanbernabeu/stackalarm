@@ -1,0 +1,7 @@
+id: confluence-nvd
+name: Atlassian Confluence Data Center, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "atlassian:confluence_data_center"
+tags: [confluence]
+stage: advisory

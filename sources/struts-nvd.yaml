@@ -1,0 +1,7 @@
+id: struts-nvd
+name: Apache Struts, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "apache:struts"
+tags: [struts]
+stage: advisory

@@ -1,0 +1,6 @@
+id: rancher-advisories
+name: Rancher security advisories (GitHub)
+type: github-advisories
+repo: rancher/rancher
+tags: [rancher]
+stage: advisory

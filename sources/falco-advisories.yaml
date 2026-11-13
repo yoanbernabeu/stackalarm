@@ -1,0 +1,6 @@
+id: falco-advisories
+name: Falco security advisories (GitHub)
+type: github-advisories
+repo: falcosecurity/falco
+tags: [falco]
+stage: advisory

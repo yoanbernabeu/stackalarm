@@ -1,0 +1,6 @@
+id: ory-kratos-advisories
+name: Ory Kratos security advisories (GitHub)
+type: github-advisories
+repo: ory/kratos
+tags: [ory]
+stage: advisory

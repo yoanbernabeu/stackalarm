@@ -1,0 +1,6 @@
+id: jupyterlab-advisories
+name: JupyterLab security advisories (GitHub)
+type: github-advisories
+repo: jupyterlab/jupyterlab
+tags: [jupyter]
+stage: advisory

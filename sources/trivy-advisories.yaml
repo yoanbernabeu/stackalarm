@@ -1,0 +1,6 @@
+id: trivy-advisories
+name: Trivy security advisories (GitHub)
+type: github-advisories
+repo: aquasecurity/trivy
+tags: [trivy]
+stage: advisory

@@ -1,0 +1,6 @@
+id: hyper-advisories
+name: hyper security advisories (GitHub)
+type: github-advisories
+repo: hyperium/hyper
+tags: [hyper]
+stage: advisory

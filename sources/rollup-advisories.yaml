@@ -1,0 +1,6 @@
+id: rollup-advisories
+name: Rollup security advisories (GitHub)
+type: github-advisories
+repo: rollup/rollup
+tags: [rollup]
+stage: advisory

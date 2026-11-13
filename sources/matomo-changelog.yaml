@@ -1,0 +1,7 @@
+id: matomo-changelog
+name: Matomo changelog, security releases
+type: feed
+url: "https://matomo.org/changelog/feed/"
+tags: [matomo]
+stage: release
+keywords: [security, vulnerability, vulnerabilities]

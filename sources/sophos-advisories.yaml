@@ -1,0 +1,6 @@
+id: sophos-advisories
+name: Sophos security advisories
+type: feed
+url: "https://www.sophos.com/en-us/security-advisories/feed"
+tags: [sophos]
+stage: advisory

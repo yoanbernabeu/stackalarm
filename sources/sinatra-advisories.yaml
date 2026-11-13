@@ -1,0 +1,6 @@
+id: sinatra-advisories
+name: Sinatra security advisories (GitHub)
+type: github-advisories
+repo: sinatra/sinatra
+tags: [sinatra]
+stage: advisory

@@ -17,6 +17,27 @@ aliases:
   api-platform: api platform
   anthropic-sdk: anthropic
   gcp: google cloud
+  # Common words, or names shared with something else: Azure Synapse, Hyper-V,
+  # a "monthly rollup" of patches, the Tower of Babel, a plausible scenario.
+  flux: fluxcd
+  hyper: hyperium
+  synapse: matrix synapse
+  rollup: rollup.js
+  babel: babeljs
+  bind: bind 9
+  apollo: apollo server
+  tornado: tornadoweb
+  plausible: plausible analytics
+  backstage: spotify backstage
+  outline: getoutline
+  drizzle: drizzle orm
+  # Written with a dot, a dash or a space in the texts.
+  vertx: vert.x
+  wikijs: wiki.js
+  pihole: pi-hole
+  rocketchat: rocket.chat
+  uptime-kuma: uptime kuma
+  argo-workflows: argo workflows
 
 # Tags the CVE databases are not searched for by word. General sources (CERTs,
 # KEV, press) still match them, and an explicit --keyword is still searched.

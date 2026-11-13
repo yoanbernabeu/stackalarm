@@ -9,7 +9,7 @@ stackalarm is an agent skill and the CLI it relies on. Open a project in Claude 
 ## How it works
 
 - **The skill is the analyst.** It reads the project (manifests, lockfiles, Dockerfiles, CI, git remotes), runs the CLI, completes it with a web search and your ecosystem's audits (`composer audit`, `npm audit`, `pip-audit`, `govulncheck`…), judges what applies, and offers to fix what lives in the repository, one change at a time, after asking. It never pushes, deploys or touches a server.
-- **The CLI is its eyes.** It reads more than 280 sources first-hand: project and vendor announcements, the GitHub Advisory Database, OSV.dev, the NVD and EUVD CVE databases, CERTs, CISA KEV, catalogs of public exploits and the security press. Given the versions in use, it tells which vulnerable ranges hold them. It does no project analysis.
+- **The CLI is its eyes.** It reads more than 340 sources first-hand: project and vendor announcements, the GitHub Advisory Database, OSV.dev, the NVD and EUVD CVE databases, CERTs, CISA KEV, catalogs of public exploits and the security press. Given the versions in use, it tells which vulnerable ranges hold them. It does no project analysis.
 
 ## Install
 

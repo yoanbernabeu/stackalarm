@@ -1,0 +1,6 @@
+id: typeorm-advisories
+name: TypeORM security advisories (GitHub)
+type: github-advisories
+repo: typeorm/typeorm
+tags: [typeorm]
+stage: advisory

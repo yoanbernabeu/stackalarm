@@ -1,0 +1,6 @@
+id: pytorch-advisories
+name: PyTorch security advisories (GitHub)
+type: github-advisories
+repo: pytorch/pytorch
+tags: [pytorch]
+stage: advisory

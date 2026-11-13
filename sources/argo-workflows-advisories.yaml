@@ -1,0 +1,6 @@
+id: argo-workflows-advisories
+name: Argo Workflows security advisories (GitHub)
+type: github-advisories
+repo: argoproj/argo-workflows
+tags: [argo-workflows]
+stage: advisory

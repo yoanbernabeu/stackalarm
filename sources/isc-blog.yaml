@@ -1,0 +1,7 @@
+id: isc-blog
+name: ISC blog, BIND and Kea security posts
+type: feed
+url: "https://www.isc.org/blogs/index.xml"
+tags: [bind]
+stage: advisory
+keywords: [CVE, security, vulnerability, vulnerabilities]

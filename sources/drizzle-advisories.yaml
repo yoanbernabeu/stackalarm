@@ -1,0 +1,6 @@
+id: drizzle-advisories
+name: Drizzle ORM security advisories (GitHub)
+type: github-advisories
+repo: drizzle-team/drizzle-orm
+tags: [drizzle]
+stage: advisory

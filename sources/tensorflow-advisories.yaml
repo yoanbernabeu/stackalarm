@@ -1,0 +1,6 @@
+id: tensorflow-advisories
+name: TensorFlow security advisories (GitHub)
+type: github-advisories
+repo: tensorflow/tensorflow
+tags: [tensorflow]
+stage: advisory

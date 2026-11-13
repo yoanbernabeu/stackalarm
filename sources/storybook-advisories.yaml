@@ -1,0 +1,6 @@
+id: storybook-advisories
+name: Storybook security advisories (GitHub)
+type: github-advisories
+repo: storybookjs/storybook
+tags: [storybook]
+stage: advisory

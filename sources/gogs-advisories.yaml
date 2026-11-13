@@ -1,0 +1,6 @@
+id: gogs-advisories
+name: Gogs security advisories (GitHub)
+type: github-advisories
+repo: gogs/gogs
+tags: [gogs]
+stage: advisory

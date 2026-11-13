@@ -1,0 +1,6 @@
+id: podman-advisories
+name: Podman security advisories (GitHub)
+type: github-advisories
+repo: containers/podman
+tags: [podman]
+stage: advisory

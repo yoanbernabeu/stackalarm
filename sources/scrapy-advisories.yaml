@@ -1,0 +1,6 @@
+id: scrapy-advisories
+name: Scrapy security advisories (GitHub)
+type: github-advisories
+repo: scrapy/scrapy
+tags: [scrapy]
+stage: advisory

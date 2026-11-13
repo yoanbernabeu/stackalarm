@@ -1,0 +1,6 @@
+id: tornado-advisories
+name: Tornado security advisories (GitHub)
+type: github-advisories
+repo: tornadoweb/tornado
+tags: [tornado]
+stage: advisory

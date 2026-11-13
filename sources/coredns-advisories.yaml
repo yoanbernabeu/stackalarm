@@ -1,0 +1,6 @@
+id: coredns-advisories
+name: CoreDNS security advisories (GitHub)
+type: github-advisories
+repo: coredns/coredns
+tags: [coredns]
+stage: advisory

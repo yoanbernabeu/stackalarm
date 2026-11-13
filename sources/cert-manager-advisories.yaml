@@ -1,0 +1,6 @@
+id: cert-manager-advisories
+name: cert-manager security advisories (GitHub)
+type: github-advisories
+repo: cert-manager/cert-manager
+tags: [cert-manager]
+stage: advisory

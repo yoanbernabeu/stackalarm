@@ -1,0 +1,6 @@
+id: mongoose-advisories
+name: Mongoose security advisories (GitHub)
+type: github-advisories
+repo: Automattic/mongoose
+tags: [mongoose]
+stage: advisory

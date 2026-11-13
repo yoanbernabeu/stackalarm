@@ -1,0 +1,6 @@
+id: outline-advisories
+name: Outline security advisories (GitHub)
+type: github-advisories
+repo: outline/outline
+tags: [outline]
+stage: advisory

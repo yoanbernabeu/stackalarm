@@ -1,0 +1,6 @@
+id: umami-advisories
+name: Umami security advisories (GitHub)
+type: github-advisories
+repo: umami-software/umami
+tags: [umami]
+stage: advisory

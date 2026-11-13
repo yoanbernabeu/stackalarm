@@ -1,0 +1,6 @@
+id: rocketchat-advisories
+name: Rocket.Chat security advisories (GitHub)
+type: github-advisories
+repo: RocketChat/Rocket.Chat
+tags: [rocketchat]
+stage: advisory

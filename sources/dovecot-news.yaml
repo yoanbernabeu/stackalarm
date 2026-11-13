@@ -1,0 +1,6 @@
+id: dovecot-news
+name: Dovecot news, releases and security fixes
+type: feed
+url: "https://dovecot.org/mailman3/hyperkitty/list/dovecot-news@dovecot.org/feed/"
+tags: [dovecot]
+stage: release

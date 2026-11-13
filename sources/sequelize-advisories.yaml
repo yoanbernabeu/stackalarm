@@ -1,0 +1,6 @@
+id: sequelize-advisories
+name: Sequelize security advisories (GitHub)
+type: github-advisories
+repo: sequelize/sequelize
+tags: [sequelize]
+stage: advisory

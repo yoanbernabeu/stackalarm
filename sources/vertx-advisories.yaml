@@ -1,0 +1,6 @@
+id: vertx-advisories
+name: Eclipse Vert.x security advisories (GitHub)
+type: github-advisories
+repo: eclipse-vertx/vert.x
+tags: [vertx]
+stage: advisory

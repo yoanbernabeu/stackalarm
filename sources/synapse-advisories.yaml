@@ -1,0 +1,6 @@
+id: synapse-advisories
+name: Synapse (Matrix) security advisories (GitHub)
+type: github-advisories
+repo: element-hq/synapse
+tags: [synapse]
+stage: advisory

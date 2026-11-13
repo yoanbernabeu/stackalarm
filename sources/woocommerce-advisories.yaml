@@ -1,0 +1,6 @@
+id: woocommerce-advisories
+name: WooCommerce security advisories (GitHub)
+type: github-advisories
+repo: woocommerce/woocommerce
+tags: [woocommerce]
+stage: advisory

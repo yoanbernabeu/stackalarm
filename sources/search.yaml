@@ -137,3 +137,30 @@ cpe:
   openssl: openssl:openssl
   mariadb: mariadb:mariadb
   mongodb: mongodb:mongodb
+  tensorflow: google:tensorflow
+  pytorch: linuxfoundation:pytorch
+  jupyter: jupyter:notebook
+  squid: squid-cache:squid
+  bind: isc:bind
+  dovecot: dovecot:dovecot
+  coredns: coredns.io:coredns
+  etcd: etcd:etcd
+  clickhouse: clickhouse:clickhouse
+  nats: nats:nats_server
+  podman: podman_project:podman
+  cilium: cilium:cilium
+  kyverno: kyverno:kyverno
+  rancher: suse:rancher
+  phpmyadmin: phpmyadmin:phpmyadmin
+  magento: magento:magento
+  mediawiki: mediawiki:mediawiki
+  matomo: matomo:matomo
+  woocommerce: woocommerce:woocommerce
+  jellyfin: jellyfin:jellyfin
+  metabase: metabase:metabase
+  rocketchat: rocket.chat:rocket.chat
+  synapse: matrix:synapse
+  pihole: pi-hole:pi-hole
+  gogs: gogs:gogs
+  backstage: linuxfoundation:backstage
+  outline: getoutline:outline

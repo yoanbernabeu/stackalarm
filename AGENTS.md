@@ -11,7 +11,7 @@ A Go CLI that gathers security news (heads-ups, releases, advisories, CERT alert
 ```
 cmd/stackalarm/     entry point
 internal/cli/       Cobra commands (news, cve, eol, sources); App holds every dependency
-internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, OSV, NVD, KEV, exploit catalogs), filtering, cache
+internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, OSV, NVD, KEV, exploit catalogs, SBOMs), filtering, cache
 internal/source/    the source format and its validation
 internal/watch/     the project profile and the state of a scheduled watch
 sources/            one YAML file per source, plus search.yaml (how tags are searched in the CVE databases, and their NVD product), embedded in the binary

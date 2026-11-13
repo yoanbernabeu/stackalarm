@@ -216,3 +216,46 @@ func TestNoOSVKeepsThePackageVersionsAway(t *testing.T) {
 		osv.Close()
 	}
 }
+
+func TestSBOMAloneListsOnlyItsVulnerabilities(t *testing.T) {
+	osv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/querybatch":
+			w.Write([]byte(`{"results":[{"vulns":[{"id":"ALPINE-CVE-2026-5000"}]}]}`))
+		case "/vulns/ALPINE-CVE-2026-5000":
+			w.Write([]byte(`{"id":"ALPINE-CVE-2026-5000","details":"Stack corruption in qsort.","upstream":["CVE-2026-5000"],"published":"2026-04-10T00:00:00Z",
+"affected":[{"package":{"name":"musl","ecosystem":"Alpine:v3.19"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"1.2.4-r6"}]}]}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer osv.Close()
+	sbom := filepath.Join(t.TempDir(), "image.cdx.json")
+	os.WriteFile(sbom, []byte(`{"bomFormat":"CycloneDX","components":[
+{"type":"library","purl":"pkg:apk/alpine/musl-utils@1.2.4-r3?distro=3.19.9","properties":[{"name":"aquasecurity:trivy:SrcName","value":"musl"},{"name":"aquasecurity:trivy:SrcVersion","value":"1.2.4-r3"}]},
+{"type":"library","purl":"pkg:generic/busybox@1.36"}]}`), 0o600)
+
+	app, out, errOut := newRelevanceApp(t, "news", "--sbom", sbom, "--format", "summary")
+	app.Sources = append(app.Sources, source.Source{ID: "osv-alpine", Name: "OSV Alpine", Type: source.TypeOSV, Ecosystem: "Alpine", Tags: []string{"alpine"}, Stage: source.StageAdvisory})
+	app.Fetcher.OSVAPI = osv.URL
+	if code := app.Execute(context.Background()); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "osv-alpine") || !strings.Contains(lines[0], "musl < 1.2.4-r6 (fixed in 1.2.4-r6) [1.2.4-r3 in use: AFFECTED]") ||
+		!strings.Contains(lines[0], "EXPLOITED in the wild (cisa-kev)") {
+		t.Fatalf("the source package is looked up, marked by the exploited list, and nothing else is listed:\n%s", out)
+	}
+	if !strings.Contains(lines[1], "WARNING") || !strings.Contains(lines[1], "1 of type generic, which OSV.dev does not cover") {
+		t.Fatalf("a component that is not looked up is reported:\n%s", out)
+	}
+
+	app, _, errOut = newRelevanceApp(t, "news", "--sbom", sbom, "--no-osv")
+	if code := app.Execute(context.Background()); code != 1 || !strings.Contains(errOut.String(), "--no-osv") {
+		t.Fatalf("an SBOM cannot be looked up without OSV.dev: exit %d, %s", code, errOut)
+	}
+	app, _, errOut = newRelevanceApp(t, "news", "--sbom", filepath.Join(t.TempDir(), "package.json"))
+	if code := app.Execute(context.Background()); code != 1 {
+		t.Fatalf("a missing file is an error: exit %d, %s", code, errOut)
+	}
+}

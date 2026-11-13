@@ -36,6 +36,9 @@ inputs:
   nvd-api-key:
     description: Optional NVD API key, to search the NVD faster.
     default: ""
+  sbom:
+    description: Optional. Path of an SBOM (CycloneDX or SPDX, in JSON) an earlier step of the job wrote, of the project or of its container image, for instance with trivy or syft. OSV.dev is asked for the known vulnerabilities of its packages, system packages included.
+    default: ""
   webhook-url:
     description: 'Optional. An incoming webhook that takes {"text":"…"} (Slack, Mattermost, Discord with /slack appended to its URL). It gets one line with the decision and the link of the issue, on the runs that open one.'
     default: ""
@@ -94,11 +97,12 @@ runs:
         PROFILE: ${{ inputs.profile }}
         SINCE: ${{ inputs.since }}
         FAIL_ON: ${{ inputs.fail-on }}
+        SBOM: ${{ inputs.sbom }}
       run: |
         report="$RUNNER_TEMP/stackalarm/report.md"
         mkdir -p "$RUNNER_TEMP/stackalarm" # the install step, which creates it, may be skipped
         set +e
-        stackalarm news --profile "$PROFILE" --since "$SINCE" --fail-on "$FAIL_ON" \
+        stackalarm news --profile "$PROFILE" --since "$SINCE" --fail-on "$FAIL_ON" ${SBOM:+--sbom "$SBOM"} \
           --state "$RUNNER_TEMP/stackalarm/state" --format markdown > "$report"
         code=$?
         set -e

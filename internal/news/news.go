@@ -119,6 +119,12 @@ type Query struct {
 	// Versions gives the version in use of a tag (php: 8.3.20). It never
 	// filters: the ranges of the CVE records are compared with it.
 	Versions map[string]string
+	// Components are the packages of an SBOM: each names its ecosystem, and
+	// the OSV sources of those ecosystems are read whatever the tags.
+	Components []Component
+	// ComponentsOnly reads nothing but the OSV sources of the components and
+	// the lists that mark their CVEs exploited: a run on an SBOM alone.
+	ComponentsOnly bool
 }
 
 // Fetcher reads sources over HTTP, with a small on-disk cache.
@@ -149,6 +155,16 @@ const GitHubConcurrency = 16
 // Fetch reads the sources selected by q, in parallel.
 func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
 	selected := selectSources(sources, q.Tags)
+	if q.ComponentsOnly {
+		selected = nil
+	}
+	for _, s := range sources {
+		marks := s.Type == source.TypeKEV || s.Type == source.TypeEUVD && s.Stage == source.StageAlert || s.Type.IsExploitCatalog()
+		inSBOM := s.Type == source.TypeOSV && slices.ContainsFunc(q.Components, func(c Component) bool { return inEcosystem(c.Ecosystem, s.Ecosystem) })
+		if (inSBOM || marks && q.ComponentsOnly) && !slices.ContainsFunc(selected, func(o source.Source) bool { return o.ID == s.ID }) {
+			selected = append(selected, s)
+		}
+	}
 	f.github = make(chan struct{}, GitHubConcurrency)
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
@@ -191,6 +207,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 			}
 			entries = slices.DeleteFunc(entries, func(e entry) bool {
+				if q.ComponentsOnly && s.Type != source.TypeOSV {
+					return true // read for its marks only
+				}
 				if e.Published.IsZero() || !e.Current && e.Published.Before(q.Since) {
 					return true
 				}
@@ -212,8 +231,13 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				if c := cmp.Compare(relevance(a, q), relevance(b, q)); c != 0 {
 					return c
 				}
+				if s.Type == source.TypeOSV { // what an update fixes today, before what has no fix yet
+					if c := cmp.Compare(fixable(b), fixable(a)); c != 0 {
+						return c
+					}
+				}
 				if s.Type.IsSearch() || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
-					if c := cmp.Compare(priority(b.Score), priority(a.Score)); c != 0 {
+					if c := cmp.Compare(priority(b), priority(a)); c != 0 {
 						return c
 					}
 				}
@@ -341,6 +365,16 @@ func (f *Fetcher) addEPSS(ctx context.Context, items []Item) error {
 		}
 	}
 	return nil
+}
+
+// fixable is 1 when a fixed version exists for a range the version in use is in.
+func fixable(e entry) int {
+	for _, a := range e.Affected {
+		if a.Status == StatusAffected && a.Fixed != "" {
+			return 1
+		}
+	}
+	return 0
 }
 
 // statusOrder puts the ranges that hold a version in use first, and those
@@ -602,11 +636,8 @@ func matchers(words []string) []*regexp.Regexp {
 }
 
 // priority ranks an unscored CVE as high: fresh CVEs wait days for a score.
-func priority(score float64) float64 {
-	if score == 0 {
-		return 9
-	}
-	return score
+func priority(e entry) float64 {
+	return cmp.Or(e.Rank, e.Score, 9)
 }
 
 // MaxTerms bounds the requests made to search sources: without a key, the
@@ -738,7 +769,7 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 		}
 		return out, errors.Join(err, werr)
 	case source.TypeOSV:
-		return f.readOSV(ctx, s.Ecosystem, q.Packages)
+		return f.readOSV(ctx, s.Ecosystem, q.Packages, q.Components)
 	case source.TypeNuclei:
 		return f.readOne(ctx, s.URL, "", parseNuclei)
 	case source.TypeMetasploit:

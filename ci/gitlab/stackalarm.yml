@@ -14,6 +14,10 @@
 # 5. Optional: a CI/CD variable STACKALARM_WEBHOOK_URL (masked), an incoming
 #    webhook that takes {"text":"…"} (Slack, Mattermost, Discord with /slack
 #    appended to its URL): it gets one line with the link of the issue.
+# 6. Optional: a variable STACKALARM_SBOM, the path of an SBOM (CycloneDX or
+#    SPDX, in JSON) an earlier job wrote and passed as an artifact, of the
+#    project or of its container image: OSV.dev is asked for the known
+#    vulnerabilities of its packages, system packages included.
 #
 # The job reads the .stackalarm.yaml profile the stackalarm skill wrote, and
 # opens an issue when a heads-up, an alert or a security release is new. The
@@ -39,7 +43,7 @@ stackalarm:
     - |
       set +e
       stackalarm news --profile "$STACKALARM_PROFILE" --since "$STACKALARM_SINCE" --fail-on "$STACKALARM_FAIL_ON" \
-        --state .stackalarm-cache/state --format markdown > stackalarm-report.md
+        ${STACKALARM_SBOM:+--sbom "$STACKALARM_SBOM"} --state .stackalarm-cache/state --format markdown > stackalarm-report.md
       code=$?
       set -e
       cat stackalarm-report.md

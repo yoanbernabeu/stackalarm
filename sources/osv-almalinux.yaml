@@ -1,0 +1,6 @@
+id: osv-almalinux
+name: OSV.dev, known vulnerabilities of the AlmaLinux packages an SBOM lists
+type: osv
+ecosystem: AlmaLinux
+tags: [almalinux]
+stage: advisory

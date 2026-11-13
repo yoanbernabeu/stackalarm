@@ -1,0 +1,6 @@
+id: osv-wolfi
+name: OSV.dev, known vulnerabilities of the Wolfi packages an SBOM lists
+type: osv
+ecosystem: Wolfi
+tags: [wolfi]
+stage: advisory

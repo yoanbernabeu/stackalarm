@@ -19,7 +19,7 @@ import (
 // record is downloaded for one ecosystem, and the downloads in flight.
 const (
 	osvBatch       = 500
-	MaxOSVRecords  = 150
+	MaxOSVRecords  = 500
 	osvConcurrency = 8
 )
 
@@ -36,11 +36,24 @@ type osvQuery struct {
 // a flaw published last year still hits a version locked today, so its
 // entries are kept whatever their date. Packages without a version are left
 // to the GitHub Advisory Database sources, which read the recent advisories.
-func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []string) ([]entry, error) {
+//
+// The components of an SBOM name their ecosystem: only those of this one, or
+// of one of its releases (Debian:12 for Debian), are asked about.
+func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []string, components []Component) ([]entry, error) {
 	if f.OSVAPI == "" {
 		return nil, nil
 	}
 	var queries []osvQuery
+	for _, c := range components {
+		if inEcosystem(c.Ecosystem, ecosystem) {
+			var q osvQuery
+			q.Package.Name, q.Package.Ecosystem, q.Version = c.Name, c.Ecosystem, c.Version
+			queries = append(queries, q)
+		}
+	}
+	if isDistribution(ecosystem) {
+		packages = nil // a lockfile never names a system package
+	}
 	for _, p := range packages {
 		name := packageName(p)
 		version := strings.TrimPrefix(strings.TrimPrefix(p, name), "@")
@@ -52,7 +65,9 @@ func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []stri
 		}
 		var q osvQuery
 		q.Package.Name, q.Package.Ecosystem, q.Version = name, ecosystem, version
-		queries = append(queries, q)
+		if !slices.Contains(queries, q) {
+			queries = append(queries, q)
+		}
 	}
 	if len(queries) == 0 {
 		return nil, nil
@@ -92,7 +107,7 @@ func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []stri
 		}
 	}
 	if len(order) > MaxOSVRecords {
-		errs = append(errs, fmt.Errorf("partial: %d vulnerabilities hit the packages given, only %d read (give fewer packages at a time)", len(order), MaxOSVRecords))
+		errs = append(errs, fmt.Errorf("partial: %d vulnerabilities hit the %s packages given, only %d read (give fewer packages at a time)", len(order), ecosystem, MaxOSVRecords))
 		order = order[:MaxOSVRecords]
 	}
 	var (
@@ -135,6 +150,7 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		Summary   string   `json:"summary"`
 		Details   string   `json:"details"`
 		Aliases   []string `json:"aliases"`
+		Upstream  []string `json:"upstream"` // the CVE a distribution record is about
 		Published string   `json:"published"`
 		Withdrawn string   `json:"withdrawn"`
 		Severity  []struct {
@@ -146,8 +162,12 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		} `json:"database_specific"`
 		Affected []struct {
 			Package struct {
-				Name string `json:"name"`
+				Name      string `json:"name"`
+				Ecosystem string `json:"ecosystem"`
 			} `json:"package"`
+			Specific struct {
+				Urgency string `json:"urgency"` // Debian: "unimportant" is no security issue there
+			} `json:"ecosystem_specific"`
 			Ranges []struct {
 				Type   string `json:"type"`
 				Events []struct {
@@ -173,13 +193,17 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	}
 	e := entry{URL: "https://osv.dev/vulnerability/" + v.ID, Summary: clean(v.Details), Current: true}
 	e.Published, _ = parseDate(v.Published)
+	priority := "" // Ubuntu rates its records with a word, not a vector
 	for _, s := range v.Severity {
 		if strings.HasPrefix(s.Type, "CVSS_V3") {
 			e.Score = max(e.Score, cvss3(s.Score))
 		}
+		if rank, ok := ubuntuPriorities[strings.ToLower(s.Score)]; ok && s.Type == "Ubuntu" {
+			priority, e.Rank = strings.ToLower(s.Score), rank
+		}
 	}
 	id := v.ID
-	for _, a := range v.Aliases {
+	for _, a := range slices.Concat(v.Aliases, v.Upstream) {
 		if strings.HasPrefix(a, "CVE-") {
 			id = a
 			break
@@ -189,9 +213,23 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	if r := []rune(clean(title)); len(r) > 140 {
 		title = string(r[:140]) + "…"
 	}
-	severity := strings.ToLower(cmp.Or(v.Specific.Severity, severityOf(e.Score)))
+	severity := strings.ToLower(cmp.Or(v.Specific.Severity, priority, severityOf(e.Score)))
 	if strings.HasPrefix(v.ID, "MAL-") { // a version published with malicious code
 		severity, e.Stage = "malware", source.StageAlert
+	}
+	// A distribution record has no summary, only the text of the CVE: name the
+	// package, and say when the distribution judges the flaw harmless there.
+	if len(asked) > 0 && isDistribution(asked[0].Package.Ecosystem) {
+		title = asked[0].Package.Name + ": " + title
+		matched, harmless := false, true
+		for _, a := range v.Affected {
+			if inEcosystem(a.Package.Ecosystem, asked[0].Package.Ecosystem) && strings.EqualFold(a.Package.Name, asked[0].Package.Name) {
+				matched, harmless = true, harmless && a.Specific.Urgency == "unimportant"
+			}
+		}
+		if matched && harmless {
+			severity, e.Rank = "unimportant", 0.1 // listed, after everything else
+		}
 	}
 	if severity != "" {
 		title = "[" + severity + "] " + title
@@ -201,8 +239,8 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	for _, q := range asked {
 		var ranges []Affected
 		for _, a := range v.Affected {
-			if !strings.EqualFold(a.Package.Name, q.Package.Name) {
-				continue
+			if !strings.EqualFold(a.Package.Name, q.Package.Name) || a.Package.Ecosystem != "" && !inEcosystem(a.Package.Ecosystem, q.Package.Ecosystem) {
+				continue // another package, or another release of the distribution
 			}
 			for _, r := range a.Ranges {
 				if r.Type == "GIT" {
@@ -230,7 +268,11 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		// versions can be compared, and say it of the package otherwise.
 		found := false
 		for i := range ranges {
-			if in, _ := inRange(q.Version, ranges[i].Versions); in || ranges[i].Versions == "" {
+			in, _ := inRange(q.Version, ranges[i].Versions)
+			if isDistribution(q.Package.Ecosystem) {
+				in = len(ranges) == 1 // their versions are not compared here: OSV.dev told
+			}
+			if in || ranges[i].Versions == "" {
 				ranges[i].InUse, ranges[i].Status, found = q.Version, StatusAffected, true
 			}
 		}
@@ -243,6 +285,9 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	}
 	return &e, nil
 }
+
+// ubuntuPriorities places the priorities Ubuntu gives on the scale of the scores.
+var ubuntuPriorities = map[string]float64{"critical": 9.5, "high": 8, "medium": 5.5, "low": 2, "negligible": 0.5}
 
 // osvRange writes ">= 13.0.0, < 13.5.9" from the events of an OSV range.
 func osvRange(introduced, end string) string {

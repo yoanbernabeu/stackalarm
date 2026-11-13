@@ -175,3 +175,34 @@ func TestCVECommand(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
 }
+
+func TestNoOSVKeepsThePackageVersionsAway(t *testing.T) {
+	for name, tc := range map[string]struct {
+		args []string
+		env  string
+		want int
+	}{
+		"by default":    {nil, "", 1},
+		"with the flag": {[]string{"--no-osv"}, "", 0},
+		"with the env":  {nil, "1", 0},
+	} {
+		var asked int
+		osv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			asked++
+			w.Write([]byte(`{"results":[{}]}`))
+		}))
+		app, _, _ := newRelevanceApp(t, append([]string{"news", "--tag", "npm", "--package", "next@15.1.0"}, tc.args...)...)
+		app.Sources = []source.Source{{ID: "osv-npm", Name: "OSV", Type: source.TypeOSV, Ecosystem: "npm", Tags: []string{"npm"}, Stage: source.StageAdvisory}}
+		app.Fetcher.OSVAPI = osv.URL
+		app.Getenv = func(k string) string {
+			if k == "STACKALARM_NO_OSV" {
+				return tc.env
+			}
+			return ""
+		}
+		if code := app.Execute(context.Background()); code != 0 || asked != tc.want {
+			t.Errorf("%s: exit %d, OSV asked %d times, want %d", name, code, asked, tc.want)
+		}
+		osv.Close()
+	}
+}

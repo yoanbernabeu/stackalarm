@@ -42,7 +42,8 @@ const stageText: Record<string, string> = {
   <p>
     With versions, <a href="https://osv.dev">OSV.dev</a> is also asked which known vulnerabilities hit them, in one request for all the
     packages and without a token. Unlike the rest, these items are not news: they are listed whatever their date, because a version locked
-    today is still exposed to a flaw published last year. Packages without a version are not sent to OSV.
+    today is still exposed to a flaw published last year. Packages without a version are not sent to OSV, and <code>--no-osv</code> (or the
+    <code>STACKALARM_NO_OSV</code> variable) turns it off.
   </p>
   <p>
     A tag takes a version too: <code>--tag php@8.3.20</code>. The NVD records give the vulnerable ranges of a product; each is compared with

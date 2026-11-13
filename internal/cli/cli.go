@@ -127,7 +127,7 @@ func (a *App) newsCommand() *cobra.Command {
 		tags, keywords []string
 		packages       []string
 		since, format  string
-		noCache        bool
+		noCache, noOSV bool
 		profilePath    string
 		statePath      string
 		failOn         []string
@@ -227,6 +227,9 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					f.CacheDir = filepath.Join(dir, "stackalarm")
 				}
 			}
+			if noOSV || a.Getenv("STACKALARM_NO_OSV") != "" {
+				f.OSVAPI = "" // the package versions then go to the GitHub API only
+			}
 			now := a.Now().UTC()
 			// A profile tells the versions in use: a scheduled watch also learns
 			// when their security fixes stop, which no advisory announces.
@@ -320,6 +323,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json, markdown (an issue body) or sarif (the items a version in use proves, for a code scanning dashboard)")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")
 	cmd.Flags().StringVar(&profilePath, "profile", "", "project profile written by the agent (.stackalarm.yaml): tags, keywords and packages to watch, exact versions of the stack, vulnerabilities to ignore")
+	cmd.Flags().BoolVar(&noOSV, "no-osv", false, "do not send the package versions to OSV.dev (or set STACKALARM_NO_OSV): only the recent advisories of the GitHub Advisory Database are then listed")
 	cmd.Flags().StringVar(&statePath, "state", "", "file remembering the items already reported: only new ones are shown")
 	cmd.Flags().StringSliceVar(&failOn, "fail-on", nil, "exit with code 2 when a new item has one of these stages (heads-up, alert, release…)")
 	return cmd

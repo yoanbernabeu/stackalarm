@@ -1,0 +1,6 @@
+id: mongodb-node-driver-advisories
+name: MongoDB Node.js driver security advisories (GitHub)
+type: github-advisories
+repo: mongodb/node-mongodb-native
+tags: [mongodb]
+stage: advisory

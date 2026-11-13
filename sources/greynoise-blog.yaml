@@ -1,0 +1,6 @@
+id: greynoise-blog
+name: GreyNoise blog (exploitation seen on the internet)
+type: feed
+url: "https://www.greynoise.io/blog/rss.xml"
+tags: [general]
+stage: news

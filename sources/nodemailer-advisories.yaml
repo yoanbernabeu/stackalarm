@@ -1,0 +1,6 @@
+id: nodemailer-advisories
+name: Nodemailer security advisories (GitHub)
+type: github-advisories
+repo: nodemailer/nodemailer
+tags: [nodemailer]
+stage: advisory

@@ -1,0 +1,6 @@
+id: git-advisories
+name: Git security advisories (GitHub)
+type: github-advisories
+repo: git/git
+tags: [git]
+stage: advisory

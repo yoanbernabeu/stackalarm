@@ -9,7 +9,7 @@ stackalarm is an agent skill and the CLI it relies on. Open a project in Claude 
 ## How it works
 
 - **The skill is the analyst.** It reads the project (manifests, lockfiles, Dockerfiles, CI, git remotes), runs the CLI, completes it with a web search and your ecosystem's audits (`composer audit`, `npm audit`, `pip-audit`, `govulncheck`…), judges what applies, and offers to fix what lives in the repository, one change at a time, after asking. It never pushes, deploys or touches a server.
-- **The CLI is its eyes.** It reads 200 sources first-hand: project and vendor announcements, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs, CISA KEV, exploit databases and the security press. It does no project analysis.
+- **The CLI is its eyes.** It reads more than 270 sources first-hand: project and vendor announcements, the GitHub Advisory Database, OSV.dev, the NVD and EUVD CVE databases, CERTs, CISA KEV, catalogs of public exploits and the security press. Given the versions in use, it tells which vulnerable ranges hold them. It does no project analysis.
 
 ## Install
 
@@ -34,7 +34,9 @@ Open a project in your agent and call the skill by name (agents otherwise tend t
 The CLI also works on its own:
 
 ```sh
-stackalarm news --tag php --tag gitlab --since 7d
+stackalarm news --tag php@8.3.20 --tag gitlab --since 7d
+stackalarm news --tag npm --package next@15.1.0  # every known flaw of that version
+stackalarm cve CVE-2025-29927 next@15.1.0       # one CVE: affected, fixed, exploited?
 stackalarm eol php@8.3.20 node@20            # still getting security fixes?
 stackalarm sources                          # the sources and their tags
 stackalarm news --help                      # every option
@@ -42,11 +44,11 @@ stackalarm news --help                      # every option
 
 ## Scheduled watch
 
-Copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`, or include [`ci/gitlab/stackalarm.yml`](ci/gitlab/stackalarm.yml) in your GitLab CI. Every 4 hours, the CLI reads the `.stackalarm.yaml` profile the skill wrote and opens an issue when a heads-up, an alert or a security release is new. On GitHub, with an `ANTHROPIC_API_KEY` secret, Claude triages the news first and an issue is opened only when the project is concerned.
+Copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`, or include [`ci/gitlab/stackalarm.yml`](ci/gitlab/stackalarm.yml) in your GitLab CI. Every 4 hours, the CLI reads the `.stackalarm.yaml` profile the skill wrote and opens an issue when a heads-up, an alert or a security release is new. On GitHub, with an `ANTHROPIC_API_KEY` secret, Claude triages the news first and an issue is opened only when the project is concerned. A Slack or Mattermost webhook can get a line for each issue, and the profile can record the vulnerabilities you already judged (`ignore`), with a reason and a review date.
 
 ## Privacy
 
-The CLI downloads public feeds and queries public APIs. It sends only what it is given: tags and keywords, as search terms to the CVE databases (NVD, EUVD), package names (with their version when given), to the GitHub Advisory Database, and the ids of the CVEs found, to the FIRST EPSS API. Nothing else about your project, and no telemetry.
+The CLI downloads public feeds and queries public APIs. It sends only what it is given: tags and keywords, as search terms to the CVE databases (NVD, EUVD), package names (with their version when given), to the GitHub Advisory Database and, when a version is given, to OSV.dev, and the ids of the CVEs found, to the FIRST EPSS API (and to the CVE Program, the NVD and GitHub with `stackalarm cve`). Nothing else about your project, and no telemetry.
 
 ## Contributing
 

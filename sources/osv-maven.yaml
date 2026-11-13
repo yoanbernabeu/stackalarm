@@ -1,0 +1,6 @@
+id: osv-maven
+name: OSV.dev, known vulnerabilities of the Maven package versions in use
+type: osv
+ecosystem: Maven
+tags: [java, maven]
+stage: advisory

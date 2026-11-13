@@ -1,0 +1,6 @@
+id: vaultwarden-advisories
+name: Vaultwarden security advisories (GitHub)
+type: github-advisories
+repo: dani-garcia/vaultwarden
+tags: [vaultwarden]
+stage: advisory

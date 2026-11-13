@@ -1,0 +1,6 @@
+id: unit42
+name: Palo Alto Networks Unit 42 research
+type: feed
+url: "https://unit42.paloaltonetworks.com/feed/"
+tags: [general]
+stage: news

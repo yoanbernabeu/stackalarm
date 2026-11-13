@@ -1,0 +1,6 @@
+id: zitadel-advisories
+name: Zitadel security advisories (GitHub)
+type: github-advisories
+repo: zitadel/zitadel
+tags: [zitadel]
+stage: advisory

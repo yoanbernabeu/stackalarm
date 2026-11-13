@@ -1,0 +1,6 @@
+id: jetbrains-security
+name: JetBrains security blog (TeamCity, IDEs)
+type: feed
+url: "https://blog.jetbrains.com/security/feed/"
+tags: [jetbrains, teamcity]
+stage: advisory

@@ -9,6 +9,7 @@ import (
 	"html"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -26,6 +27,9 @@ type entry struct {
 	EPSS      float64
 	Affected  []Affected
 	Stage     source.Stage // when the entry says more than its source
+	Exact     bool         // found by product in a search source: kept whatever its wording
+	Current   bool         // hits a version in use now: kept whatever its date
+	Exploit   bool         // an entry of a catalog of public exploits: it marks its CVE
 }
 
 type xmlLink struct {
@@ -290,8 +294,18 @@ func firstNonEmpty(values ...string) string {
 // days for a score, and those are the ones that matter most.
 const minScore = 7.0
 
-// parseNVD reads a response of the NVD CVE API 2.0.
-func parseNVD(data []byte) ([]entry, error) {
+// maxNVDAffected bounds the ranges kept from one NVD record: an old CVE can
+// list hundreds of exact versions.
+const maxNVDAffected = 40
+
+// parseNVD reads a response of the NVD CVE API 2.0, dropping the records
+// scored below lowest. cpes names the products (vendor:product) of the tags:
+// their version ranges are shown under the tag name, and come first.
+func parseNVD(data []byte, cpes map[string]string, lowest float64) ([]entry, error) {
+	tagOf := map[string]string{}
+	for tag, cpe := range cpes {
+		tagOf[cpe] = tag
+	}
 	var r struct {
 		TotalResults    int `json:"totalResults"`
 		Vulnerabilities []struct {
@@ -308,6 +322,18 @@ func parseNVD(data []byte) ([]entry, error) {
 						Severity string  `json:"baseSeverity"`
 					} `json:"cvssData"`
 				} `json:"metrics"`
+				Configurations []struct {
+					Nodes []struct {
+						Matches []struct {
+							Vulnerable     bool   `json:"vulnerable"`
+							Criteria       string `json:"criteria"`
+							StartIncluding string `json:"versionStartIncluding"`
+							StartExcluding string `json:"versionStartExcluding"`
+							EndIncluding   string `json:"versionEndIncluding"`
+							EndExcluding   string `json:"versionEndExcluding"`
+						} `json:"cpeMatch"`
+					} `json:"nodes"`
+				} `json:"configurations"`
 			} `json:"cve"`
 		} `json:"vulnerabilities"`
 	}
@@ -322,16 +348,51 @@ func parseNVD(data []byte) ([]entry, error) {
 				score = max(score, m.Data.Score)
 			}
 		}
-		if score != 0 && score < minScore {
+		if score != 0 && score < lowest {
 			continue
 		}
+		var watched, others []Affected
+		for _, c := range v.CVE.Configurations {
+			for _, n := range c.Nodes {
+				for _, m := range n.Matches {
+					parts := strings.Split(m.Criteria, ":") // cpe:2.3:a:vendor:product:version:…
+					if !m.Vulnerable || len(parts) < 6 {
+						continue
+					}
+					var bounds []string
+					for _, b := range [][2]string{{">= ", m.StartIncluding}, {"> ", m.StartExcluding}, {"<= ", m.EndIncluding}, {"< ", m.EndExcluding}} {
+						if b[1] != "" {
+							bounds = append(bounds, b[0]+b[1])
+						}
+					}
+					a := Affected{Package: parts[4], Versions: strings.Join(bounds, ", "), Fixed: m.EndExcluding}
+					if len(bounds) == 0 && parts[5] != "*" && parts[5] != "-" {
+						a.Versions = parts[5]
+					}
+					tag, ok := tagOf[parts[3]+":"+parts[4]]
+					if ok {
+						a.Package = tag
+					}
+					if slices.Contains(watched, a) || slices.Contains(others, a) {
+						continue
+					}
+					if ok {
+						watched = append(watched, a)
+					} else {
+						others = append(others, a)
+					}
+				}
+			}
+		}
+		affected := append(watched, others...)
+		affected = affected[:min(len(affected), maxNVDAffected)]
 		var desc string
 		for _, d := range v.CVE.Descriptions {
 			if d.Lang == "en" || desc == "" {
 				desc = d.Value
 			}
 		}
-		e := entry{Title: cveTitle(v.CVE.ID, "", score, desc), URL: "https://nvd.nist.gov/vuln/detail/" + v.CVE.ID, Summary: clean(desc), Score: score}
+		e := entry{Title: cveTitle(v.CVE.ID, "", score, desc), URL: "https://nvd.nist.gov/vuln/detail/" + v.CVE.ID, Summary: clean(desc), Score: score, Affected: affected}
 		e.Published, _ = parseDate(v.CVE.Published)
 		out = append(out, e)
 	}
@@ -409,4 +470,44 @@ func cveTitle(id, alias string, score float64, desc string) string {
 		desc = string(r[:140]) + "…"
 	}
 	return t + ": " + desc
+}
+
+// parseNuclei reads the CVE index of the Nuclei templates, one JSON object
+// per line: each is a public, ready-to-run exploit or detection of a CVE.
+func parseNuclei(data []byte) ([]entry, error) {
+	var out []entry
+	for line := range bytes.Lines(data) {
+		var t struct {
+			ID string `json:"ID"`
+		}
+		if json.Unmarshal(line, &t) == nil && cveID.MatchString(t.ID) {
+			out = append(out, entry{Title: t.ID, Exploit: true})
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("unexpected Nuclei index: no CVE template found")
+	}
+	return out, nil
+}
+
+// parseMetasploit reads the module metadata of the Metasploit Framework and
+// keeps the CVEs its modules name.
+func parseMetasploit(data []byte) ([]entry, error) {
+	var modules map[string]struct {
+		References []string `json:"references"`
+	}
+	if err := json.Unmarshal(data, &modules); err != nil {
+		return nil, fmt.Errorf("unexpected Metasploit metadata: %w", err)
+	}
+	seen := map[string]bool{}
+	var out []entry
+	for _, m := range modules {
+		for _, ref := range m.References {
+			if c := cveID.FindString(ref); c != "" && strings.HasPrefix(ref, "CVE-") && !seen[c] {
+				seen[c] = true
+				out = append(out, entry{Title: c, Exploit: true})
+			}
+		}
+	}
+	return out, nil
 }

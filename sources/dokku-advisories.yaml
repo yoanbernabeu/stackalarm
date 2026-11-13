@@ -1,0 +1,6 @@
+id: dokku-advisories
+name: Dokku security advisories (GitHub)
+type: github-advisories
+repo: dokku/dokku
+tags: [dokku]
+stage: advisory

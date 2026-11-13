@@ -1,0 +1,6 @@
+id: checkpoint-research
+name: Check Point Research
+type: feed
+url: "https://research.checkpoint.com/feed/"
+tags: [general]
+stage: news

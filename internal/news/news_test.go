@@ -181,7 +181,7 @@ const euvdExploited = `[{"id":"EUVD-2026-85370","description":"Plex Media Server
 "baseScore":5.5,"aliases":"CVE-2026-96656\n","exploitedSince":"Oct 20, 2026, 12:00:00 AM"}]`
 
 func TestCVEDatabaseParsers(t *testing.T) {
-	entries, err := parseNVD([]byte(nvdBody))
+	entries, err := parseNVD([]byte(nvdBody), nil, minScore)
 	if err != nil || len(entries) != 2 {
 		t.Fatalf("nvd: low scores dropped, unscored kept: %+v %v", entries, err)
 	}
@@ -310,7 +310,7 @@ func TestSearchCapKeepsTheMostSevere(t *testing.T) {
 
 func TestSearchTermsUseAliasesForAmbiguousTags(t *testing.T) {
 	got, _ := searchTerms(Query{Tags: []string{"node", "php", "general"}, Keywords: []string{"Node.js", "vite"}}, testSearch)
-	if strings.Join(got, ",") != "node.js,php,vite" {
+	if strings.Join(got.words, ",") != "node.js,php,vite" {
 		t.Fatalf("got %v", got)
 	}
 }
@@ -318,10 +318,10 @@ func TestSearchTermsUseAliasesForAmbiguousTags(t *testing.T) {
 var testSearch = source.Search{Aliases: map[string]string{"node": "node.js"}, Skip: []string{"swift", "npm"}}
 
 func TestSearchTermsSkipTags(t *testing.T) {
-	if got, _ := searchTerms(Query{Tags: []string{"swift", "astro"}}, testSearch); strings.Join(got, ",") != "astro" {
+	if got, _ := searchTerms(Query{Tags: []string{"swift", "astro"}}, testSearch); strings.Join(got.words, ",") != "astro" {
 		t.Fatalf("the swift tag must not be searched: %v", got)
 	}
-	if got, _ := searchTerms(Query{Tags: []string{"swift"}, Keywords: []string{"swift"}}, testSearch); strings.Join(got, ",") != "swift" {
+	if got, _ := searchTerms(Query{Tags: []string{"swift"}, Keywords: []string{"swift"}}, testSearch); strings.Join(got.words, ",") != "swift" {
 		t.Fatalf("an explicit keyword must still be searched: %v", got)
 	}
 }
@@ -329,7 +329,7 @@ func TestSearchTermsSkipTags(t *testing.T) {
 func TestSearchTermsBeyondTheLimitAreReported(t *testing.T) {
 	tags := []string{"t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10"}
 	got, left := searchTerms(Query{Tags: tags}, testSearch)
-	if len(got) != MaxTerms || strings.Join(left, ",") != "t9,t10" {
+	if len(got.words) != MaxTerms || strings.Join(left, ",") != "t9,t10" {
 		t.Fatalf("searched %v, left %v", got, left)
 	}
 
@@ -578,7 +578,7 @@ func TestEUVDSearchIsReadPageByPage(t *testing.T) {
 }
 
 func TestNVDReportsRecordsBeyondOnePage(t *testing.T) {
-	entries, err := parseNVD([]byte(`{"totalResults":2500,"vulnerabilities":[{"cve":{"id":"CVE-2026-1","published":"2026-10-21T10:00:00.000","descriptions":[{"lang":"en","value":"x"}]}}]}`))
+	entries, err := parseNVD([]byte(`{"totalResults":2500,"vulnerabilities":[{"cve":{"id":"CVE-2026-1","published":"2026-10-21T10:00:00.000","descriptions":[{"lang":"en","value":"x"}]}}]}`), nil, minScore)
 	if len(entries) != 1 || err == nil || !strings.Contains(err.Error(), "2500 records") {
 		t.Fatalf("%+v %v", entries, err)
 	}

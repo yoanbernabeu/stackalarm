@@ -1,0 +1,7 @@
+id: openssl-blog
+name: OpenSSL blog, security posts and ends of life
+type: feed
+url: "https://openssl-library.org/post/index.xml"
+tags: [openssl]
+stage: advisory
+keywords: [security, vulnerability, CVE, end of life]

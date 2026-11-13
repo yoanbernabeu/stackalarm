@@ -13,9 +13,14 @@ aliases:
   # "vault" alone matches Azure Key Vault and note-taking vaults.
   vault: hashicorp vault
   consul: hashicorp consul
+  # The tags are written with a dash, the texts with a space or another name.
+  api-platform: api platform
+  anthropic-sdk: anthropic
+  gcp: google cloud
 
-# Tags the CVE databases are not searched for. General sources (CERTs, KEV,
-# press) still match them, and an explicit --keyword is still searched.
+# Tags the CVE databases are not searched for by word. General sources (CERTs,
+# KEV, press) still match them, and an explicit --keyword is still searched.
+# Those with a product under "cpe" below are searched in the NVD by product.
 skip:
   # The word means something else: OpenStack Swift, ms-swift; the MediaWiki
   # Cargo extension; Windows Internet Connection Sharing, Ivanti ICS; Visual
@@ -38,6 +43,76 @@ skip:
   - vue
   - twig
   - mcp
+  # Common words: "crafted requests" is in every other CVE, "git" and "curl"
+  # in every proof of concept; "ws", "uv", "chi" and "zed" are syllables.
+  # Their GitHub advisories source covers their own flaws, and git and curl
+  # are searched in the NVD by product (see cpe).
+  - requests
+  - cryptography
+  - git
+  - curl
+  - ws
+  - uv
+  - chi
+  - zed
   # Every product of the vendor: hundreds of CVEs a month. The oracle-security
   # source carries its patch updates.
   - oracle
+
+# The product of a tag in the NVD dictionary, as vendor:product (checked with
+# https://services.nvd.nist.gov/rest/json/cpes/2.0?cpeMatchString=cpe:2.3:a:<it>).
+# A skipped tag that has one is searched in the NVD by product instead of by
+# word: the records of the product itself, without those that only mention
+# it. For every tag listed, the version ranges of the NVD records are shown
+# under the tag name, and compared with the version given (--tag php@8.3.20).
+cpe:
+  # Skipped above, searched by product.
+  flask: palletsprojects:flask
+  fastapi: tiangolo:fastapi
+  nestjs: nestjs:nest
+  twig: symfony:twig
+  npm: npmjs:npm
+  pip: pypa:pip
+  maven: apache:maven
+  nuget: microsoft:nuget
+  composer: getcomposer:composer
+  cargo: rust-lang:cargo
+  swift: apple:swift
+  git: git-scm:git
+  curl: haxx:curl
+  # Searched by word: only their version ranges are named after the tag.
+  php: php:php
+  node: nodejs:node.js
+  nextjs: vercel:next.js
+  go: golang:go
+  python: python:python
+  ruby: ruby-lang:ruby
+  symfony: sensiolabs:symfony
+  laravel: laravel:framework
+  django: djangoproject:django
+  rails: rubyonrails:rails
+  nginx: f5:nginx
+  postgresql: postgresql:postgresql
+  redis: redis:redis
+  gitlab: gitlab:gitlab
+  wordpress: wordpress:wordpress
+  drupal: drupal:drupal
+  grafana: grafana:grafana
+  kubernetes: kubernetes:kubernetes
+  jenkins: jenkins:jenkins
+  keycloak: redhat:keycloak
+  angular: angular:angular
+  react: facebook:react
+  express: openjsf:express
+  astro: astro:astro
+  mysql: oracle:mysql
+  elasticsearch: elastic:elasticsearch
+  traefik: traefik:traefik
+  caddy: caddyserver:caddy
+  deno: deno:deno
+  nuxt: nuxt:nuxt
+  spring: vmware:spring_framework
+  electron: electronjs:electron
+  openssl: openssl:openssl
+  mariadb: mariadb:mariadb
+  mongodb: mongodb:mongodb

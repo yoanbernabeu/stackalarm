@@ -1,0 +1,6 @@
+id: supabase-auth-advisories
+name: Supabase Auth security advisories (GitHub)
+type: github-advisories
+repo: supabase/auth
+tags: [supabase]
+stage: advisory

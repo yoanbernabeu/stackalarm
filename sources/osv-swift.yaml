@@ -1,0 +1,6 @@
+id: osv-swift
+name: OSV.dev, known vulnerabilities of the Swift package versions in use
+type: osv
+ecosystem: SwiftURL
+tags: [swift]
+stage: advisory

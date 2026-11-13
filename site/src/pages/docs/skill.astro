@@ -32,7 +32,7 @@ import { raw } from "../../lib/repo";
 
   <h2 id="gather">2. It gathers the news</h2>
   <p>It maps the technologies to the CLI's tags, turns the rest into keywords, passes the package names from the lockfile, and reads a week:</p>
-  <Code code="stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --since 7d --format summary" copy={false} />
+  <Code code="stackalarm news --tag php@8.3.20 --tag symfony --tag gitlab --keyword roadrunner --since 7d --format summary" copy={false} />
   <p>
     The same vulnerability often appears in several sources (vendor, NVD, EUVD, CERTs, press): it becomes one finding, with the most official
     link. A public exploit or exploitation in the wild raises the urgency. A source that could not be read is mentioned in the answer, so

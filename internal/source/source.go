@@ -27,7 +27,18 @@ const (
 	TypeEUVD                   Type = "euvd"        // a list from the ENISA EU Vulnerability Database API
 	TypeEUVDSearch             Type = "euvd-search" // ENISA EUVD, searched for each requested word
 	TypeNVD                    Type = "nvd"         // NIST NVD, searched for each requested word
+	// TypeOSV asks OSV.dev which known vulnerabilities hit the package
+	// versions in use, for one ecosystem.
+	TypeOSV Type = "osv"
+	// TypeNuclei and TypeMetasploit are catalogs of public exploits: they mark
+	// the CVEs of the other sources and give no entry of their own.
+	TypeNuclei     Type = "nuclei"     // the CVE index of the Nuclei templates
+	TypeMetasploit Type = "metasploit" // the module metadata of the Metasploit Framework
 )
+
+// IsExploitCatalog tells whether the source only marks the CVEs that have a
+// public exploit.
+func (t Type) IsExploitCatalog() bool { return t == TypeNuclei || t == TypeMetasploit }
 
 // IsSearch tells whether the source is queried with the requested words
 // rather than read as a whole. Search sources are skipped without words.
@@ -66,7 +77,8 @@ type Source struct {
 var (
 	idPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	tagPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
-	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD}
+	cpePattern = regexp.MustCompile(`^[a-z0-9._+-]+:[a-z0-9._+-]+$`)
+	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD, TypeOSV, TypeNuclei, TypeMetasploit}
 )
 
 // Stages lists every stage, in the order they usually happen.
@@ -113,9 +125,9 @@ func (s Source) Validate() error {
 		if strings.Count(s.Repo, "/") != 1 || s.URL != "" || s.Ecosystem != "" {
 			fail("a github-advisories source needs repo: owner/name, and no url nor ecosystem")
 		}
-	case TypeGitHubAdvisoryDatabase:
+	case TypeGitHubAdvisoryDatabase, TypeOSV:
 		if s.Ecosystem == "" || s.URL != "" || s.Repo != "" {
-			fail("a github-advisory-database source needs ecosystem, and no url nor repo")
+			fail("a %s source needs ecosystem, and no url nor repo", s.Type)
 		}
 	default:
 		if !strings.HasPrefix(s.URL, "https://") {
@@ -126,6 +138,9 @@ func (s Source) Validate() error {
 		}
 		if s.Type.IsSearch() && !s.IsGeneral() {
 			fail("a search source must be tagged %q: it is queried with the requested words", General)
+		}
+		if s.Type.IsExploitCatalog() && !s.IsGeneral() {
+			fail("an exploit catalog must be tagged %q: it marks the CVEs of every technology", General)
 		}
 	}
 	if len(errs) > 0 {
@@ -183,6 +198,11 @@ type Search struct {
 	// means something else, or names a whole ecosystem whose own sources
 	// already cover the project. General sources still match them.
 	Skip []string `yaml:"skip"`
+	// CPE gives the "vendor:product" of a tag in the NVD product dictionary.
+	// A skipped tag that has one is searched in the NVD by product instead of
+	// by word, and the version ranges of the NVD records are shown under the
+	// tag name, so they can be compared with the version in use.
+	CPE map[string]string `yaml:"cpe"`
 }
 
 // LoadSearch reads SearchFile and checks that it only names tags of sources.
@@ -209,6 +229,14 @@ func LoadSearch(fsys fs.FS, sources []Source) (Search, error) {
 		}
 		if slices.Contains(s.Skip, tag) {
 			fail("tag %q is both aliased and skipped", tag)
+		}
+	}
+	for tag, cpe := range s.CPE {
+		if !slices.Contains(tags, tag) {
+			fail("cpe of unknown tag %q", tag)
+		}
+		if !cpePattern.MatchString(cpe) {
+			fail("cpe of %q must be vendor:product, in lowercase", tag)
 		}
 	}
 	for _, tag := range s.Skip {

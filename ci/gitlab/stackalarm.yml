@@ -11,6 +11,9 @@
 #    GitHub token with no permission at all. The GitHub advisory sources allow
 #    60 anonymous requests per hour per IP, and shared runners share their IP.
 #    Optional: NVD_API_KEY, to search the NVD faster.
+# 5. Optional: a CI/CD variable STACKALARM_WEBHOOK_URL (masked), an incoming
+#    webhook that takes {"text":"…"} (Slack, Mattermost, Discord with /slack
+#    appended to its URL): it gets one line with the link of the issue.
 #
 # The job reads the .stackalarm.yaml profile the stackalarm skill wrote, and
 # opens an issue when a heads-up, an alert or a security release is new. The
@@ -46,11 +49,18 @@ stackalarm:
           exit 1
         fi
         head -c 60000 stackalarm-report.md > stackalarm-issue.md
-        curl --fail-with-body -sS -o /dev/null --header "PRIVATE-TOKEN: $STACKALARM_GITLAB_TOKEN" \
+        curl --fail-with-body -sS -o stackalarm-issue.json --header "PRIVATE-TOKEN: $STACKALARM_GITLAB_TOKEN" \
           --data-urlencode "title=stackalarm: security news to check ($(date -u +%F))" \
           --data-urlencode "labels=$STACKALARM_LABEL" \
           --data-urlencode "description@stackalarm-issue.md" \
           "$CI_API_V4_URL/projects/$CI_PROJECT_ID/issues"
+        if [ -n "${STACKALARM_WEBHOOK_URL:-}" ]; then
+          # A failed notification never fails the watch: the issue is already open.
+          url=$(grep -o '"web_url":"[^"]*"' stackalarm-issue.json | head -n 1 | cut -d'"' -f4)
+          curl -sS --fail-with-body -m 20 -o /dev/null -H 'Content-Type: application/json' \
+            -d "{\"text\":\"stackalarm: security news to check for $CI_PROJECT_PATH: $url\"}" "$STACKALARM_WEBHOOK_URL" ||
+            echo "The webhook could not be notified." >&2
+        fi
       elif [ "$code" != 0 ]; then
         exit "$code"
       fi

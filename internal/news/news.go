@@ -42,10 +42,14 @@ type Item struct {
 	EPSS float64 `json:"epss,omitempty"`
 	// ExploitedIn names the sources reporting the CVE exploited in the wild
 	// (CISA KEV, EUVD), at any date: an old flaw can be exploited today.
-	ExploitedIn []string   `json:"exploited_in,omitempty"`
-	Affected    []Affected `json:"affected,omitempty"` // packages and versions, for GitHub advisories
+	ExploitedIn []string `json:"exploited_in,omitempty"`
+	// PublicExploitIn names the catalogs of public exploits holding the CVE
+	// (Nuclei templates, Metasploit modules): anyone can run them.
+	PublicExploitIn []string   `json:"public_exploit_in,omitempty"`
+	Affected        []Affected `json:"affected,omitempty"` // packages or products and their versions
 
 	cve  string // CVE id of a CVE database entry, used to merge duplicates
+	dup  string // GHSA id of an advisory without a CVE, used the same way
 	rank int    // order within its source, for the cap
 }
 
@@ -55,7 +59,18 @@ type Affected struct {
 	Package  string `json:"package"`
 	Versions string `json:"versions"`
 	Fixed    string `json:"fixed,omitempty"`
+	// InUse is the version the query gave for the package, and Status whether
+	// it is in the vulnerable range: StatusAffected or StatusNotAffected. Both
+	// are empty when no version was given or the range could not be read.
+	InUse  string `json:"in_use,omitempty"`
+	Status string `json:"status,omitempty"`
 }
+
+// Statuses of a version in use against a vulnerable range.
+const (
+	StatusAffected    = "affected"
+	StatusNotAffected = "not-affected"
+)
 
 // Failure is a source that could not be read. It is always reported: a
 // silent watch tool is worse than a noisy one.
@@ -101,6 +116,9 @@ type Query struct {
 	// Packages narrow the GitHub Advisory Database sources to these package
 	// names (the agent reads them from the lockfile). Empty: the whole ecosystem.
 	Packages []string
+	// Versions gives the version in use of a tag (php: 8.3.20). It never
+	// filters: the ranges of the CVE records are compared with it.
+	Versions map[string]string
 }
 
 // Fetcher reads sources over HTTP, with a small on-disk cache.
@@ -112,6 +130,8 @@ type Fetcher struct {
 	NVDAPIKey   string        // optional, raises the NVD API rate limit
 	EPSSAPI     string        // FIRST EPSS API, completing the scores of CVE records; empty skips it
 	EOLAPI      string        // endoflife.date API, for the support status of components
+	OSVAPI      string        // OSV.dev API, for the vulnerabilities of the package versions in use; empty skips it
+	CVEAPI      string        // CVE Program API, for the record of one CVE
 	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
 	EUVDDelay   time.Duration // pause between two EUVD search requests, which answer HTTP 429 to bursts
 	CacheDir    string        // empty disables the cache
@@ -134,6 +154,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	words := matchers(matchTerms(q, f.Search))
 	nvd, euvd := &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
 	exploited := map[string][]string{} // CVE: the sources reporting it exploited
+	exploits := map[string][]string{}  // CVE: the catalogs holding a public exploit
 
 	var (
 		mu  sync.Mutex
@@ -144,7 +165,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		res.NotSearched = append(res.NotSearched, left...)
 	}
 	for _, s := range selected {
-		if s.Type.IsSearch() && len(terms) == 0 {
+		if s.Type.IsSearch() && len(terms.words) == 0 && (s.Type != source.TypeNVD || len(terms.cpes) == 0) {
 			continue // nothing to search for
 		}
 		wg.Go(func() {
@@ -158,6 +179,11 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				res.Short = append(res.Short, Coverage{Source: s.ID, Since: oldest})
 			}
 			for _, e := range entries { // the whole catalog, before the date and word filters
+				if e.Exploit {
+					if c := cveID.FindString(e.Title); c != "" && !slices.Contains(exploits[c], s.ID) {
+						exploits[c] = append(exploits[c], s.ID)
+					}
+				}
 				if exploitedTitle.MatchString(e.Title) {
 					if c := cveID.FindString(e.Title); c != "" && !slices.Contains(exploited[c], s.ID) {
 						exploited[c] = append(exploited[c], s.ID)
@@ -165,17 +191,28 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 			}
 			entries = slices.DeleteFunc(entries, func(e entry) bool {
-				if e.Published.IsZero() || e.Published.Before(q.Since) {
+				if e.Published.IsZero() || !e.Current && e.Published.Before(q.Since) {
 					return true
 				}
 				if s.Type.IsSearch() { // the databases match loosely ("node.js" finds kernel "node"): check the whole term
+					if e.Exact {
+						return false // found by product, not by word
+					}
 					text := matchText(e)
 					return !slices.ContainsFunc(words, func(re *regexp.Regexp) bool { return re.MatchString(text) })
 				}
 				return !keep(s, e, words)
 			})
+			for i := range entries {
+				entries[i].Affected = annotate(entries[i].Affected, q)
+			}
 			slices.SortStableFunc(entries, func(a, b entry) int {
-				if s.Type.IsSearch() || s.Type == source.TypeGitHubAdvisoryDatabase { // most severe first, so the cap drops the minor ones
+				// What a version in use proves, then the records of a watched
+				// product, come before those that only mention a word.
+				if c := cmp.Compare(relevance(a, q), relevance(b, q)); c != 0 {
+					return c
+				}
+				if s.Type.IsSearch() || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
 					if c := cmp.Compare(priority(b.Score), priority(a.Score)); c != 0 {
 						return c
 					}
@@ -193,8 +230,8 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 				if mergeable(s.Type) {
 					item.cve = cveID.FindString(e.Title)
+					item.dup = ghsaID.FindString(e.Title + " " + e.URL)
 				}
-				item.Affected = watchedFirst(item.Affected, q.Packages)
 				item.ID = itemID(item)
 				item.rank = rank
 				res.Items = append(res.Items, item)
@@ -209,6 +246,10 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		if sources := exploited[it.cve]; it.cve != "" && len(sources) > 0 {
 			res.Items[i].ExploitedIn = slices.Sorted(slices.Values(sources))
 			res.Items[i].rank -= 1 << 20 // kept first under the cap
+		}
+		if catalogs := exploits[it.cve]; it.cve != "" && len(catalogs) > 0 {
+			res.Items[i].PublicExploitIn = slices.Sorted(slices.Values(catalogs))
+			res.Items[i].rank -= 1 << 19 // then the ones anyone can exploit
 		}
 	}
 	res.Items, res.Truncated = mergeAndCap(res.Items)
@@ -232,6 +273,7 @@ var (
 	exploitedTitle = regexp.MustCompile(`(?i)\bexploited in the wild\b`)
 	releasedTitle  = regexp.MustCompile(`(?i)\breleased\b`)
 	cveID          = regexp.MustCompile(`CVE-\d{4}-\d+`)
+	ghsaID         = regexp.MustCompile(`GHSA(-[23456789cfghjmpqrvwx]{4}){3}`)
 )
 
 // mergeable tells whether the entries of a source are vulnerability records
@@ -239,7 +281,7 @@ var (
 // never merged: their own wording carries information.
 func mergeable(t source.Type) bool {
 	switch t {
-	case source.TypeNVD, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase:
+	case source.TypeNVD, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV:
 		return true
 	}
 	return false
@@ -301,14 +343,76 @@ func (f *Fetcher) addEPSS(ctx context.Context, items []Item) error {
 	return nil
 }
 
+// statusOrder puts the ranges that hold a version in use first, and those
+// that do not last.
+func statusOrder(status string) int {
+	switch status {
+	case StatusAffected:
+		return 0
+	case StatusNotAffected:
+		return 2
+	}
+	return 1
+}
+
+// relevance orders the entries of one source: 0 when a version in use is in
+// a vulnerable range, 1 when the entry is the record of a watched product or
+// package, 2 otherwise.
+func relevance(e entry, q Query) int {
+	r := 2
+	if e.Exact {
+		r = 1
+	}
+	for _, a := range e.Affected {
+		switch {
+		case a.Status == StatusAffected:
+			return 0
+		case slices.Contains(q.Tags, strings.ToLower(a.Package)), slices.ContainsFunc(q.Packages, func(p string) bool { return packageName(p) == a.Package }):
+			r = 1
+		}
+	}
+	return r
+}
+
+// annotate compares each range with the version in use, when the query gives
+// one (a package with its version, or the version of a tag), then puts the
+// ranges that matter first.
+func annotate(affected []Affected, q Query) []Affected {
+	for i, a := range affected {
+		if a.Status != "" {
+			continue // the source already told
+		}
+		version := q.Versions[strings.ToLower(a.Package)]
+		for _, p := range q.Packages {
+			if packageName(p) == a.Package {
+				_, version, _ = strings.Cut(strings.TrimPrefix(p, a.Package), "@")
+			}
+		}
+		if in, ok := inRange(version, a.Versions); ok {
+			affected[i].InUse, affected[i].Status = version, StatusNotAffected
+			if in {
+				affected[i].Status = StatusAffected
+			}
+		}
+	}
+	watched := slices.Clone(q.Packages)
+	for name, version := range q.Versions {
+		watched = append(watched, name+"@"+version)
+	}
+	return watchedFirst(affected, watched)
+}
+
 // watchedFirst puts the packages the query names first, and among them the
 // range that holds the version given, so a short display shows the one that
 // matters: an advisory can name a dozen packages or ranges.
 func watchedFirst(affected []Affected, packages []string) []Affected {
 	order := func(a Affected) int {
 		for _, p := range packages {
-			if packageName(p) != a.Package {
+			if packageName(p) != a.Package && packageName(p) != strings.ToLower(a.Package) {
 				continue
+			}
+			if a.Status == StatusAffected {
+				return 0
 			}
 			_, version, _ := strings.Cut(strings.TrimPrefix(p, a.Package), "@") // empty without a version
 			in, ok := inRange(version, a.Versions)
@@ -343,8 +447,8 @@ func packageName(p string) string {
 // is full: a CVE is dropped only when no source has room for it.
 func mergeAndCap(items []Item) ([]Item, []Truncation) {
 	key := func(i int) string {
-		if items[i].cve != "" {
-			return items[i].cve
+		if k := cmp.Or(items[i].cve, items[i].dup); k != "" {
+			return k
 		}
 		return fmt.Sprint("#", i)
 	}
@@ -413,7 +517,17 @@ func mergeAndCap(items []Item) ([]Item, []Truncation) {
 			if s := items[h].Source; s != it.Source && !slices.Contains(it.AlsoIn, s) {
 				it.AlsoIn = append(it.AlsoIn, s)
 			}
+			// Each database knows its own names and ranges (a package, a product):
+			// the merged item keeps them all, what a version in use proves first.
+			for _, af := range items[h].Affected {
+				if h != owner[k] && !slices.Contains(it.Affected, af) {
+					it.Affected = append(slices.Clip(it.Affected), af)
+				}
+			}
 		}
+		slices.SortStableFunc(it.Affected, func(a, b Affected) int {
+			return cmp.Compare(statusOrder(a.Status), statusOrder(b.Status))
+		})
 		out = append(out, it)
 	}
 	return out, truncated
@@ -518,13 +632,35 @@ func matchTerms(q Query, s source.Search) []string {
 // searchTerms returns the words search sources are queried with: the match
 // terms, minus the tags sources/search.yaml skips (an explicit keyword is
 // still searched), up to MaxTerms in the order given; left holds the rest.
-func searchTerms(q Query, s source.Search) (searched, left []string) {
+//
+// A skipped tag that has a product in the NVD dictionary (cpe in
+// sources/search.yaml) is searched there by product instead: the word is
+// ambiguous, the product is not. Those have their own limit of MaxTerms.
+func searchTerms(q Query, s source.Search) (searched terms, left []string) {
+	var cpes []string
 	tags := slices.DeleteFunc(slices.Clone(q.Tags), func(t string) bool {
-		return slices.Contains(s.Skip, strings.ToLower(strings.TrimSpace(t)))
+		t = strings.ToLower(strings.TrimSpace(t))
+		if !slices.Contains(s.Skip, t) {
+			return false
+		}
+		if cpe := s.CPE[t]; cpe != "" && !slices.Contains(cpes, cpe) {
+			if len(cpes) < MaxTerms {
+				cpes = append(cpes, cpe)
+			} else {
+				left = append(left, t)
+			}
+		}
+		return true
 	})
 	out := matchTerms(Query{Tags: tags, Keywords: q.Keywords}, s)
 	n := min(len(out), MaxTerms)
-	return out[:n], out[n:]
+	return terms{words: out[:n], cpes: cpes}, append(out[n:], left...)
+}
+
+// terms is what the search sources are queried with.
+type terms struct {
+	words []string // every search source
+	cpes  []string // vendor:product, for the NVD only
 }
 
 // gate spaces out requests to an API with a strict rate limit.
@@ -548,7 +684,7 @@ func (g *gate) wait(ctx context.Context) error {
 	return nil
 }
 
-func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Query, nvd, euvd *gate) ([]entry, error) {
+func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Query, nvd, euvd *gate) ([]entry, error) {
 	since := q.Since
 	github := cmp.Or(f.GitHubAPI, "https://api.github.com")
 	now := f.Now().UTC()
@@ -579,12 +715,37 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms []string, q Q
 			start = oldest // the API caps the range at 120 days
 		}
 		const layout = "2006-01-02T15:04:05.000Z"
-		return f.search(ctx, terms, func(term string) string {
-			return s.URL + "?keywordSearch=" + neturl.QueryEscape(term) + "&pubStartDate=" + start.Format(layout) + "&pubEndDate=" + end.Format(layout)
-		}, "nvd", nvd, func(ctx context.Context, u, api string) ([]entry, error) { return f.readOne(ctx, u, api, parseNVD) })
+		period := "&pubStartDate=" + start.Format(layout) + "&pubEndDate=" + end.Format(layout)
+		read := func(ctx context.Context, u, api string) ([]entry, error) {
+			return f.readOne(ctx, u, api, func(data []byte) ([]entry, error) { return parseNVD(data, f.Search.CPE, minScore) })
+		}
+		// By product first: these records are kept whatever their wording.
+		out, err := f.search(ctx, terms.cpes, func(cpe string) string {
+			return s.URL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+cpe) + period
+		}, "nvd", nvd, read)
+		seen := map[string]bool{}
+		for i := range out {
+			out[i].Exact = true
+			seen[out[i].URL] = true
+		}
+		byWord, werr := f.search(ctx, terms.words, func(term string) string {
+			return s.URL + "?keywordSearch=" + neturl.QueryEscape(term) + period
+		}, "nvd", nvd, read)
+		for _, e := range byWord {
+			if !seen[e.URL] {
+				out = append(out, e)
+			}
+		}
+		return out, errors.Join(err, werr)
+	case source.TypeOSV:
+		return f.readOSV(ctx, s.Ecosystem, q.Packages)
+	case source.TypeNuclei:
+		return f.readOne(ctx, s.URL, "", parseNuclei)
+	case source.TypeMetasploit:
+		return f.readOne(ctx, s.URL, "", parseMetasploit)
 	case source.TypeEUVDSearch:
 		// The scores below 7 are dropped anyway: filtering them here saves pages.
-		return f.search(ctx, terms, func(term string) string {
+		return f.search(ctx, terms.words, func(term string) string {
 			return s.URL + "?size=" + fmt.Sprint(euvdPageSize) + "&fromScore=7&toScore=10&text=" + neturl.QueryEscape(term) +
 				"&fromDate=" + since.UTC().Format(time.DateOnly) + "&toDate=" + now.Format(time.DateOnly)
 		}, "", nil, func(ctx context.Context, u, _ string) ([]entry, error) { return f.readEUVDPages(ctx, u, euvd) })
@@ -688,7 +849,7 @@ func (f *Fetcher) search(ctx context.Context, terms []string, url func(string) s
 	return out, errors.Join(errs...)
 }
 
-const maxBody = 32 << 20 // the KEV catalog is a few MB
+const maxBody = 32 << 20 // the KEV catalog is a few MB, the Metasploit one about 12
 
 func (f *Fetcher) isCached(url string) bool {
 	_, ok := f.cached(f.cachePath(url))
@@ -699,17 +860,35 @@ func (f *Fetcher) isCached(url string) bool {
 // gives. api names the API it belongs to ("github", "nvd"), so the right
 // headers and rate-limit hints are used.
 func (f *Fetcher) get(ctx context.Context, url, api string) (data []byte, next string, err error) {
+	return f.do(ctx, url, "", api)
+}
+
+// post sends a JSON body. The answer is cached like a download: the APIs
+// queried this way (OSV) only read.
+func (f *Fetcher) post(ctx context.Context, url, body string) ([]byte, error) {
+	data, _, err := f.do(ctx, url, body, "")
+	return data, err
+}
+
+func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, next string, err error) {
 	github := api == "github"
-	cache := f.cachePath(url)
+	cache := f.cachePath(url + body)
 	if data, ok := f.cached(cache); ok {
 		if link, ok := f.cached(cache + ".next"); ok {
 			next = string(link)
 		}
 		return data, next, nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	method, payload := http.MethodGet, io.Reader(nil)
+	if body != "" {
+		method, payload = http.MethodPost, strings.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, payload)
 	if err != nil {
 		return nil, "", err
+	}
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("User-Agent", f.UserAgent)
 	if github && f.github != nil {

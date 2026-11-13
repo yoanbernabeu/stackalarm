@@ -1,12 +1,13 @@
 ---
 import Docs from "../../layouts/Docs.astro";
 import Code from "../../components/Code.astro";
-import { cliHelp } from "../../lib/repo";
+import { cliHelp, repo } from "../../lib/repo";
 import { stages } from "../../lib/sources";
 
 const newsHelp = cliHelp("news");
 const sourcesHelp = cliHelp("sources");
 const eolHelp = cliHelp("eol");
+const cveHelp = cliHelp("cve");
 const stageText: Record<string, string> = {
   "heads-up": "A security release is announced ahead. When the same feed announces the release itself, the item becomes a release.",
   release: "The fix is out.",
@@ -15,7 +16,7 @@ const stageText: Record<string, string> = {
   news: "Security press and research: context, never enough on its own to call a project affected.",
 };
 ---
-<Docs title="The CLI" description="stackalarm news, eol and sources: options, output formats, stages, limits, cache and exit codes.">
+<Docs title="The CLI" description="stackalarm news, cve, eol and sources: options, output formats, stages, limits, cache and exit codes.">
   <p class="lead-in">
     The CLI gathers the news; it does no project analysis. The skill runs it for you, but it works on its own too. The help below is printed by
     the CLI itself when this page is built.
@@ -27,7 +28,7 @@ const stageText: Record<string, string> = {
   <h3 id="tags">Tags and keywords</h3>
   <p>
     A tag selects the sources of a technology (<code>php</code>, <code>gitlab</code>…) and the general sources (CERTs, CVE databases, exploit
-    feeds, press) whose entries mention it. A keyword only searches the general sources: use it for what has no tag (<code>frankenphp</code>).
+    feeds, press) whose entries mention it. A keyword only searches the general sources: use it for what has no tag (<code>roadrunner</code>).
     An unknown tag is searched as a keyword, with a warning that lists the known tags. Each tag and keyword costs one search per CVE database.
   </p>
 
@@ -39,6 +40,18 @@ const stageText: Record<string, string> = {
     vulnerable range and the first fixed version, the range holding your version first.
   </p>
   <p>
+    With versions, <a href="https://osv.dev">OSV.dev</a> is also asked which known vulnerabilities hit them, in one request for all the
+    packages and without a token. Unlike the rest, these items are not news: they are listed whatever their date, because a version locked
+    today is still exposed to a flaw published last year. Packages without a version are not sent to OSV.
+  </p>
+  <p>
+    A tag takes a version too: <code>--tag php@8.3.20</code>. The NVD records give the vulnerable ranges of a product; each is compared with
+    the version and marked <code>affected</code> or <code>not-affected</code> (<code>[8.3.20 in use: AFFECTED]</code> in the text formats),
+    and the records that hit the version come first under the cap. Give a full version, never a branch. The products known for each tag are
+    listed under <code>cpe</code> in <a href={`${repo}/blob/main/sources/search.yaml`}><code>sources/search.yaml</code></a>; a tag too
+    ambiguous to be searched by word (<code>composer</code>, <code>flask</code>, <code>npm</code>…) is searched in the NVD by product instead.
+  </p>
+  <p>
     With <code>--package</code>, the GitHub malware advisories of those packages are read too, as alerts: a version published with malicious
     code, the mark of a compromised maintainer account. They are not read without packages: npm alone gets about a thousand a month.
   </p>
@@ -48,6 +61,11 @@ const stageText: Record<string, string> = {
     A CVE listed in the CISA KEV catalog or the EUVD list of exploited flaws is marked exploited wherever it appears, whatever the date it
     was added: an old flaw can be exploited today. Exploited CVEs are kept first under the cap. Each CVE also gets its EPSS, the probability
     of exploitation in the next 30 days computed by FIRST, from GitHub or from the FIRST API.
+  </p>
+  <p>
+    A CVE that has a <a href="https://github.com/projectdiscovery/nuclei-templates">Nuclei template</a> or a
+    <a href="https://github.com/rapid7/metasploit-framework">Metasploit module</a> is marked as having a public exploit: anyone can run the
+    attack. Those two catalogs give no item of their own; they only mark the CVEs of the other sources.
   </p>
 
   <h3 id="stages">Stages</h3>
@@ -63,9 +81,10 @@ const stageText: Record<string, string> = {
     <thead><tr><th scope="col">Format</th><th scope="col">For</th></tr></thead>
     <tbody>
       <tr><td><code>text</code></td><td>Reading in a terminal. The default.</td></tr>
-      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE, affected packages with the first fixed version, EPSS, the sources reporting it exploited), then the failed and truncated sources.</td></tr>
+      <tr><td><code>summary</code></td><td>Agents: one line per item (date, stage, source, score, title, link, other databases listing the same CVE, affected packages with the first fixed version and whether the version in use is in the range, EPSS, the sources reporting it exploited, the catalogs holding a public exploit), then the failed and truncated sources and the items the profile ignores.</td></tr>
       <tr><td><code>json</code></td><td>Scripts: the items with their summaries, plus <code>failures</code>, <code>truncated</code>, <code>short</code> and <code>warnings</code>.</td></tr>
       <tr><td><code>markdown</code></td><td>An issue body, used by the scheduled watch.</td></tr>
+      <tr><td><code>sarif</code></td><td>Code scanning dashboards (GitHub, GitLab): SARIF 2.1.0 with only the items a version in use proves, that is a vulnerable range holding the version given, or a component past its end of life. The rest is raw news that only a reader can judge, and stays out. Each result points at the profile.</td></tr>
     </tbody>
   </table>
 
@@ -91,11 +110,20 @@ const stageText: Record<string, string> = {
 
   <h3 id="watch-flags">For a scheduled watch</h3>
   <p>
-    <code>--profile</code> reads the tags, keywords and packages from <code>.stackalarm.yaml</code>. <code>--state</code> keeps a file of the items
+    <code>--profile</code> reads the tags, keywords and packages from <code>.stackalarm.yaml</code>, compares the exact versions of its stack
+    with the ranges of the CVE records, and leaves out the vulnerabilities it ignores (they are still counted and listed). <code>--state</code> keeps a file of the items
     already reported, so only new ones are shown; items are forgotten after 90 days, and the file is replaced atomically, so an interrupted run
     keeps the previous state. <code>--fail-on</code> turns new items into exit code 2. See <a href="/docs/watch/">Scheduled watch</a>.
   </p>
   <Code code="stackalarm news --profile .stackalarm.yaml --state .stackalarm-state --fail-on heads-up,alert,release --since 48h --format markdown" copy={false} />
+
+  <h2 id="cve"><code>stackalarm cve</code></h2>
+  <Code label="stackalarm cve --help" code={cveHelp} copy={false} />
+  <p>
+    One CVE, every database: the <a href="https://www.cve.org">CVE Program</a> record with the CISA Vulnrichment assessment (SSVC:
+    exploitation, automatable, technical impact), the NVD, the GitHub Advisory Database, CISA KEV and the EUVD list of exploited flaws, the
+    catalogs of public exploits, and EPSS. A database that cannot be read is listed, and the others still answer.
+  </p>
 
   <h2 id="eol"><code>stackalarm eol</code></h2>
   <Code label="stackalarm eol --help" code={eolHelp} copy={false} />

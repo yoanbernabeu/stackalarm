@@ -1,0 +1,6 @@
+id: rabbitmq-advisories
+name: RabbitMQ security advisories (GitHub)
+type: github-advisories
+repo: rabbitmq/rabbitmq-server
+tags: [rabbitmq]
+stage: advisory

@@ -1,0 +1,6 @@
+id: mariadb-advisories
+name: MariaDB Server security advisories (GitHub)
+type: github-advisories
+repo: MariaDB/server
+tags: [mariadb]
+stage: advisory

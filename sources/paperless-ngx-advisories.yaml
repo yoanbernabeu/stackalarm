@@ -1,0 +1,6 @@
+id: paperless-ngx-advisories
+name: Paperless-ngx security advisories (GitHub)
+type: github-advisories
+repo: paperless-ngx/paperless-ngx
+tags: [paperless-ngx]
+stage: advisory

@@ -9,7 +9,7 @@ If the user added text after `/stackalarm` (a technology, "before the deploy", a
 
 Help the user answer one question about the project open in front of you: **is there anything in the security news that affects us, and what should we do?**
 
-The `stackalarm` CLI gathers the news from about 200 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, exploit databases and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
+The `stackalarm` CLI gathers the news from about 270 sources: project announcements and release feeds, vendor advisories, the GitHub Advisory Database, OSV.dev, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA KEV, catalogs of public exploits and the security press. It does no project analysis on purpose: understanding the project and judging relevance is your job.
 
 Why this matters: since AI turned patches into working exploits within hours, the window between a fix and its exploitation is measured in hours, not weeks. The most valuable signal is often the **heads-up**: maintainers announcing a critical release a day or a week ahead. Catching it lets the user prepare before the attackers read the patch.
 
@@ -44,30 +44,42 @@ For each technology, note the version and **how precise it is**: exact (`8.3.35`
 
 Ignore the versions installed on this machine (`php -v`, `node -v` here). The developer's laptop rarely runs what production runs, and a false "you are fine" is the worst outcome of a security check.
 
-Then run `stackalarm sources --format json` to see which tags exist, and map the technologies to them. Anything without a tag (FrankenPHP, a library you saw in the lockfile) becomes a `--keyword`: general sources such as CERTs and the CVE databases are searched for it. Keep keywords specific (`frankenphp`, not `server`), and few: each one costs a request to the NVD, which allows one every 6 seconds without an API key. The CVE databases are searched for 8 tags and keywords at most, in the order given: put the most exposed technologies first (the runtime, the web framework, what faces the internet). A `WARNING` names the ones left out; their tagged sources are still read, so run again with those only if they matter. A native library whose advisories live outside the ecosystem of the project (ONNX Runtime pulled by SwiftPM, a C library linked by a Python package) is not in that ecosystem's advisory database: give it a `--keyword` too (`onnxruntime`). Avoid OS names such as `macos` or `windows` as keywords: the CVE databases return hundreds of entries; CISA KEV and the CERTs already carry the OS flaws that are exploited.
+Then run `stackalarm sources --format json` to see which tags exist, and map the technologies to them. Anything without a tag (RoadRunner, a library you saw in the lockfile) becomes a `--keyword`: general sources such as CERTs and the CVE databases are searched for it. Keep keywords specific (`roadrunner`, not `server`), and few: each one costs a request to the NVD, which allows one every 6 seconds without an API key. The CVE databases are searched for 8 tags and keywords at most, in the order given: put the most exposed technologies first (the runtime, the web framework, what faces the internet). A `WARNING` names the ones left out; their tagged sources are still read, so run again with those only if they matter. A native library whose advisories live outside the ecosystem of the project (ONNX Runtime pulled by SwiftPM, a C library linked by a Python package) is not in that ecosystem's advisory database: give it a `--keyword` too (`onnxruntime`). Avoid OS names such as `macos` or `windows` as keywords: the CVE databases return hundreds of entries; CISA KEV and the CERTs already carry the OS flaws that are exploited.
 
 Watch what the team runs or ships, not the platforms it merely uses. A repository on github.com or gitlab.com, a site on Netlify or Vercel: the provider patches those, so do not tag them (`github`, `gitlab`, `netlify`), or the CVE databases return every project that mentions the platform. Tag them only for a self-hosted instance (GitHub Enterprise Server, a GitLab of the team's own). What the team does control on such a platform stays relevant: `github-actions` for the actions its workflows use.
 
 ## 2. Gather the news
 
 ```
-stackalarm news --tag php --tag symfony --tag gitlab --keyword frankenphp --since 7d --format summary
+stackalarm news --tag php@8.3.20 --tag symfony --tag gitlab --keyword roadrunner --since 7d --format summary
 ```
 
-`--format summary` prints one line per item (date, stage, source, score, title, link, other databases listing the same CVE, the affected packages with their vulnerable range and first fixed version, the EPSS), then the failed and truncated sources: read it to triage. Use `--format json` when you need the summaries of the entries, or open the link of the ones that matter.
+`--format summary` prints one line per item (date, stage, source, score, title, link, other databases listing the same CVE, exploitation in the wild, public exploits, the affected packages or products with their vulnerable range and first fixed version, the EPSS), then the failed and truncated sources and the items the profile ignores: read it to triage. Use `--format json` when you need the summaries of the entries, or open the link of the ones that matter.
 
-- With an ecosystem tag (`npm`, `composer`, `pip`, `go`, `rubygems`, `rust`…), pass the packages you read in the lockfile with `--package`, with their locked version (`--package next@15.1.0,dompurify@3.2.3`; direct dependencies and the security-sensitive transitive ones, up to about fifty): the GitHub Advisory Database sources then return only the advisories that hit those versions, instead of the whole ecosystem. Without a version, every advisory of the package is returned. With packages, the CLI also reads the GitHub malware advisories: a `[malware]` alert means a version published with malicious code. If the lockfile pins that version, it is the most urgent finding of the report: the code already ran on every machine that installed it, so besides removing it, tell the user to rotate the secrets those machines and CI jobs could read. Add the package manager itself (`npm`, `pip`, `composer/composer`): the CVE databases are not searched for these tags, so its own flaws come from there.
+- Give the version of a runtime, framework or tool with its tag when you know it exactly (`--tag php@8.3.20`, `--tag node@22.11.0`; never a branch such as `8.3`, which would compare wrongly): the version ranges of the CVE records are then compared with it, and each range says `[8.3.20 in use: AFFECTED]` or `[… not affected]`. An AFFECTED range is a fact about the declared version, not yet a verdict: the conditions of step 5 still apply. No mark means the record gives no range yet (fresh CVEs wait for theirs): compare by hand.
+- With an ecosystem tag (`npm`, `composer`, `pip`, `go`, `rubygems`, `rust`…), pass the packages you read in the lockfile with `--package`, with their locked version (`--package next@15.1.0,dompurify@3.2.3`; direct dependencies and the security-sensitive transitive ones, up to about fifty): the GitHub Advisory Database sources then return only the recent advisories that hit those versions, instead of the whole ecosystem. Without a version, every advisory of the package is returned.
+- With versions, OSV.dev is also asked which **known** vulnerabilities hit them (the `osv-…` sources): these items are listed whatever their date, marked AFFECTED, because a version locked today is still exposed to a flaw published last year. It is the audit of step 4 for the ecosystems whose audit tool is missing, not news: report them as dependencies to update, most severe first, and do not present an old one as this week's event. For a Go project, `--package stdlib@1.25.5` gives the flaws of the standard library of that Go version. With packages, the CLI also reads the GitHub malware advisories: a `[malware]` alert means a version published with malicious code. If the lockfile pins that version, it is the most urgent finding of the report: the code already ran on every machine that installed it, so besides removing it, tell the user to rotate the secrets those machines and CI jobs could read. Add the package manager itself (`npm`, `pip`, `composer/composer`): the CVE databases are not searched for these tags, so its own flaws come from there.
 - Default to `--since 7d`: a vulnerable version is still a problem days after the advisory. When the user asks about "today", still look at seven days, but put what is new in the last 24 hours first.
 - Each item has a `stage`: `heads-up` (a security release is announced), `release` (the fix is out), `advisory` (CVE details), `alert` (CERT alert, public exploit, exploitation in the wild), `news` (press and research: useful context, never enough on its own to call the project affected). An upcoming heads-up is always worth mentioning, even when nothing is broken yet.
 - The same vulnerability often shows up in several sources (vendor, NVD, EUVD, CERTs, press). Merge them into one finding and keep the most official link. A public exploit (Exploit-DB) or an `Exploited in the wild` entry raises the urgency.
 - CVE database items carry a `score` (CVSS). Searching a common word such as `php` returns many CVEs of plugins and libraries the project does not use, and the per-ecosystem GitHub Advisory Database lists packages from the whole ecosystem: keep only those that match what you found in the project, including transitive dependencies from the lockfile (a library pulled by another one counts).
 - An item with `exploited_in` (or "EXPLOITED in the wild" in the summary) is in CISA KEV or the EUVD list of exploited flaws, even if it was added long before the period: if the project runs an affected version, it goes to "Act now".
+- An item with `public_exploit_in` (or "PUBLIC EXPLOIT" in the summary) has a Nuclei template or a Metasploit module: anyone can run the attack, no skill needed. With an affected version on an exposed component, it goes to "Act now" even if no exploitation is reported yet.
 - An item with `also_in` (or "also in" in the summary) was found in several vulnerability databases: it is one finding, not several.
+- `IGNORED` lines (or `ignored` in JSON) are the items left out by a decision recorded in the profile (see step 8), with its reason. Do not report them as findings, but name them in one line under "Checked", and if one says it is now exploited in the wild, tell the user the decision needs a review.
 - GitHub advisories carry `affected` (or "affects" in the summary): the package, the vulnerable range and the first fixed version. Compare them with the lockfile before opening the link; "no fix yet" means a mitigation is the only way. `epss` (on CVE records too) is the probability of exploitation in the next 30 days, from FIRST: above 10%, treat the flaw as likely to be exploited soon, even with a modest CVSS.
 - Read `failures`: a source that could not be read means news may be missing. Say so in your answer instead of implying all is clear.
 - `short` (`SHORT` in the summary) lists the feeds that keep few entries and do not go back to the start of the period (a mailing list can hold a single day). When one of them matters for the project, mention it under "Not checked", and lean on the web search for that stretch.
 - If GitHub sources failed on the rate limit ("set GITHUB_TOKEN"), anonymous requests are capped at 60 per hour. When `gh auth token` works, offer to run the command again with `GITHUB_TOKEN=$(gh auth token) stackalarm news …`: the token stays in that command's environment, is only sent to api.github.com, and is never printed. Otherwise, tell the user that any GitHub token, with no permission, lifts the cap. `truncated` means a source had more entries than shown; narrow with more precise keywords if it matters.
 - Some sources are in French (`language: fr`). Read them as they are.
+
+When the user names a CVE, or one item decides the verdict, get its full record instead of piecing it together from web pages:
+
+```
+stackalarm cve CVE-2025-29927 next@15.1.0
+```
+
+It gathers the CVE Program record, the NVD, the GitHub Advisory Database, CISA KEV, the catalogs of public exploits and EPSS: the affected ranges and fixed versions (each compared with the versions you give after the id), whether it is exploited in the wild, and the CISA assessment (SSVC: `exploitation` none, poc or active; `automatable`; `technical impact`). "Not found in any database" for a name taken from the press means the id is wrong or still reserved: say so.
 
 Then check the support status of the runtimes, frameworks and self-hosted tools you mapped, with their versions:
 
@@ -105,7 +117,7 @@ The news covers runtimes, frameworks and tools; vulnerable libraries are best fo
 | Rust | `cargo audit` |
 | Any | `osv-scanner scan source -r .` |
 
-If a tool is not installed, say which one would help and how to get it; do not install it without asking.
+If a tool is not installed, say which one would help and how to get it; do not install it without asking. The `osv-…` items of step 2 already cover the packages you passed with a version: say that the audit was done through OSV for those packages only, since a lockfile holds many more.
 
 ## 5. Judge what actually matters
 
@@ -161,16 +173,25 @@ A check only helps when someone runs it; a heads-up published on a Tuesday eveni
    ```yaml
    # Written by the stackalarm skill, refreshed on each /stackalarm run.
    tags: [php, symfony, composer, gitlab, docker]
-   keywords: [frankenphp]
+   keywords: [roadrunner]
    packages: [symfony/http-kernel, twig/twig]
    stack:
      - {name: php, version: "8.3", precision: branch, from: Dockerfile}
      - {name: gitlab, version: unknown, precision: unknown, from: git remote}
    ```
 
-   Write `packages` without versions: the lockfile changes between two runs of the skill, and a stale version would hide the advisories of the version actually in use. `precision` is `exact`, `branch`, `range` or `unknown`. The file is committed and may be public: never write host names, internal URLs, IP addresses or anything secret in it (`gitlab`, not `gitlab.acme.internal`). Check it with `stackalarm news --profile .stackalarm.yaml --since 24h`.
+   Write `packages` without versions: the lockfile changes between two runs of the skill, and a stale version would hide the advisories of the version actually in use. `precision` is `exact`, `branch`, `range` or `unknown`; the watch compares the `exact` versions with the ranges of the CVE records, so write `exact` only for a full version read from a file.
+
+   When the user decides, during this check, that a vulnerability does not concern the project or accepts its risk, offer to record the decision, so the watch and the next checks stop raising it:
+
+   ```yaml
+   ignore:
+     - {id: CVE-2026-1234, reason: "only reachable through mod_php, the project runs FPM", until: "2027-03-31"}
+   ```
+
+   `id` is a CVE or GHSA id, `reason` is required and written for the next reader, `until` is the date the decision is reviewed (propose three to six months; without it the decision never expires). Never add an entry on your own: it hides an alert, so it is the user's call, in the user's words. An ignored item is still counted in every report, and flagged if it becomes exploited in the wild. The file is committed and may be public: never write host names, internal URLs, IP addresses or anything secret in it (`gitlab`, not `gitlab.acme.internal`). Check it with `stackalarm news --profile .stackalarm.yaml --since 24h`.
 2. **Add the schedule**, depending on where the project lives:
-   - GitHub: copy https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/github/stackalarm.yml to `.github/workflows/stackalarm.yml`. Tell the user about the `ANTHROPIC_API_KEY` secret: with it, Claude judges each new item and an issue is opened only when the project is concerned, at the cost of API usage on the runs that find something; without it, every new heads-up, alert or security release opens an issue with the raw news.
+   - GitHub: copy https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/github/stackalarm.yml to `.github/workflows/stackalarm.yml`. Mention the optional `STACKALARM_WEBHOOK_URL` secret (a Slack or Mattermost incoming webhook gets one line when an issue is opened). Tell the user about the `ANTHROPIC_API_KEY` secret: with it, Claude judges each new item and an issue is opened only when the project is concerned, at the cost of API usage on the runs that find something; without it, every new heads-up, alert or security release opens an issue with the raw news.
    - GitLab: add the `include:` shown at the top of https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/ci/gitlab/stackalarm.yml to `.gitlab-ci.yml`, then explain the steps only the user can do: the `STACKALARM_GITLAB_TOKEN` variable and the pipeline schedule. Recommend a `GITHUB_TOKEN` variable too (a GitHub token with no permission): shared runners share their IP, and the GitHub advisory sources allow 60 anonymous requests per hour per IP.
 
 When the project already has a profile, update it instead if step 1 found differences, and say what changed.

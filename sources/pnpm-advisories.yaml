@@ -1,0 +1,6 @@
+id: pnpm-advisories
+name: pnpm security advisories (GitHub)
+type: github-advisories
+repo: pnpm/pnpm
+tags: [pnpm]
+stage: advisory

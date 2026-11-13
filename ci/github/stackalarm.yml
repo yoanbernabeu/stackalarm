@@ -33,3 +33,5 @@ jobs:
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           nvd-api-key: ${{ secrets.NVD_API_KEY }}
+          # Optional: one line in Slack or Mattermost when an issue is opened.
+          webhook-url: ${{ secrets.STACKALARM_WEBHOOK_URL }}

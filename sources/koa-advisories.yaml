@@ -1,0 +1,6 @@
+id: koa-advisories
+name: Koa security advisories (GitHub)
+type: github-advisories
+repo: koajs/koa
+tags: [koa]
+stage: advisory

@@ -1,0 +1,6 @@
+id: osv-composer
+name: OSV.dev, known vulnerabilities of the Composer package versions in use
+type: osv
+ecosystem: Packagist
+tags: [php, composer]
+stage: advisory

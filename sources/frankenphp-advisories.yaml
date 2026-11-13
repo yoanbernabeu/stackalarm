@@ -1,0 +1,6 @@
+id: frankenphp-advisories
+name: FrankenPHP security advisories (GitHub)
+type: github-advisories
+repo: php/frankenphp
+tags: [frankenphp]
+stage: advisory

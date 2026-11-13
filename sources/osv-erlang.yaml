@@ -1,0 +1,6 @@
+id: osv-erlang
+name: OSV.dev, known vulnerabilities of the Hex package versions in use
+type: osv
+ecosystem: Hex
+tags: [erlang, elixir]
+stage: advisory

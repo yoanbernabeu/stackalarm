@@ -1,0 +1,6 @@
+id: curl-security
+name: curl security posts, by its maintainer
+type: feed
+url: "https://daniel.haxx.se/blog/category/tech/security/feed/"
+tags: [curl]
+stage: news

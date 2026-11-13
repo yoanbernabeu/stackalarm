@@ -1,0 +1,6 @@
+id: mongodb-alerts
+name: MongoDB security alerts
+type: feed
+url: "https://www.mongodb.com/alerts/rss"
+tags: [mongodb]
+stage: advisory

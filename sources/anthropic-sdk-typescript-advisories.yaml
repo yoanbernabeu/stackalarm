@@ -1,0 +1,6 @@
+id: anthropic-sdk-typescript-advisories
+name: Anthropic TypeScript SDK security advisories (GitHub)
+type: github-advisories
+repo: anthropics/anthropic-sdk-typescript
+tags: [anthropic-sdk]
+stage: advisory

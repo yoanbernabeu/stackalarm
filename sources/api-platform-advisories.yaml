@@ -1,0 +1,6 @@
+id: api-platform-advisories
+name: API Platform security advisories (GitHub)
+type: github-advisories
+repo: api-platform/core
+tags: [api-platform]
+stage: advisory

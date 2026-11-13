@@ -1,0 +1,6 @@
+id: cryptography-advisories
+name: cryptography (Python) security advisories (GitHub)
+type: github-advisories
+repo: pyca/cryptography
+tags: [cryptography]
+stage: advisory

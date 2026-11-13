@@ -1,0 +1,6 @@
+id: osv-go
+name: OSV.dev, known vulnerabilities of the Go package versions in use
+type: osv
+ecosystem: Go
+tags: [go]
+stage: advisory

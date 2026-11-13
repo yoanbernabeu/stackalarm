@@ -1,0 +1,6 @@
+id: chi-advisories
+name: chi (Go router) security advisories (GitHub)
+type: github-advisories
+repo: go-chi/chi
+tags: [chi]
+stage: advisory

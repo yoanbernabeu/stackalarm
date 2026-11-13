@@ -1,0 +1,6 @@
+id: osv-nuget
+name: OSV.dev, known vulnerabilities of the NuGet package versions in use
+type: osv
+ecosystem: NuGet
+tags: [dotnet, nuget]
+stage: advisory

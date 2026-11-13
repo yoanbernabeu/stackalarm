@@ -20,7 +20,7 @@ const path = Astro.url.pathname.replace(/\/?$/, "/");
 const canonical = new URL(path, Astro.site).href;
 const ogImage = new URL("/og.png", Astro.site).href;
 const sections = [
-  { href: "/news/", label: "Security news" },
+  { href: "/news/", label: "News" },
   { href: "/docs/", label: "Docs" },
 ];
 ---

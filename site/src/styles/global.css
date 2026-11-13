@@ -2084,3 +2084,7 @@ main.news-page .side-card {
 .docs-body .news-layout aside > section:first-child h2 {
   margin-top: 1rem;
 }
+
+.docs-header nav a {
+  white-space: nowrap;
+}

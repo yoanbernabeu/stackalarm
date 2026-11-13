@@ -37,7 +37,7 @@ Prompt used for generation (16:9):
 
 ## Search
 
-The header of every page but the landing opens a search dialog (`/` or Cmd+K). The index is built by [Pagefind](https://pagefind.app) from the pages after the build (`npm run build`), over the docs and the news pages (`data-pagefind-body`), and is only downloaded when the dialog opens. The dialog is our own, in the palette of the site, on Pagefind's JavaScript API. The technology list and the source table have their own instant filter.
+The header of every page but the landing opens a search dialog (Cmd+K or Ctrl+K, shown on the button, and `/`). The index is built by [Pagefind](https://pagefind.app) from the pages after the build (`npm run build`), over the docs and the news pages (`data-pagefind-body`), and is only downloaded when the dialog opens. The dialog is our own, in the palette of the site, on Pagefind's JavaScript API. The technology list and the source table have their own instant filter.
 
 ## Search engines and language models
 

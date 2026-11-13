@@ -75,10 +75,10 @@ const failed = tech.failures.map((f) => f.source);
 
         <aside aria-label={`Watching ${tag}`} data-pagefind-ignore>
           <section class="side-card">
-            <h2>Is your version affected?</h2>
-            <p class="small">This page lists what was published. The CLI also searches the NVD and EUVD, and compares your version with the vulnerable ranges.</p>
+            <h2>Does it affect you?</h2>
+            <p class="small">This page shows everything, for every version. Give yours to the stackalarm CLI and it tells which of these flaws hit it:</p>
             <Code code={`stackalarm news --tag ${tag}@<version>`} copy={false} />
-            <p class="small"><a href="/docs/">Install the skill</a> to have your agent do it on your project.</p>
+            <p class="small">Or <a href="/docs/">install the skill</a>: your AI agent reads the versions in your project and does the check for you.</p>
           </section>
           <section>
             <h2>Follow <code>{tag}</code></h2>

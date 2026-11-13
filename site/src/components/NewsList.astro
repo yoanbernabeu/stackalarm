@@ -22,7 +22,7 @@ function split(title: string) {
     ids.unshift(m[1]);
     text = text.slice(0, m.index);
   }
-  return { level, text, ids };
+  return { level, text, ids: [...new Set(ids)] };
 }
 const short = (pkg: string) => pkg.split("/").slice(-2).join("/");
 function fix(it: Item): string {

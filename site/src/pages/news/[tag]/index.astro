@@ -4,7 +4,8 @@ import Code from "../../../components/Code.astro";
 import NewsList from "../../../components/NewsList.astro";
 import { days, day, generalSources, loadNews, type TagNews } from "../../../lib/news";
 import { stages } from "../../../lib/sources";
-import { repo } from "../../../lib/repo";
+import { parse } from "yaml";
+import { readRepoFile, repo } from "../../../lib/repo";
 
 export function getStaticPaths() {
   return loadNews().map((page) => ({ params: { tag: page.tag }, props: { page } }));
@@ -15,6 +16,8 @@ interface Props {
 const { page } = Astro.props;
 const { tag, items, exploited, rest } = page;
 const general = generalSources().length;
+// The tags whose product the NVD lists: only for them can the CLI compare a version given with the tag.
+const versioned = Boolean(parse(readRepoFile("sources/search.yaml")).cpe?.[tag]);
 const count = (stage: string) => rest.filter((it) => it.stage === stage).length;
 const used = stages.filter((s) => count(s) > 0);
 const title = `${tag} security news: releases, advisories and exploited flaws`;
@@ -75,10 +78,18 @@ const failed = page.failures.map((f) => f.source);
 
         <aside aria-label={`Watching ${tag}`} data-pagefind-ignore>
           <section class="side-card">
-            <h2>Does it affect you?</h2>
-            <p class="small">This page shows everything, for every version. Give yours to the stackalarm CLI and it tells which of these flaws hit it:</p>
-            <Code code={`stackalarm news --tag ${tag}@<version>`} copy={false} />
-            <p class="small">Or <a href="/docs/">install the skill</a>: your AI agent reads the versions in your project and does the check for you.</p>
+            <h2>Does it affect your project?</h2>
+            <p class="small">
+              This page shows everything published about <code>{tag}</code>, for every version. stackalarm is a skill for AI coding agents: it
+              reads the versions your project really uses and tells you which of these items concern you.
+            </p>
+            <Code label="Install the skill" code="npx skills add yoanbernabeu/stackalarm" />
+            <p class="small">Then type <code>/stackalarm</code> in your agent. <a href="/docs/">How it works</a></p>
+            {versioned && (
+              <p class="small muted">
+                Without an agent, the CLI compares a version with the vulnerable ranges: <code>stackalarm news --tag {tag}@1.2.3</code>
+              </p>
+            )}
           </section>
           <section>
             <h2>Follow <code>{tag}</code></h2>

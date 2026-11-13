@@ -2,8 +2,8 @@
 import Base from "../../../layouts/Base.astro";
 import Code from "../../../components/Code.astro";
 import NewsList from "../../../components/NewsList.astro";
-import { days, day, loadTech, type Tech } from "../../../lib/tech";
-import { loadSources, stages } from "../../../lib/sources";
+import { days, day, generalSources, loadTech, type Tech } from "../../../lib/tech";
+import { stages } from "../../../lib/sources";
 import { repo } from "../../../lib/repo";
 
 export function getStaticPaths() {
@@ -13,8 +13,8 @@ interface Props {
   tech: Tech;
 }
 const { tech } = Astro.props;
-const { tag, items, mentions, exploited, rest } = tech;
-const general = loadSources().filter((s) => s.tags.includes("general")).length;
+const { tag, items, exploited, rest } = tech;
+const general = generalSources().length;
 const count = (stage: string) => rest.filter((it) => it.stage === stage).length;
 const used = stages.filter((s) => count(s) > 0);
 const title = `${tag} security news: releases, advisories and exploited flaws`;
@@ -30,7 +30,7 @@ const failed = tech.failures.map((f) => f.source);
     <p class="lead-in">
       {tech.gathered ? (
         <>
-          What {tech.sources.length} {tech.sources.length === 1 ? "source" : "sources"} of its own and {general} general ones (CERTs, CVE databases, exploit feeds, press) published about
+          What {tech.sources.length} {tech.sources.length === 1 ? "source" : "sources"} of its own and {general} general ones (CERTs, lists of exploited flaws, exploit feeds, press) published about
           <code>{tag}</code> in the last {days} days. Updated every day, last on <time datetime={tech.generatedAt}>{day(tech.generatedAt!)}</time>.
         </>
       ) : (
@@ -66,17 +66,6 @@ const failed = tech.failures.map((f) => f.source);
             )}
           </section>
 
-          {mentions.length > 0 && (
-            <details class="mentions" data-pagefind-ignore>
-              <summary>{mentions.length} more CVE records mention the word <code>{tag}</code></summary>
-              <p class="muted small">
-                The NVD and the EUVD are searched by word, so these are mostly plugins, extensions and applications built with <code>{tag}</code>, not
-                <code>{tag}</code> itself. The skill sorts them against what your project really uses.
-              </p>
-              <NewsList items={mentions} />
-            </details>
-          )}
-
           {failed.length > 0 && (
             <p class="muted small">
               Could not be read for this update, so their news may be missing: {failed.map((f, i) => <>{i > 0 && ", "}<code>{f}</code></>)}.
@@ -87,7 +76,10 @@ const failed = tech.failures.map((f) => f.source);
         <aside aria-label={`Watching ${tag}`} data-pagefind-ignore>
           <section>
             <h2>Is your version affected?</h2>
-            <p class="small">These pages list everything. With your version, the CLI compares it with the vulnerable ranges:</p>
+            <p class="small">
+              This page lists what was published. The CLI also searches the NVD and EUVD databases, and compares your version with the
+              vulnerable ranges:
+            </p>
             <Code label="The CLI" code={`stackalarm news --tag ${tag}@<version>`} copy={false} />
             <p class="small">
               Or let <a href="/docs/">the skill</a> read your project and say what to patch first:

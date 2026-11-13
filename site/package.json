@@ -7,7 +7,7 @@
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
     "og": "\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --hide-scrollbars --allow-file-access-from-files --virtual-time-budget=3000 --window-size=1200,630 --screenshot=public/og.png og/card.html",
-    "tech": "node scripts/gather-tech.mjs"
+    "tech": "cd .. && go run ./cmd/techdata -out site/.data/tech"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "5.3.0",

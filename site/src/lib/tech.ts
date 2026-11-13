@@ -1,9 +1,8 @@
-// The news gathered for each tag by scripts/gather-tech.mjs, read at build
-// time. Without the data (a local build that did not run the script), the
+// The news gathered for each tag by cmd/techdata (npm run tech), read at build
+// time. Without the data (a local build that did not run it), the
 // pages still list the sources of each tag and say the news is missing.
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parse } from "yaml";
 import { loadSources, type Source } from "./sources";
 
 export type Affected = { package: string; versions: string; fixed?: string };
@@ -29,14 +28,15 @@ export type Tech = {
   generatedAt?: string;
   items: Item[]; // what its sources and the general ones say of it
   rest: Item[]; // the items that are not reported exploited
-  mentions: Item[]; // CVE records that only match the word
   failures: { source: string; error: string }[];
   exploited: Item[];
 };
 
 const dir = resolve(process.cwd(), ".data/tech");
-const search = parse(readFileSync(resolve(process.cwd(), "..", "sources/search.yaml"), "utf8"));
-const databases = ["nvd", "euvd-search"];
+
+// The general sources read for every page: all but the CVE databases searched
+// by word, which cmd/techdata leaves out.
+export const generalSources = () => loadSources().filter((s) => s.tags.includes("general") && !["nvd", "euvd-search"].includes(s.type));
 
 export const days = 30;
 
@@ -57,18 +57,7 @@ export function loadTech(): Tech[] {
   cache = tags.map((tag) => {
     const file = resolve(dir, `${tag}.json`);
     const data = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : undefined;
-    const all: Item[] = data?.items ?? [];
-    const own = new Set(sources.filter((s) => s.tags.includes(tag)).map((s) => s.id));
-    // The CVE databases match on the word: "php" finds every plugin written in
-    // PHP. A record is news of the technology when it names the product in its
-    // ranges, was also published by one of its own sources, or, for a product
-    // the NVD dictionary does not list here, starts with its name.
-    const precise = (it: Item) =>
-      !databases.includes(it.source) ||
-      it.affected.some((a) => a.package.toLowerCase() === tag) ||
-      (it.also_in ?? []).some((s) => own.has(s)) ||
-      (!search.cpe?.[tag] && !search.skip?.includes(tag) && new RegExp(`^CVE-[\\d-]+( \\(EUVD-[\\d-]+\\))?( \\[[\\d.]+\\])?: ${escape(search.aliases?.[tag] ?? tag)}\\b`, "i").test(it.title));
-    const items = all.filter(precise);
+    const items: Item[] = (data?.items ?? []).map((it: Item) => ({ ...it, affected: it.affected ?? [] }));
     const isExploited = (it: Item) => (it.exploited_in?.length ?? 0) > 0 || /exploited in the wild/i.test(it.title);
     return {
       tag,
@@ -76,7 +65,6 @@ export function loadTech(): Tech[] {
       gathered: Boolean(data),
       generatedAt: data?.generated_at,
       items,
-      mentions: all.filter((it) => !precise(it)),
       failures: data?.failures ?? [],
       exploited: items.filter(isExploited),
       rest: items.filter((it) => !isExploited(it)),
@@ -84,8 +72,6 @@ export function loadTech(): Tech[] {
   });
   return cache;
 }
-
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const day = (iso: string) => iso.slice(0, 10);
 

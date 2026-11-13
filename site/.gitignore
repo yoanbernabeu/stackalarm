@@ -2,5 +2,5 @@ node_modules/
 dist/
 .astro/
 
-# the news gathered for the /tech/ pages, and the CLI built for it
+# the news gathered for the /tech/ pages
 .data/

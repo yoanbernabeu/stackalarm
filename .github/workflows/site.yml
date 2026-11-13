@@ -4,10 +4,9 @@ name: Site
 # README and the skill at build time, so a change to any of them republishes it.
 #
 # The /tech/ pages show the news of the last 30 days for each tag. It is
-# gathered once a day with the CLI of the commit (about 25 minutes without an
-# NVD key, 4 with the NVD_API_KEY secret), kept in the cache, and reused by
-# the builds a push starts. If the gathering fails, nothing is published and
-# the site stays as it was.
+# gathered once a day with the code of the commit (cmd/techdata, a few
+# minutes), kept in the cache, and reused by the builds a push starts. If the
+# gathering fails, nothing is published and the site stays as it was.
 on:
   schedule:
     - cron: "23 4 * * *"
@@ -35,7 +34,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: site
@@ -65,7 +64,6 @@ jobs:
         if: github.event_name != 'push' || steps.tech.outputs.cache-matched-key == ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: npm run tech
       - name: Keep the news for the next builds
         if: steps.gather.outcome == 'success'

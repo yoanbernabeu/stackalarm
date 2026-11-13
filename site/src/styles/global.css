@@ -1705,30 +1705,3 @@ main.tech section {
 .mark.exploited {
   color: var(--alert);
 }
-
-.mentions {
-  margin-top: 2rem;
-}
-
-.mentions summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.mentions summary::before {
-  content: "+";
-  margin-right: 0.6rem;
-  font-family: var(--mono);
-  color: var(--accent);
-}
-
-.mentions[open] summary::before {
-  content: "−";
-}
-
-.mentions summary::-webkit-details-marker {
-  display: none;
-}

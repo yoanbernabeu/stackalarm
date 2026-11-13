@@ -28,10 +28,10 @@ Prompt used for generation (16:9):
 
 ## Technology pages
 
-`/tech/` and `/tech/<tag>/` show what the CLI gathers for one tag over the last 30 days, for people who have not installed anything. `scripts/gather-tech.mjs` runs the CLI of the repository once per tag and writes `.data/tech/<tag>.json`; the site workflow runs it once a day and keeps the result in the Actions cache, so a build started by a push reuses it. Without the data, a page lists the sources of the tag and says the news is missing.
+`/tech/` and `/tech/<tag>/` show what the CLI gathers for one tag over the last 30 days, for people who have not installed anything. `cmd/techdata` (`npm run tech`) reads the sources once and writes `.data/tech/<tag>.json`; the site workflow runs it once a day and keeps the result in the Actions cache, so a build started by a push reuses it. Without the data, a page lists the sources of the tag and says the news is missing.
 
 - **Same motif.** An item is printed as the CLI prints it: date, stage, source, title, then the facts (affected versions, EPSS, exploitation). Red stays for what is exploited in the wild, which gets its own block above the rest.
-- **Noise kept apart.** The NVD and the EUVD are searched by word: "php" finds every plugin written in PHP. Those records sit in a closed block under the list, with a sentence saying what they are. Only the records that name the product in their version ranges stay in the list.
+- **No word search.** The NVD and the EUVD are searched by word: "php" finds every plugin written in PHP, which a reader of a public page cannot sort. Those two databases are left to the CLI, where a version and an agent narrow them; the page says so next to the command.
 - **Third-party text.** Titles are rendered as text, and a link is a link only when it starts with `http`.
 - Each page has an Atom feed (`/tech/<tag>/feed.xml`).
 

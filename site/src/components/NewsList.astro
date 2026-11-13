@@ -1,42 +1,70 @@
 ---
-// A list of news items, as the CLI prints them: date, stage, source, title,
-// then what is known of the vulnerability.
-import { affectedText, day, epss, safeURL, type Item } from "../lib/tech";
+// News items grouped by day. Each row: the severity or the stage on the left,
+// the title, then one line of facts. The date is printed once per day.
+import { day, epss, safeURL, type Item } from "../lib/tech";
 
 interface Props {
   items: Item[];
 }
 const { items } = Astro.props;
+
+const severities = ["critical", "high", "medium", "moderate", "low", "malware", "unimportant"];
+// "[high] Title (CVE-2026-1) (GHSA-xxxx)" becomes a level, a title and ids.
+function split(title: string) {
+  let level = "";
+  let text = title.replace(/^\[([a-z]+)\]\s*/i, (all, word) => {
+    if (!severities.includes(word.toLowerCase())) return all;
+    level = word.toLowerCase();
+    return "";
+  });
+  const ids: string[] = [];
+  for (let m; (m = text.match(/\s*\(((?:CVE|GHSA)-[\w-]+)\)\s*$/)); ) {
+    ids.unshift(m[1]);
+    text = text.slice(0, m.index);
+  }
+  return { level, text, ids };
+}
+const short = (pkg: string) => pkg.split("/").slice(-2).join("/");
+function fix(it: Item): string {
+  if (it.affected.length === 0) return "";
+  const fixed = [...new Set(it.affected.map((a) => a.fixed).filter(Boolean))];
+  const names = [...new Set(it.affected.map((a) => short(a.package)))];
+  const what = names.slice(0, 2).join(", ") + (names.length > 2 || it.more_affected > 0 ? "…" : "");
+  return fixed.length ? `${what}: fixed in ${fixed.join(", ")}` : `${what}: no fix yet`;
+}
+const days = [...new Set(items.map((it) => day(it.published)))];
+const format = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: "UTC" });
 ---
-<ol class="news">
-  {items.map((it) => (
-    <li data-stage={it.stage}>
-      <div class="news-meta">
-        <time datetime={it.published}>{day(it.published)}</time>
-        <span class="stage" data-stage={it.stage}>{it.stage}</span>
-        <span class="news-source">{it.source}</span>
-      </div>
-      <p class="news-title" lang={it.language}>
-        {safeURL(it.url) ? <a href={safeURL(it.url)} rel="nofollow noopener">{it.title}</a> : it.title}
-      </p>
-      {((it.exploited_in?.length ?? 0) > 0 || (it.public_exploit_in?.length ?? 0) > 0) && (
-        <p class="news-marks">
-          {(it.exploited_in?.length ?? 0) > 0 && <span class="mark exploited">exploited in the wild ({it.exploited_in!.join(", ")})</span>}
-          {(it.public_exploit_in?.length ?? 0) > 0 && <span class="mark">public exploit ({it.public_exploit_in!.join(", ")})</span>}
-        </p>
-      )}
-      {(it.affected.length > 0 || it.epss || (it.also_in?.length ?? 0) > 0) && (
-        <p class="news-facts">
-          {it.affected.length > 0 && (
-            <span>
-              affects {it.affected.map(affectedText).join("; ")}
-              {it.more_affected > 0 && ` and ${it.more_affected} more`}
-            </span>
-          )}
-          {it.epss ? <span>EPSS {epss(it.epss)}</span> : null}
-          {(it.also_in?.length ?? 0) > 0 && <span>also in {it.also_in!.join(", ")}</span>}
-        </p>
-      )}
-    </li>
+<div class="news">
+  {days.map((d) => (
+    <section class="news-day">
+      <h3><time datetime={d}>{format.format(new Date(d))}</time></h3>
+      <ol>
+        {items.filter((it) => day(it.published) === d).map((it) => {
+          const { level, text, ids } = split(it.title);
+          const exploited = (it.exploited_in?.length ?? 0) > 0;
+          return (
+            <li data-stage={it.stage}>
+              <span class="news-tag">
+                {level ? <span class="level" data-level={level}>{level}</span> : <span class="stage" data-stage={it.stage}>{it.stage}</span>}
+              </span>
+              <div class="news-body">
+                <p class="news-title" lang={it.language}>
+                  {safeURL(it.url) ? <a href={safeURL(it.url)} rel="nofollow noopener">{text}</a> : text}
+                </p>
+                <p class="news-facts">
+                  {exploited && <span class="mark exploited">exploited in the wild</span>}
+                  {(it.public_exploit_in?.length ?? 0) > 0 && <span class="mark">public exploit</span>}
+                  {fix(it) && <span>{fix(it)}</span>}
+                  {it.epss && it.epss >= 0.01 ? <span>EPSS {epss(it.epss)}</span> : null}
+                  {ids.map((id) => <span>{id}</span>)}
+                  <span class="news-source">{it.source}</span>
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   ))}
-</ol>
+</div>

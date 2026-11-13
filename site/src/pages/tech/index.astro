@@ -9,8 +9,7 @@ const total = loadSources().length;
 const busiest = tech
   .filter((t) => t.items.length > 0)
   .sort((a, b) => b.exploited.length - a.exploited.length || b.items.length - a.items.length)
-  .slice(0, 12);
-const exploited = tech.filter((t) => t.exploited.length > 0);
+  .slice(0, 10);
 const description = `The security news of ${tech.length} technologies over the last ${days} days: announced releases, fixes, advisories and exploited flaws, read from ${total} sources and updated every day.`;
 ---
 <Base title="Security news by technology: stackalarm" description={description}>
@@ -22,44 +21,41 @@ const description = `The security news of ${tech.length} technologies over the l
       These pages show everything; <a href="/docs/">the skill</a> keeps only what affects your project.
     </p>
 
-    {exploited.length > 0 && (
-      <p class="tech-exploited">
-        <span class="stage" data-stage="alert">alert</span>
-        Exploited in the wild this month:
-        {exploited.map((t, i) => <>{i > 0 && ", "}<a href={`/tech/${t.tag}/`}><code>{t.tag}</code></a></>)}.
-      </p>
-    )}
-
     {busiest.length > 0 && (
       <section aria-labelledby="busiest" data-pagefind-ignore>
         <h2 id="busiest">Most active this month</h2>
-        <ul class="tech-grid">
-          {busiest.map((t) => (
-            <li>
-              <a href={`/tech/${t.tag}/`}>
-                <code>{t.tag}</code>
-                <span class="muted small">{t.items.length} {t.items.length === 1 ? "item" : "items"}{t.exploited.length > 0 && <>, <span class="alert-text">{t.exploited.length} exploited</span></>}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <table class="tech-table">
+          <thead><tr><th scope="col">Technology</th><th scope="col" class="num">Items</th><th scope="col" class="num">Exploited</th><th scope="col">Latest</th></tr></thead>
+          <tbody>
+            {busiest.map((t) => (
+              <tr>
+                <td><a href={`/tech/${t.tag}/`}><code>{t.tag}</code></a></td>
+                <td class="num">{t.items.length}</td>
+                <td class="num">{t.exploited.length > 0 ? <span class="alert-text">{t.exploited.length}</span> : <span class="muted">–</span>}</td>
+                <td class="latest"><time datetime={t.items[0].published}>{day(t.items[0].published).slice(5)}</time> {t.items[0].title}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     )}
 
     <section aria-labelledby="all">
       <h2 id="all">All technologies</h2>
-      <label class="filter">
-        <span class="visually-hidden">Filter the technologies</span>
-        <input type="search" id="tech-filter" placeholder="Filter: php, kube, next…" autocomplete="off" spellcheck="false" />
-      </label>
-      <ul class="tech-grid" id="tech-all">
+      <div class="tech-tools">
+        <label class="filter">
+          <span class="visually-hidden">Filter the technologies</span>
+          <input type="search" id="tech-filter" placeholder="Filter: php, kube, next…" autocomplete="off" spellcheck="false" />
+        </label>
+        <p class="muted small">Number of items in the last {days} days. <span class="dot" aria-hidden="true"></span> exploited in the wild.</p>
+      </div>
+      <ul class="tech-list" id="tech-all">
         {tech.map((t) => (
           <li data-tag={t.tag}>
-            <a href={`/tech/${t.tag}/`}>
+            <a href={`/tech/${t.tag}/`} class:list={{ quiet: t.items.length === 0 }}>
               <code>{t.tag}</code>
-              <span class="muted small">
-                {t.gathered ? `${t.items.length} ${t.items.length === 1 ? "item" : "items"}` : `${t.sources.length} ${t.sources.length === 1 ? "source" : "sources"}`}{t.exploited.length > 0 && <>, <span class="alert-text">{t.exploited.length} exploited</span></>}
-              </span>
+              {t.exploited.length > 0 && <span class="dot" role="img" aria-label="exploited in the wild"></span>}
+              <span class="count">{t.items.length || "–"}</span>
             </a>
           </li>
         ))}

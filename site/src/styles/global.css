@@ -1549,34 +1549,113 @@ main.tech section {
   margin-top: 1.5rem;
 }
 
-.tech-grid {
+.tech-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.tech-table th,
+.tech-table td {
+  padding: 0.6rem 1rem 0.6rem 0;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.tech-table th {
+  font: 500 0.8rem var(--mono);
+  color: var(--muted);
+  border-bottom-color: var(--edge);
+}
+
+.tech-table .num {
+  text-align: right;
+  font-family: var(--mono);
+  width: 5.5rem;
+}
+
+.tech-table .latest {
+  width: 100%;
+  max-width: 0; /* lets the cell shrink, so the title is cut with an ellipsis */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  padding-right: 0;
+}
+
+.tech-table .latest time {
+  margin-right: 0.5rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 40rem) {
+  .tech-table .latest,
+  .tech-table th:last-child {
+    display: none;
+  }
+}
+
+.tech-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1.5rem;
+}
+
+.tech-tools .filter {
+  flex: 1 1 16rem;
+}
+
+.tech-tools p {
+  margin: 0;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--alert);
+}
+
+.tech-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  column-gap: 2.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.tech-grid a {
+.tech-list a {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-height: 44px;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  align-items: center;
+  gap: 0.5rem;
+  height: 44px;
+  border-bottom: 1px solid var(--line);
   text-decoration: none;
+  white-space: nowrap;
 }
 
-.tech-grid a:hover {
-  border-color: var(--edge);
-  background: var(--bg-2);
+.tech-list a:hover code {
+  color: var(--accent);
 }
 
-.tech-grid code {
-  font-size: 0.95rem;
-  font-weight: 500;
+.tech-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.92rem;
+}
+
+.tech-list .count {
+  margin-left: auto;
+  font: 0.85rem var(--mono);
+  color: var(--muted);
+}
+
+.tech-list .quiet code {
+  color: var(--muted);
 }
 
 .tech-layout {
@@ -1604,8 +1683,17 @@ main.tech section {
   margin-block: 0.75rem;
 }
 
-.tech-alert {
+.tech-layout {
   margin-top: 2rem;
+}
+
+.tech-layout > div > section:first-child:not(.tech-alert) h2,
+.tech-layout aside > section:first-child h2 {
+  margin-top: 0;
+}
+
+.tech-alert {
+  margin-top: 0;
   padding: 0.25rem 1.1rem 0.5rem;
   border: 1px solid var(--alert);
   border-radius: 12px;
@@ -1624,7 +1712,7 @@ main.tech section {
 }
 
 .tech-sources li {
-  padding: 0.45rem 0;
+  padding: 0.4rem 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1656,46 +1744,115 @@ main.tech section {
   color: var(--bg);
 }
 
-.news {
+.tech-layout aside pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+main.tech .side-card {
+  padding: 1.1rem 1.2rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+}
+
+.tech-layout aside .side-card h2 {
+  margin-top: 0;
+}
+
+.news-day h3 {
+  margin: 1.75rem 0 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--edge);
+  font: 500 0.8rem var(--mono);
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.news-day ol {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.news li {
-  padding: 0.9rem 0;
+.news-day li {
+  display: grid;
+  grid-template-columns: 5.75rem minmax(0, 1fr);
+  gap: 0 1rem;
+  padding: 0.7rem 0;
   border-bottom: 1px solid var(--line);
 }
 
-.news-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem 0.7rem;
-  font-size: 0.8rem;
+.news-day li[hidden] {
+  display: none;
+}
+
+.news-tag {
+  padding-top: 0.1rem;
+}
+
+.level {
+  display: inline-block;
+  font: 500 0.8rem/1.6 var(--mono);
   color: var(--muted);
 }
 
-.news-source {
-  font-family: var(--mono);
+.level::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--edge);
+}
+
+.level[data-level="critical"],
+.level[data-level="malware"] {
+  color: var(--alert);
+}
+
+.level[data-level="critical"]::before,
+.level[data-level="malware"]::before {
+  background: var(--alert);
+}
+
+.level[data-level="high"] {
+  color: var(--accent);
+}
+
+.level[data-level="high"]::before {
+  background: var(--accent);
 }
 
 .news-title {
-  margin: 0.3rem 0 0;
-  font-weight: 550;
-  line-height: 1.35;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
-.news-marks,
+.news-title a {
+  text-decoration: none;
+}
+
+.news-title a:hover {
+  text-decoration: underline;
+}
+
 .news-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem 1rem;
-  margin: 0.35rem 0 0;
-  font: 0.8rem/1.5 var(--mono);
+  gap: 0 1rem;
+  margin: 0.2rem 0 0;
+  font: 0.78rem/1.6 var(--mono);
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.news-source {
+  opacity: 0.75;
 }
 
 .mark {
@@ -1704,4 +1861,18 @@ main.tech section {
 
 .mark.exploited {
   color: var(--alert);
+}
+
+.tech-alert .news-day:first-child h3 {
+  margin-top: 0.75rem;
+}
+
+.tech-alert .news-day li:last-child {
+  border-bottom: 0;
+}
+
+@media (max-width: 40rem) {
+  .news-day li {
+    grid-template-columns: 1fr;
+  }
 }

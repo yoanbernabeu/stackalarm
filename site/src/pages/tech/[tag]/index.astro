@@ -74,30 +74,24 @@ const failed = tech.failures.map((f) => f.source);
         </div>
 
         <aside aria-label={`Watching ${tag}`} data-pagefind-ignore>
-          <section>
+          <section class="side-card">
             <h2>Is your version affected?</h2>
-            <p class="small">
-              This page lists what was published. The CLI also searches the NVD and EUVD databases, and compares your version with the
-              vulnerable ranges:
-            </p>
-            <Code label="The CLI" code={`stackalarm news --tag ${tag}@<version>`} copy={false} />
-            <p class="small">
-              Or let <a href="/docs/">the skill</a> read your project and say what to patch first:
-            </p>
-            <Code label="The skill" code="npx skills add yoanbernabeu/stackalarm" />
+            <p class="small">This page lists what was published. The CLI also searches the NVD and EUVD, and compares your version with the vulnerable ranges.</p>
+            <Code code={`stackalarm news --tag ${tag}@<version>`} copy={false} />
+            <p class="small"><a href="/docs/">Install the skill</a> to have your agent do it on your project.</p>
           </section>
           <section>
-            <h2>Follow it</h2>
+            <h2>Follow <code>{tag}</code></h2>
             <p class="small">
-              <a href={`/tech/${tag}/feed.xml`}>Atom feed</a> of this page, for a feed reader or a chat channel. For an alert only when your
-              project is concerned, set up the <a href="/docs/watch/">scheduled watch</a>.
+              <a href={`/tech/${tag}/feed.xml`}>Atom feed</a> of this page. For an alert only when your project is concerned, set up the
+              <a href="/docs/watch/">scheduled watch</a>.
             </p>
           </section>
           <section>
-            <h2>Sources read for <code>{tag}</code></h2>
+            <h2>Sources</h2>
             <ul class="tech-sources">
-              {tech.sources.map((s) => <li><span class="stage" data-stage={s.stage}>{s.stage}</span> {s.name}</li>)}
-              <li class="muted">and the {general} <a href="/docs/sources/">general sources</a>, kept when they mention it</li>
+              {tech.sources.map((s) => <li>{s.name}</li>)}
+              <li class="muted">{general} <a href="/docs/sources/">general sources</a>, kept when they mention it</li>
             </ul>
             <p class="small"><a href={`${repo}/issues/new?template=new-source.yml`}>Propose a source</a></p>
           </section>
@@ -114,11 +108,13 @@ const failed = tech.failures.map((f) => f.source);
 </Base>
 <script>
   const buttons = [...document.querySelectorAll<HTMLButtonElement>(".stage-filter button")];
-  const list = document.querySelector<HTMLElement>("#news ~ .news");
+  const rows = [...document.querySelectorAll<HTMLElement>("#news ~ .news li")];
+  const groups = [...document.querySelectorAll<HTMLElement>("#news ~ .news .news-day")];
   for (const button of buttons) {
     button.addEventListener("click", () => {
       for (const b of buttons) b.setAttribute("aria-pressed", String(b === button));
-      for (const li of list?.children ?? []) (li as HTMLElement).hidden = Boolean(button.dataset.show) && (li as HTMLElement).dataset.stage !== button.dataset.show;
+      for (const li of rows) li.hidden = Boolean(button.dataset.show) && li.dataset.stage !== button.dataset.show;
+      for (const g of groups) g.hidden = !g.querySelector("li:not([hidden])");
     });
   }
 </script>

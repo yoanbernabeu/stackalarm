@@ -21,6 +21,15 @@ The first time you run `/stackalarm`, the skill sees the CLI is missing and offe
 
 Optional: `GITHUB_TOKEN` (or `GH_TOKEN`) raises the GitHub API rate limit, and `NVD_API_KEY` ([free](https://nvd.nist.gov/developers/request-an-api-key)) makes NVD searches faster.
 
+## Update
+
+The skill and the CLI go together: a new CLI with an old skill still answers, but the agent does not know the newer commands. Update both.
+
+```sh
+npx skills add yoanbernabeu/stackalarm   # the skill: the install command again
+brew upgrade stackalarm                  # the CLI (or run install.sh again)
+```
+
 ## Use
 
 Open a project in your agent and call the skill by name (agents otherwise tend to answer with `npm audit` alone, which knows nothing of this week's runtime flaws):

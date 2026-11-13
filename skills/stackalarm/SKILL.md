@@ -15,7 +15,7 @@ Why this matters: since AI turned patches into working exploits within hours, th
 
 ## 0. Check the CLI is there
 
-Run `stackalarm --version`. If it is missing, the skill was installed alone: offer to install the CLI, in one sentence that names the command, and run it only once the user agrees. Pick the command for the machine:
+Run `stackalarm --version`. This skill needs version 0.10.0 or later (`stackalarm cve`, versions on tags, OSV): if the CLI is older, say so and offer the update in one sentence (`brew upgrade stackalarm`, or the install script again), and run it only once the user agrees; if they decline, go on without the newer commands and say which checks were skipped. If it is missing, the skill was installed alone: offer to install the CLI, in one sentence that names the command, and run it only once the user agrees. Pick the command for the machine:
 
 - Homebrew available (`brew` on the PATH): `brew install yoanbernabeu/tap/stackalarm`.
 - macOS or Linux without Homebrew: `curl -sSL https://raw.githubusercontent.com/yoanbernabeu/stackalarm/main/install.sh | sh`. It needs no sudo: it installs in `/usr/local/bin` when writable, otherwise in `~/.local/bin`, and checks the archive against the release checksums.

@@ -2088,3 +2088,55 @@ main.news-page .side-card {
 .docs-header nav a {
   white-space: nowrap;
 }
+
+/* Footer: three short lists rather than one long line of links. */
+
+.footer {
+  padding-block: 3rem;
+}
+
+.footer-row {
+  gap: 2rem;
+}
+
+.footer-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1.5rem 3rem;
+}
+
+.footer-row .footer-title {
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.footer-groups ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-groups a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.footer-groups a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+@media (min-width: 64rem) {
+  .footer-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .footer-groups {
+    grid-template-columns: repeat(3, auto);
+  }
+}

@@ -271,8 +271,9 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
         <div class="wrap">
           <h2 id="sources-title">{sources.length} sources, five stages</h2>
           <p class="intro">
-            Projects and vendors, the GitHub Advisory Database, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and Japan, CISA
-            KEV, exploit databases and the security press. Every item they publish gets a stage.
+            Projects and vendors, the GitHub Advisory Database, OSV.dev, the NVD and EUVD CVE databases, CERTs from the US, Europe, Canada and
+            Japan, CISA KEV, catalogs of public exploits and the security press. Every item they publish gets a stage, and the versions you
+            give are compared with the vulnerable ranges.
           </p>
           <dl class="stages">
             {stages.map((s) => (
@@ -357,7 +358,8 @@ const newsOutput = `Security news since 2026-10-16 09:19 UTC (php)
           <h2 id="privacy-title">What leaves your machine</h2>
           <p>
             The CLI downloads public feeds and queries public APIs. It sends only what it is given: tags and keywords, as search terms to the
-            CVE databases (NVD, EUVD), and package names, to the GitHub Advisory Database. Nothing else about your project, and no telemetry. The
+            CVE databases (NVD, EUVD), and package names, to the GitHub Advisory Database and, with their version, to OSV.dev (<code>--no-osv</code>
+            turns that off). Nothing else about your project, and no telemetry. The
             skill runs your own audit tools locally, and its web searches go through your agent.
           </p>
         </div>

@@ -31,12 +31,22 @@ import { raw } from "../../lib/repo";
   </p>
 
   <h2 id="gather">2. It gathers the news</h2>
-  <p>It maps the technologies to the CLI's tags, turns the rest into keywords, passes the package names from the lockfile, and reads a week:</p>
+  <p>
+    It maps the technologies to the CLI's tags, with their exact version when a file gives one, turns the rest into keywords, passes the
+    packages of the lockfile with their locked version, and reads a week:
+  </p>
   <Code code="stackalarm news --tag php@8.3.20 --tag symfony --tag gitlab --keyword roadrunner --since 7d --format summary" copy={false} />
   <p>
     The same vulnerability often appears in several sources (vendor, NVD, EUVD, CERTs, press): it becomes one finding, with the most official
     link. A public exploit or exploitation in the wild raises the urgency. A source that could not be read is mentioned in the answer, so
     silence is never mistaken for "all clear". See <a href="/docs/cli/">the CLI</a> for the options.
+  </p>
+  <p>
+    With versions, the CLI says which vulnerable ranges hold them (<code>[8.3.20 in use: AFFECTED]</code>), and
+    <a href="/docs/cli/#packages">OSV.dev</a> lists every known vulnerability of the locked packages, whatever its date: the skill reports
+    those as dependencies to update, not as this week's news. An affected range is a fact about the declared version, not yet a verdict: the
+    conditions of step 5 still apply. When you name a CVE, or when one item decides the verdict, it reads its full record with
+    <a href="/docs/cli/#cve"><code>stackalarm cve</code></a> instead of piecing it together from web pages.
   </p>
 
   <h2 id="search">3. It searches the web</h2>
@@ -87,6 +97,11 @@ import { raw } from "../../lib/repo";
   <p>
     Once, in one sentence. If you agree, it writes the <code>.stackalarm.yaml</code> profile and adds the CI file. On later runs it refreshes
     the profile and says what changed. See <a href="/docs/watch/">Scheduled watch</a>.
+  </p>
+  <p>
+    When you decide that a vulnerability does not concern the project, or accept its risk, it offers to record the decision under
+    <code>ignore</code> in the profile, with your reason and a review date, so the watch and the next checks stop raising it. It never adds
+    one on its own, and exploitation in the wild ends the decision.
   </p>
 
   <h2 id="triage">Triage mode</h2>

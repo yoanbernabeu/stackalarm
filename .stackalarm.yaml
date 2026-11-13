@@ -3,5 +3,5 @@ tags: [go, github-actions]
 keywords: [goreleaser]
 packages: [github.com/spf13/cobra, github.com/spf13/pflag, gopkg.in/yaml.v3, github.com/inconshreveable/mousetrap, actions/checkout, actions/setup-go, actions/cache, goreleaser/goreleaser-action]
 stack:
-  - {name: go, version: "1.27.3", precision: exact, from: go.mod}
+  - {name: go, version: "1.27.4", precision: exact, from: go.mod}
   - {name: github-actions, version: unknown, precision: unknown, from: .github/workflows}

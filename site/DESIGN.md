@@ -26,7 +26,20 @@ Prompt used for generation (16:9):
 
 > Soft painterly illustration, 16:9. Blue hour just before dawn over a calm sea. A small white lighthouse on a low rocky point in the right third of the frame, its lamp glowing warm orange, a gentle beam sweeping across light mist. Far on the horizon, a thin line of distant clouds catches the first pale light. Muted palette of slate blue, dusty lavender and soft peach, the only saturated colour is the warm lamp. Smooth gradients, gentle brush texture, quiet and peaceful mood. The centre and upper half are open, softly graded sky with little detail, leaving room for a large headline; the bottom edge fades into deep navy. No text, no letters, no logos, no interface.
 
-## Search and language models
+## Technology pages
+
+`/tech/` and `/tech/<tag>/` show what the CLI gathers for one tag over the last 30 days, for people who have not installed anything. `scripts/gather-tech.mjs` runs the CLI of the repository once per tag and writes `.data/tech/<tag>.json`; the site workflow runs it once a day and keeps the result in the Actions cache, so a build started by a push reuses it. Without the data, a page lists the sources of the tag and says the news is missing.
+
+- **Same motif.** An item is printed as the CLI prints it: date, stage, source, title, then the facts (affected versions, EPSS, exploitation). Red stays for what is exploited in the wild, which gets its own block above the rest.
+- **Noise kept apart.** The NVD and the EUVD are searched by word: "php" finds every plugin written in PHP. Those records sit in a closed block under the list, with a sentence saying what they are. Only the records that name the product in their version ranges stay in the list.
+- **Third-party text.** Titles are rendered as text, and a link is a link only when it starts with `http`.
+- Each page has an Atom feed (`/tech/<tag>/feed.xml`).
+
+## Search
+
+The header of every page but the landing opens a search dialog (`/` or Cmd+K). The index is built by [Pagefind](https://pagefind.app) from the pages after the build (`npm run build`), over the docs and the technology pages (`data-pagefind-body`), and is only downloaded when the dialog opens. The dialog is our own, in the palette of the site, on Pagefind's JavaScript API. The technology list and the source table have their own instant filter.
+
+## Search engines and language models
 
 - The page carries a canonical URL, Open Graph and Twitter cards, and a `SoftwareApplication` JSON-LD block (version read from `ci/github/stackalarm.yml`).
 - `public/og.png` is rendered from `og/card.html` with headless Chrome: `npm run og`. Regenerate it when the headline or the hero image changes.

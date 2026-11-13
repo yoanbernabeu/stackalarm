@@ -52,6 +52,8 @@ stackalarm sources                          # the sources and their tags
 stackalarm news --help                      # every option
 ```
 
+No install needed to look around: [stackalarm.dev/tech](https://stackalarm.dev/tech/) shows the security news of each technology over the last 30 days, with a feed per technology.
+
 ## Scheduled watch
 
 Copy [`ci/github/stackalarm.yml`](ci/github/stackalarm.yml) to `.github/workflows/`, or include [`ci/gitlab/stackalarm.yml`](ci/gitlab/stackalarm.yml) in your GitLab CI. Every 4 hours, the CLI reads the `.stackalarm.yaml` profile the skill wrote and opens an issue when a heads-up, an alert or a security release is new. On GitHub, with an `ANTHROPIC_API_KEY` secret, Claude triages the news first and an issue is opened only when the project is concerned. A Slack or Mattermost webhook can get a line for each issue, and the profile can record the vulnerabilities you already judged (`ignore`), with a reason and a review date.

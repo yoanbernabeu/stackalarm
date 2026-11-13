@@ -1,13 +1,18 @@
 import type { APIRoute } from "astro";
+import { loadTech } from "../lib/tech";
 
 const pages = [
   "/",
   "/docs/",
   "/docs/skill/",
   "/docs/cli/",
+  "/docs/sbom/",
   "/docs/watch/",
   "/docs/sources/",
   "/docs/privacy/",
+  "/docs/faq/",
+  "/tech/",
+  ...loadTech().map((t) => `/tech/${t.tag}/`),
   "/llms.txt",
   "/llms-full.txt",
 ];

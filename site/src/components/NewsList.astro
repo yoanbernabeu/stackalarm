@@ -1,0 +1,42 @@
+---
+// A list of news items, as the CLI prints them: date, stage, source, title,
+// then what is known of the vulnerability.
+import { affectedText, day, epss, safeURL, type Item } from "../lib/tech";
+
+interface Props {
+  items: Item[];
+}
+const { items } = Astro.props;
+---
+<ol class="news">
+  {items.map((it) => (
+    <li data-stage={it.stage}>
+      <div class="news-meta">
+        <time datetime={it.published}>{day(it.published)}</time>
+        <span class="stage" data-stage={it.stage}>{it.stage}</span>
+        <span class="news-source">{it.source}</span>
+      </div>
+      <p class="news-title" lang={it.language}>
+        {safeURL(it.url) ? <a href={safeURL(it.url)} rel="nofollow noopener">{it.title}</a> : it.title}
+      </p>
+      {((it.exploited_in?.length ?? 0) > 0 || (it.public_exploit_in?.length ?? 0) > 0) && (
+        <p class="news-marks">
+          {(it.exploited_in?.length ?? 0) > 0 && <span class="mark exploited">exploited in the wild ({it.exploited_in!.join(", ")})</span>}
+          {(it.public_exploit_in?.length ?? 0) > 0 && <span class="mark">public exploit ({it.public_exploit_in!.join(", ")})</span>}
+        </p>
+      )}
+      {(it.affected.length > 0 || it.epss || (it.also_in?.length ?? 0) > 0) && (
+        <p class="news-facts">
+          {it.affected.length > 0 && (
+            <span>
+              affects {it.affected.map(affectedText).join("; ")}
+              {it.more_affected > 0 && ` and ${it.more_affected} more`}
+            </span>
+          )}
+          {it.epss ? <span>EPSS {epss(it.epss)}</span> : null}
+          {(it.also_in?.length ?? 0) > 0 && <span>also in {it.also_in!.join(", ")}</span>}
+        </p>
+      )}
+    </li>
+  ))}
+</ol>

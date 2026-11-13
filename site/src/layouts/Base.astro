@@ -1,0 +1,80 @@
+---
+// The frame of every page but the landing: head, header with the search, footer.
+import "@fontsource-variable/bricolage-grotesque/opsz.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "../styles/global.css";
+import FontPreload from "../components/FontPreload.astro";
+import Footer from "../components/Footer.astro";
+import Search from "../components/Search.astro";
+import { repo } from "../lib/repo";
+
+interface Props {
+  title: string; // the whole <title>
+  description: string;
+  feed?: { href: string; title: string };
+  index?: boolean; // false keeps the page out of search engines
+}
+const { title, description, feed, index = true } = Astro.props;
+const path = Astro.url.pathname.replace(/\/?$/, "/");
+const canonical = new URL(path, Astro.site).href;
+const ogImage = new URL("/og.png", Astro.site).href;
+const sections = [
+  { href: "/tech/", label: "Technologies" },
+  { href: "/docs/", label: "Docs" },
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <FontPreload />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {feed && <link rel="alternate" type="application/atom+xml" href={feed.href} title={feed.title} />}
+    {!index && <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content="#0b0e14" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="stackalarm" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body class="docs-body">
+    <a class="skip" href="#content">Skip to content</a>
+    <header class="docs-header">
+      <div class="wrap nav-row">
+        <a class="wordmark" href="/">/stackalarm</a>
+        <nav aria-label="Site">
+          {sections.map((s) => <a href={s.href} aria-current={path.startsWith(s.href) ? "page" : undefined}>{s.label}</a>)}
+          <a class="nav-github" href={repo}>GitHub</a>
+          <Search />
+        </nav>
+      </div>
+    </header>
+    <slot />
+    <Footer />
+    <script>
+      for (const button of document.querySelectorAll<HTMLButtonElement>(".copy")) {
+        button.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(button.dataset.code ?? "");
+            button.textContent = "Copied";
+          } catch {
+            button.textContent = "Select and copy";
+          }
+          setTimeout(() => (button.textContent = "Copy"), 2000);
+        });
+      }
+    </script>
+  </body>
+</html>

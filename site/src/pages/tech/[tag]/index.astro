@@ -1,0 +1,132 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Code from "../../../components/Code.astro";
+import NewsList from "../../../components/NewsList.astro";
+import { days, day, loadTech, type Tech } from "../../../lib/tech";
+import { loadSources, stages } from "../../../lib/sources";
+import { repo } from "../../../lib/repo";
+
+export function getStaticPaths() {
+  return loadTech().map((tech) => ({ params: { tag: tech.tag }, props: { tech } }));
+}
+interface Props {
+  tech: Tech;
+}
+const { tech } = Astro.props;
+const { tag, items, mentions, exploited, rest } = tech;
+const general = loadSources().filter((s) => s.tags.includes("general")).length;
+const count = (stage: string) => rest.filter((it) => it.stage === stage).length;
+const used = stages.filter((s) => count(s) > 0);
+const title = `${tag} security news: releases, advisories and exploited flaws`;
+const description = tech.gathered
+  ? `${items.length} security ${items.length === 1 ? "item" : "items"} about ${tag} in the last ${days} days${exploited.length ? `, ${exploited.length} exploited in the wild` : ""}: announced releases, fixes, advisories and alerts, from ${tech.sources.length + general} sources. Updated every day.`
+  : `The security sources stackalarm reads for ${tag}: announced releases, fixes, advisories and alerts.`;
+const failed = tech.failures.map((f) => f.source);
+---
+<Base title={`${title} | stackalarm`} description={description} feed={{ href: `/tech/${tag}/feed.xml`, title: `${tag} security news` }}>
+  <main id="content" class="wrap tech" data-pagefind-body>
+    <p class="crumbs" data-pagefind-ignore><a href="/tech/">Technologies</a> <span aria-hidden="true">/</span> {tag}</p>
+    <h1><code>{tag}</code> security news</h1>
+    <p class="lead-in">
+      {tech.gathered ? (
+        <>
+          What {tech.sources.length} {tech.sources.length === 1 ? "source" : "sources"} of its own and {general} general ones (CERTs, CVE databases, exploit feeds, press) published about
+          <code>{tag}</code> in the last {days} days. Updated every day, last on <time datetime={tech.generatedAt}>{day(tech.generatedAt!)}</time>.
+        </>
+      ) : (
+        <>The news was not gathered for this build. Below, the sources stackalarm reads for <code>{tag}</code>.</>
+      )}
+    </p>
+
+    {tech.gathered && (
+      <div class="tech-layout">
+        <div>
+          {exploited.length > 0 && (
+            <section class="tech-alert" aria-labelledby="exploited">
+              <h2 id="exploited">Exploited in the wild</h2>
+              <p class="muted small">Reported exploited by CISA KEV or the EU vulnerability database. If you run an affected version, patch first, read later.</p>
+              <NewsList items={exploited} />
+            </section>
+          )}
+
+          <section aria-labelledby="news">
+            <h2 id="news">{exploited.length > 0 ? `The rest of the last ${days} days` : `The last ${days} days`}</h2>
+            {items.length === 0 ? (
+              <p>Nothing was published about <code>{tag}</code> in the last {days} days. Quiet is the normal state.</p>
+            ) : (
+              <>
+                {used.length > 1 && (
+                  <div class="stage-filter" role="group" aria-label="Show one stage" data-pagefind-ignore>
+                    <button type="button" aria-pressed="true" data-show="">all {rest.length}</button>
+                    {used.map((s) => <button type="button" aria-pressed="false" data-show={s}>{s} {count(s)}</button>)}
+                  </div>
+                )}
+                <NewsList items={rest} />
+              </>
+            )}
+          </section>
+
+          {mentions.length > 0 && (
+            <details class="mentions" data-pagefind-ignore>
+              <summary>{mentions.length} more CVE records mention the word <code>{tag}</code></summary>
+              <p class="muted small">
+                The NVD and the EUVD are searched by word, so these are mostly plugins, extensions and applications built with <code>{tag}</code>, not
+                <code>{tag}</code> itself. The skill sorts them against what your project really uses.
+              </p>
+              <NewsList items={mentions} />
+            </details>
+          )}
+
+          {failed.length > 0 && (
+            <p class="muted small">
+              Could not be read for this update, so their news may be missing: {failed.map((f, i) => <>{i > 0 && ", "}<code>{f}</code></>)}.
+            </p>
+          )}
+        </div>
+
+        <aside aria-label={`Watching ${tag}`} data-pagefind-ignore>
+          <section>
+            <h2>Is your version affected?</h2>
+            <p class="small">These pages list everything. With your version, the CLI compares it with the vulnerable ranges:</p>
+            <Code label="The CLI" code={`stackalarm news --tag ${tag}@<version>`} copy={false} />
+            <p class="small">
+              Or let <a href="/docs/">the skill</a> read your project and say what to patch first:
+            </p>
+            <Code label="The skill" code="npx skills add yoanbernabeu/stackalarm" />
+          </section>
+          <section>
+            <h2>Follow it</h2>
+            <p class="small">
+              <a href={`/tech/${tag}/feed.xml`}>Atom feed</a> of this page, for a feed reader or a chat channel. For an alert only when your
+              project is concerned, set up the <a href="/docs/watch/">scheduled watch</a>.
+            </p>
+          </section>
+          <section>
+            <h2>Sources read for <code>{tag}</code></h2>
+            <ul class="tech-sources">
+              {tech.sources.map((s) => <li><span class="stage" data-stage={s.stage}>{s.stage}</span> {s.name}</li>)}
+              <li class="muted">and the {general} <a href="/docs/sources/">general sources</a>, kept when they mention it</li>
+            </ul>
+            <p class="small"><a href={`${repo}/issues/new?template=new-source.yml`}>Propose a source</a></p>
+          </section>
+        </aside>
+      </div>
+    )}
+
+    {!tech.gathered && (
+      <ul class="tech-sources">
+        {tech.sources.map((s) => <li><span class="stage" data-stage={s.stage}>{s.stage}</span> {s.name}</li>)}
+      </ul>
+    )}
+  </main>
+</Base>
+<script>
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>(".stage-filter button")];
+  const list = document.querySelector<HTMLElement>("#news ~ .news");
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      for (const b of buttons) b.setAttribute("aria-pressed", String(b === button));
+      for (const li of list?.children ?? []) (li as HTMLElement).hidden = Boolean(button.dataset.show) && (li as HTMLElement).dataset.stage !== button.dataset.show;
+    });
+  }
+</script>

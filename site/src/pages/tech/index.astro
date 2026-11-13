@@ -1,0 +1,87 @@
+---
+import Base from "../../layouts/Base.astro";
+import { days, day, loadTech, meta } from "../../lib/tech";
+import { loadSources } from "../../lib/sources";
+
+const tech = loadTech();
+const { generated_at } = meta();
+const total = loadSources().length;
+const busiest = tech
+  .filter((t) => t.items.length > 0)
+  .sort((a, b) => b.exploited.length - a.exploited.length || b.items.length - a.items.length)
+  .slice(0, 12);
+const exploited = tech.filter((t) => t.exploited.length > 0);
+const description = `The security news of ${tech.length} technologies over the last ${days} days: announced releases, fixes, advisories and exploited flaws, read from ${total} sources and updated every day.`;
+---
+<Base title="Security news by technology: stackalarm" description={description}>
+  <main id="content" class="wrap tech" data-pagefind-body>
+    <h1>Security news, by technology</h1>
+    <p class="lead-in">
+      What the {total} sources of stackalarm published over the last {days} days, for each of the {tech.length} technologies it follows.
+      {generated_at ? <>Updated every day, last on <time datetime={generated_at}>{day(generated_at)}</time>.</> : "The news was not gathered for this build."}
+      These pages show everything; <a href="/docs/">the skill</a> keeps only what affects your project.
+    </p>
+
+    {exploited.length > 0 && (
+      <p class="tech-exploited">
+        <span class="stage" data-stage="alert">alert</span>
+        Exploited in the wild this month:
+        {exploited.map((t, i) => <>{i > 0 && ", "}<a href={`/tech/${t.tag}/`}><code>{t.tag}</code></a></>)}.
+      </p>
+    )}
+
+    {busiest.length > 0 && (
+      <section aria-labelledby="busiest" data-pagefind-ignore>
+        <h2 id="busiest">Most active this month</h2>
+        <ul class="tech-grid">
+          {busiest.map((t) => (
+            <li>
+              <a href={`/tech/${t.tag}/`}>
+                <code>{t.tag}</code>
+                <span class="muted small">{t.items.length} {t.items.length === 1 ? "item" : "items"}{t.exploited.length > 0 && <>, <span class="alert-text">{t.exploited.length} exploited</span></>}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    <section aria-labelledby="all">
+      <h2 id="all">All technologies</h2>
+      <label class="filter">
+        <span class="visually-hidden">Filter the technologies</span>
+        <input type="search" id="tech-filter" placeholder="Filter: php, kube, next…" autocomplete="off" spellcheck="false" />
+      </label>
+      <ul class="tech-grid" id="tech-all">
+        {tech.map((t) => (
+          <li data-tag={t.tag}>
+            <a href={`/tech/${t.tag}/`}>
+              <code>{t.tag}</code>
+              <span class="muted small">
+                {t.gathered ? `${t.items.length} ${t.items.length === 1 ? "item" : "items"}` : `${t.sources.length} ${t.sources.length === 1 ? "source" : "sources"}`}{t.exploited.length > 0 && <>, <span class="alert-text">{t.exploited.length} exploited</span></>}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p class="muted small" id="tech-none" hidden>
+        No technology by that name. An unknown name still works as a <code>--keyword</code> in the CLI, and you can
+        <a href="https://github.com/yoanbernabeu/stackalarm/issues/new?template=new-source.yml">propose a source</a> for it.
+      </p>
+    </section>
+  </main>
+</Base>
+<script>
+  const input = document.querySelector<HTMLInputElement>("#tech-filter")!;
+  const items = [...document.querySelectorAll<HTMLElement>("#tech-all li")];
+  const none = document.querySelector<HTMLElement>("#tech-none")!;
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    for (const li of items) {
+      li.hidden = !li.dataset.tag!.includes(q);
+      if (!li.hidden) shown++;
+    }
+    none.hidden = shown > 0;
+  });
+</script>

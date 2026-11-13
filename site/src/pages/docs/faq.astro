@@ -1,0 +1,105 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import { repo } from "../../lib/repo";
+import { loadSources } from "../../lib/sources";
+
+const sources = loadSources();
+const tags = new Set(sources.flatMap((s) => s.tags)).size - 1; // without "general"
+---
+<Docs title="Questions" description="How stackalarm differs from dependency audits and scanners, what it costs, and what to do when a source fails or a technology is missing.">
+  <p class="lead-in">The questions that come up most, each with a short answer and where to read more.</p>
+
+  <h2 id="compare">Next to other tools</h2>
+
+  <h3 id="audit">I already run npm audit, composer audit or Dependabot. What does this add?</h3>
+  <p>
+    Those tools read your lockfile and tell you which libraries have a published advisory. They do that well, and the skill runs them. They
+    do not see a flaw in the runtime itself (PHP, Node.js), in a self-hosted tool (GitLab, Keycloak), a security release announced for next
+    Tuesday, or whether a flaw is being exploited this week. stackalarm reads those, then the agent checks each one against your project.
+  </p>
+
+  <h3 id="scanner">Does it replace Trivy, Grype or a commercial scanner?</h3>
+  <p>
+    No. A scanner inspects an artifact and lists its known flaws. stackalarm reads the news and judges what concerns a project. The two
+    meet on <a href="/docs/sbom/">container images</a>: write the SBOM with your scanner, and stackalarm adds what is exploited, what has a
+    public exploit, and what is announced but not yet out.
+  </p>
+
+  <h3 id="agent">Can I use the CLI without an AI agent?</h3>
+  <p>
+    Yes. <a href="/docs/cli/">The CLI</a> works on its own and has no AI in it. You then pick the tags and do the sorting yourself. The
+    <a href="/tech/">technology pages</a> show the same news in a browser, with a feed for each technology.
+  </p>
+
+  <h2 id="cost">Cost and accounts</h2>
+
+  <h3 id="free">Is it free?</h3>
+  <p>
+    Yes: MIT license, no account, no telemetry. Every source is public. The only thing that can cost money is the optional triage of the
+    <a href="/docs/watch/#triage">scheduled watch</a>, which calls Claude with your own Anthropic API key, and only on the runs that found
+    something new.
+  </p>
+
+  <h3 id="keys">Do I need API keys?</h3>
+  <p>
+    No. Two <a href="/docs/#keys">optional keys</a> help: a GitHub token lifts the cap of 60 anonymous requests per hour, and an NVD key
+    makes the CVE searches about seven times faster.
+  </p>
+
+  <h2 id="trouble">When something is off</h2>
+
+  <h3 id="rate-limit">Sources fail with "rate limit reached"</h3>
+  <p>
+    GitHub caps anonymous requests at 60 per hour per IP address. Set <code>GITHUB_TOKEN</code> (any token, no permission needed):
+    <code>export GITHUB_TOKEN=$(gh auth token)</code>. The failed sources are always listed, so you know what is missing.
+  </p>
+
+  <h3 id="slow">A run takes a minute or more</h3>
+  <p>
+    Without a key, the NVD allows one search every 6 seconds, and each tag and keyword is one search. Put fewer keywords, or set
+    <code>NVD_API_KEY</code>. Responses are reused for an hour, so the second run is fast.
+  </p>
+
+  <h3 id="missing">My technology has no tag</h3>
+  <p>
+    {tags} technologies have their own sources. Anything else works as a <code>--keyword</code>: the CERTs, the CVE databases and the press
+    are searched for the word. To add its official feed, open a <a href={`${repo}/issues/new?template=new-source.yml`}>New source</a> issue.
+  </p>
+
+  <h3 id="stale">The agent does not use a command the docs describe</h3>
+  <p>
+    The skill is older than the CLI. They are installed separately: <a href="/docs/#update">update both</a>.
+  </p>
+
+  <h3 id="noise">It keeps reporting a vulnerability that does not concern us</h3>
+  <p>
+    Record the decision in the profile, under <a href="/docs/watch/#profile"><code>ignore</code></a>, with the reason and a review date. The
+    item leaves the reports but stays listed with its reason, and comes back by itself if it starts being exploited.
+  </p>
+
+  <h3 id="issues">Will the watch open an issue every 4 hours?</h3>
+  <p>
+    No. It remembers what it already reported and wakes up only for a new heads-up, alert or security release. With the triage, an issue is
+    opened only when Claude finds the project concerned. Quiet runs open nothing.
+  </p>
+
+  <h2 id="trust">Trust</h2>
+
+  <h3 id="sent">What leaves my machine?</h3>
+  <p>
+    The tags, keywords and package names you give, sent as search terms to public databases. Never your code. The full table is on
+    <a href="/docs/privacy/">Privacy and security</a>.
+  </p>
+
+  <h3 id="wrong">Can the agent be wrong?</h3>
+  <p>
+    Yes. It can misread a version or miss a condition of exploitation. That is why every finding names the file the version came from and
+    links to the official advisory, why "Not checked" lists what it could not verify, and why it changes nothing without asking.
+  </p>
+
+  <h3 id="changes">Does it change my project or my servers?</h3>
+  <p>
+    The CLI only reads. The skill offers fixes in the repository, one at a time, after you agree. It never pushes, deploys or connects to a
+    server.
+  </p>
+</Docs>

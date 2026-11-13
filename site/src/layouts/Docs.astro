@@ -1,11 +1,5 @@
 ---
-import "@fontsource-variable/bricolage-grotesque/opsz.css";
-import "@fontsource/ibm-plex-mono/400.css";
-import "@fontsource/ibm-plex-mono/500.css";
-import "../styles/global.css";
-import FontPreload from "../components/FontPreload.astro";
-import Footer from "../components/Footer.astro";
-import { repo } from "../lib/repo";
+import Base from "./Base.astro";
 
 interface Props {
   title: string;
@@ -17,79 +11,43 @@ const pages = [
   { href: "/docs/", label: "Getting started" },
   { href: "/docs/skill/", label: "The skill" },
   { href: "/docs/cli/", label: "The CLI" },
+  { href: "/docs/sbom/", label: "Container images" },
   { href: "/docs/watch/", label: "Scheduled watch" },
   { href: "/docs/sources/", label: "Sources" },
   { href: "/docs/privacy/", label: "Privacy and security" },
+  { href: "/docs/faq/", label: "Questions" },
 ];
 const path = Astro.url.pathname.replace(/\/?$/, "/");
-const canonical = new URL(path, Astro.site).href;
-const ogImage = new URL("/og.png", Astro.site).href;
 const index = pages.findIndex((p) => p.href === path);
 const next = pages[index + 1];
+
+// The sections of the page, listed under its title when there are enough to get lost.
+const body = await Astro.slots.render("default");
+const toc = [...body.matchAll(/<h2 id="([^"]+)"[^>]*>(.*?)<\/h2>/gs)].map((m) => ({ id: m[1], label: m[2] }));
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <FontPreload />
-    <title>{title}: stackalarm docs</title>
-    <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
-    <meta name="theme-color" content="#0b0e14" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
-    <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="stackalarm" />
-    <meta property="og:title" content={`${title}: stackalarm docs`} />
-    <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={ogImage} />
-    <meta name="twitter:card" content="summary_large_image" />
-  </head>
-  <body class="docs-body">
-    <a class="skip" href="#content">Skip to content</a>
-    <header class="docs-header">
-      <div class="wrap nav-row">
-        <a class="wordmark" href="/">/stackalarm</a>
-        <nav aria-label="Site">
-          <a href="/docs/" aria-current={path.startsWith("/docs/") ? "page" : undefined}>Docs</a>
-          <a href={repo}>GitHub</a>
+<Base title={`${title}: stackalarm docs`} description={description}>
+  <div class="wrap docs-grid">
+    <nav class="docs-nav" aria-label="Documentation">
+      <ul>
+        {pages.map((p) => <li><a href={p.href} aria-current={p.href === path ? "page" : undefined}>{p.label}</a></li>)}
+      </ul>
+    </nav>
+    <main id="content" class="prose" data-pagefind-body>
+      <h1>{title}</h1>
+      {toc.length >= 3 && (
+        <nav class="toc" aria-label="On this page" data-pagefind-ignore>
+          <p>On this page</p>
+          <ul>
+            {toc.map((h) => <li><a href={`#${h.id}`} set:html={h.label} /></li>)}
+          </ul>
         </nav>
-      </div>
-    </header>
-    <div class="wrap docs-grid">
-      <nav class="docs-nav" aria-label="Documentation">
-        <ul>
-          {pages.map((p) => <li><a href={p.href} aria-current={p.href === path ? "page" : undefined}>{p.label}</a></li>)}
-        </ul>
-      </nav>
-      <main id="content" class="prose">
-        <h1>{title}</h1>
-        <slot />
-        {next && (
-          <p class="docs-next">
-            Next: <a href={next.href}>{next.label}</a>
-          </p>
-        )}
-      </main>
-    </div>
-    <Footer />
-    <script>
-      for (const button of document.querySelectorAll<HTMLButtonElement>(".copy")) {
-        button.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(button.dataset.code ?? "");
-            button.textContent = "Copied";
-          } catch {
-            button.textContent = "Select and copy";
-          }
-          setTimeout(() => (button.textContent = "Copy"), 2000);
-        });
-      }
-    </script>
-  </body>
-</html>
+      )}
+      <Fragment set:html={body} />
+      {next && (
+        <p class="docs-next" data-pagefind-ignore>
+          Next: <a href={next.href}>{next.label}</a>
+        </p>
+      )}
+    </main>
+  </div>
+</Base>

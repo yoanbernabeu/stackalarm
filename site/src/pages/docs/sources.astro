@@ -16,20 +16,25 @@ const general = sources.filter((s) => s.tags.includes("general"));
   <h2 id="tags">Tags</h2>
   <p>Pass them with <code>--tag</code>. An unknown tag is searched as a keyword in the general sources.</p>
   <ul class="tag-list">
-    {tags.map((t) => <li><code>{t}</code></li>)}
+    {tags.map((t) => <li><a href={`/tech/${t}/`}><code>{t}</code></a></li>)}
   </ul>
+  <p>Each tag has <a href="/tech/">its own page</a> with the news of the last 30 days and a feed.</p>
   <p>
     The {general.length} sources tagged <code>general</code> (CERTs, CVE databases, exploit feeds, press) are read on every run, and only their
     entries that mention one of your tags or keywords are kept.
   </p>
 
   <h2 id="all">All sources</h2>
+  <label class="filter">
+    <span class="visually-hidden">Filter the sources</span>
+    <input type="search" id="source-filter" placeholder="Filter: cert, github, php, alert…" autocomplete="off" spellcheck="false" />
+  </label>
   <div class="table-wrap" role="region" aria-label="All sources" tabindex="0">
     <table>
       <thead><tr><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Tags</th></tr></thead>
       <tbody>
         {sources.map((s) => (
-          <tr>
+          <tr data-text={`${s.name} ${s.id} ${s.stage} ${s.tags.join(" ")}`.toLowerCase()}>
             <td>{s.name}<br /><code class="muted small">{s.id}</code></td>
             <td><span class="stage" data-stage={s.stage}>{s.stage}</span></td>
             <td>{s.tags.map((t) => <code>{t}</code>).reduce((a: any[], c, i) => (i ? [...a, " ", c] : [c]), [])}</td>
@@ -46,3 +51,11 @@ const general = sources.filter((s) => s.tags.includes("general"));
     to answer and its entries to carry dates.
   </p>
 </Docs>
+<script>
+  const input = document.querySelector<HTMLInputElement>("#source-filter")!;
+  const rows = [...document.querySelectorAll<HTMLElement>("tr[data-text]")];
+  input.addEventListener("input", () => {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const row of rows) row.hidden = !words.every((w) => row.dataset.text!.includes(w));
+  });
+</script>

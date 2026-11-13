@@ -1,0 +1,6 @@
+id: requests-advisories
+name: Requests (Python) security advisories (GitHub)
+type: github-advisories
+repo: psf/requests
+tags: [requests]
+stage: advisory

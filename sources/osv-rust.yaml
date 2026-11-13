@@ -1,0 +1,6 @@
+id: osv-rust
+name: OSV.dev, known vulnerabilities of the crates.io package versions in use
+type: osv
+ecosystem: crates.io
+tags: [rust, cargo]
+stage: advisory

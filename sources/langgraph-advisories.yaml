@@ -1,0 +1,6 @@
+id: langgraph-advisories
+name: LangGraph security advisories (GitHub)
+type: github-advisories
+repo: langchain-ai/langgraph
+tags: [langgraph]
+stage: advisory

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -57,6 +58,8 @@ func Default(version string) (*App, error) {
 			EUVDDelay: time.Second,
 			EPSSAPI:   "https://api.first.org/data/v1/epss",
 			EOLAPI:    "https://endoflife.date/api/v1",
+			OSVAPI:    "https://api.osv.dev/v1",
+			CVEAPI:    "https://cveawg.mitre.org/api/cve",
 			Search:    search,
 		},
 	}, nil
@@ -74,7 +77,7 @@ func (a *App) Execute(ctx context.Context) int {
 	}
 	root.SetOut(a.Out)
 	root.SetErr(a.Err)
-	root.AddCommand(a.newsCommand(), a.sourcesCommand(), a.eolCommand())
+	root.AddCommand(a.newsCommand(), a.cveCommand(), a.sourcesCommand(), a.eolCommand())
 	if a.Args != nil {
 		root.SetArgs(a.Args)
 	}
@@ -106,6 +109,17 @@ type newsReport struct {
 	// AlreadyReported counts the items left out because the state file says
 	// an earlier run reported them.
 	AlreadyReported int `json:"already_reported,omitempty"`
+	// Ignored lists the items left out by a decision of the profile: never
+	// silently, so a decision that aged badly can be seen.
+	Ignored []ignoredItem `json:"ignored,omitempty"`
+}
+
+type ignoredItem struct {
+	ID        string `json:"id"` // the id the profile names
+	Title     string `json:"title"`
+	Reason    string `json:"reason"`
+	Until     string `json:"until,omitempty"`
+	Exploited bool   `json:"exploited,omitempty"` // exploited in the wild, and kept ignored by even_if_exploited
 }
 
 func (a *App) newsCommand() *cobra.Command {
@@ -113,7 +127,7 @@ func (a *App) newsCommand() *cobra.Command {
 		tags, keywords []string
 		packages       []string
 		since, format  string
-		noCache        bool
+		noCache, noOSV bool
 		profilePath    string
 		statePath      string
 		failOn         []string
@@ -130,6 +144,12 @@ searched for each tag and keyword, and only when there is one: without a key,
 the NVD allows one request every 6 seconds (set NVD_API_KEY to go faster).
 Run "stackalarm sources" to see the available tags.
 
+With --package and versions (next@15.1.0), OSV.dev is asked which known
+vulnerabilities hit those versions: they are listed whatever their date, since
+a version locked today is still exposed to a flaw published last year. A tag
+with its version (--tag php@8.3.20) is compared with the version ranges of the
+CVE records. Both mark each range "affected" or "not-affected".
+
 For a scheduled watch, --profile reads the tags, keywords and packages from a
 file the agent wrote, --state shows only the items no earlier run reported, and
 --fail-on exits with code 2 when a new item has one of the given stages.`,
@@ -142,22 +162,41 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			if err != nil {
 				return fmt.Errorf("--since %q: %w", since, err)
 			}
-			if !slices.Contains([]string{"text", "summary", "json", "markdown"}, format) {
-				return fmt.Errorf("--format %q: use text, summary, json or markdown", format)
+			if !slices.Contains([]string{"text", "summary", "json", "markdown", "sarif"}, format) {
+				return fmt.Errorf("--format %q: use text, summary, json, markdown or sarif", format)
 			}
 			for _, st := range lower(failOn) {
 				if !slices.Contains(source.Stages, source.Stage(st)) {
 					return fmt.Errorf("--fail-on %q: use stages among %v", st, source.Stages)
 				}
 			}
-			var stack []watch.Component
+			// A tag may carry the version in use (php@8.3.20): the ranges of the
+			// CVE records are compared with it.
+			versions := map[string]string{}
+			for i, t := range tags {
+				if name, version, ok := strings.Cut(strings.TrimSpace(t), "@"); ok && name != "" {
+					tags[i] = name
+					if version != "" {
+						versions[strings.ToLower(name)] = version
+					}
+				}
+			}
+			var (
+				stack   []watch.Component
+				ignores []watch.Ignore
+			)
 			if profilePath != "" {
 				p, err := watch.LoadProfile(profilePath)
 				if err != nil {
 					return fmt.Errorf("--profile: %w", err)
 				}
 				tags, keywords, packages = union(p.Tags, tags), union(p.Keywords, keywords), union(p.Packages, packages)
-				stack = p.Stack
+				stack, ignores = p.Stack, p.Ignore
+				for _, c := range p.Stack { // a branch or a range would compare wrongly
+					if name := strings.ToLower(c.Name); c.Precision == "exact" && c.Version != "" && versions[name] == "" {
+						versions[name] = c.Version
+					}
+				}
 			}
 			var state watch.State
 			if statePath != "" {
@@ -188,6 +227,9 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					f.CacheDir = filepath.Join(dir, "stackalarm")
 				}
 			}
+			if noOSV || a.Getenv("STACKALARM_NO_OSV") != "" {
+				f.OSVAPI = "" // the package versions then go to the GitHub API only
+			}
 			now := a.Now().UTC()
 			// A profile tells the versions in use: a scheduled watch also learns
 			// when their security fixes stop, which no advisory announces.
@@ -200,7 +242,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				defer close(eolDone)
 				eol, eolErr = f.SupportItems(cmd.Context(), stack)
 			}()
-			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages})
+			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages, Versions: versions})
 			<-eolDone
 			if eolErr != nil {
 				res.Failures = append(res.Failures, news.Failure{Source: news.SupportSource, Error: eolErr.Error()})
@@ -214,6 +256,31 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Stack: stack,
 				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Short: res.Short, Warnings: nonNil(warnings),
 			}
+			for _, ig := range ignores {
+				if ig.Expired(now) {
+					warnings = append(warnings, fmt.Sprintf("the profile ignores %s until %s, which has passed: it is reported again; review the decision (%s)", ig.ID, ig.Until, ig.Reason))
+					continue
+				}
+				match := ignoreMatcher(ig.ID)
+				matches := func(it news.Item) bool { return it.ID == ig.ID || match.MatchString(it.Title+" "+it.URL) }
+				// Exploitation in the wild ends the decision, unless it says otherwise:
+				// every item of the vulnerability is then reported again.
+				exploited := slices.ContainsFunc(report.Items, func(it news.Item) bool {
+					return matches(it) && (len(it.ExploitedIn) > 0 || exploitedInTheWild.MatchString(it.Title))
+				})
+				if exploited && !ig.EvenIfExploited {
+					warnings = append(warnings, fmt.Sprintf("the profile ignores %s (%s), but it is now reported exploited in the wild: it is reported again; review the decision, or set even_if_exploited on it if the reason still holds", ig.ID, ig.Reason))
+					continue
+				}
+				report.Items = slices.DeleteFunc(report.Items, func(it news.Item) bool {
+					if !matches(it) {
+						return false
+					}
+					report.Ignored = append(report.Ignored, ignoredItem{ID: ig.ID, Title: it.Title, Reason: ig.Reason, Until: ig.Until, Exploited: exploited})
+					return true
+				})
+			}
+			report.Warnings = nonNil(warnings)
 			if statePath != "" {
 				report.Items = slices.DeleteFunc(report.Items, func(it news.Item) bool {
 					if state.Seen(it.ID) {
@@ -235,6 +302,10 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				a.printSummary(report)
 			case "markdown":
 				a.printMarkdown(report)
+			case "sarif":
+				if err := a.printSARIF(report, cmp.Or(profilePath, ".stackalarm.yaml")); err != nil {
+					return err
+				}
 			default:
 				a.printNews(report)
 			}
@@ -255,13 +326,14 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			return nil
 		},
 	}
-	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "technology to watch, repeatable (php, node, gitlab…)")
-	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (frankenphp, express…)")
-	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "packages from the lockfile, repeatable, with their version or not (next@15.1.0, dompurify): GitHub Advisory Database sources then return only their advisories, for that version")
+	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "technology to watch, repeatable (php, node, gitlab…); with its exact version (php@8.3.20), the version ranges of the CVE records are compared with it")
+	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (roadrunner, htmx…)")
+	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "packages from the lockfile, repeatable, with their version or not (next@15.1.0, dompurify): the GitHub Advisory Database sources then return only their recent advisories, for that version, and OSV.dev every known vulnerability of that version")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
-	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json or markdown (an issue body)")
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json, markdown (an issue body) or sarif (the items a version in use proves, for a code scanning dashboard)")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")
-	cmd.Flags().StringVar(&profilePath, "profile", "", "project profile written by the agent (.stackalarm.yaml): tags, keywords and packages to watch")
+	cmd.Flags().StringVar(&profilePath, "profile", "", "project profile written by the agent (.stackalarm.yaml): tags, keywords and packages to watch, exact versions of the stack, vulnerabilities to ignore")
+	cmd.Flags().BoolVar(&noOSV, "no-osv", false, "do not send the package versions to OSV.dev (or set STACKALARM_NO_OSV): only the recent advisories of the GitHub Advisory Database are then listed")
 	cmd.Flags().StringVar(&statePath, "state", "", "file remembering the items already reported: only new ones are shown")
 	cmd.Flags().StringSliceVar(&failOn, "fail-on", nil, "exit with code 2 when a new item has one of these stages (heads-up, alert, release…)")
 	return cmd
@@ -282,10 +354,19 @@ func (a *App) printNews(r newsReport) {
 	if r.AlreadyReported > 0 {
 		fmt.Fprintf(a.Out, "(%d items already reported by an earlier run are left out)\n", r.AlreadyReported)
 	}
+	for _, ig := range r.Ignored {
+		fmt.Fprintf(a.Out, "(ignored by the profile: %s, %s)\n", ig.ID, ignoredNote(ig))
+	}
 	for _, it := range r.Items {
 		fmt.Fprintf(a.Out, "%s  %-9s %-24s %s\n", it.Published.Format("2006-01-02"), it.Stage, it.Source, it.Title)
 		if aff := affected(it); aff != "" {
 			fmt.Fprintf(a.Out, "%38saffects %s\n", "", aff)
+		}
+		if len(it.ExploitedIn) > 0 {
+			fmt.Fprintf(a.Out, "%38sexploited in the wild (%s)\n", "", strings.Join(it.ExploitedIn, ", "))
+		}
+		if len(it.PublicExploitIn) > 0 {
+			fmt.Fprintf(a.Out, "%38spublic exploit (%s)\n", "", strings.Join(it.PublicExploitIn, ", "))
 		}
 		if it.URL != "" {
 			fmt.Fprintf(a.Out, "%38s%s\n", "", it.URL)
@@ -326,6 +407,9 @@ func (a *App) printSummary(r newsReport) {
 		if len(it.ExploitedIn) > 0 {
 			line += " | EXPLOITED in the wild (" + strings.Join(it.ExploitedIn, ",") + ")"
 		}
+		if len(it.PublicExploitIn) > 0 {
+			line += " | PUBLIC EXPLOIT (" + strings.Join(it.PublicExploitIn, ",") + ")"
+		}
 		if aff := affected(it); aff != "" {
 			line += " | affects " + aff
 		}
@@ -348,6 +432,9 @@ func (a *App) printSummary(r newsReport) {
 	}
 	if r.AlreadyReported > 0 {
 		fmt.Fprintf(a.Out, "ALREADY REPORTED | %d items left out\n", r.AlreadyReported)
+	}
+	for _, ig := range r.Ignored {
+		fmt.Fprintf(a.Out, "IGNORED | %s | %s | %s\n", ig.ID, ig.Title, ignoredNote(ig))
 	}
 }
 
@@ -458,6 +545,12 @@ func affected(it news.Item) string {
 		} else {
 			part += " (no fix yet)"
 		}
+		switch af.Status {
+		case news.StatusAffected:
+			part += " [" + af.InUse + " in use: AFFECTED]"
+		case news.StatusNotAffected:
+			part += " [" + af.InUse + " in use: not affected]"
+		}
 		parts = append(parts, part)
 	}
 	return strings.Join(parts, "; ")
@@ -495,4 +588,23 @@ func nonNil(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+var exploitedInTheWild = regexp.MustCompile(`(?i)\bexploited in the wild\b`)
+
+// ignoreMatcher finds a CVE or GHSA id as a whole word, whatever its case.
+func ignoreMatcher(id string) *regexp.Regexp {
+	return regexp.MustCompile(`(?i)(^|[^\w-])` + regexp.QuoteMeta(strings.TrimSpace(id)) + `($|[^\w-])`)
+}
+
+// ignoredNote tells why an item was left out, and when the decision ends.
+func ignoredNote(ig ignoredItem) string {
+	note := ig.Reason
+	if ig.Until != "" {
+		note += " (until " + ig.Until + ")"
+	}
+	if ig.Exploited {
+		note += " — EXPLOITED in the wild, kept ignored by even_if_exploited"
+	}
+	return note
 }

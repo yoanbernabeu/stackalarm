@@ -1,0 +1,6 @@
+id: gcp-security-bulletins
+name: Google Cloud security bulletins
+type: feed
+url: "https://cloud.google.com/feeds/google-cloud-security-bulletins.xml"
+tags: [gcp]
+stage: advisory

@@ -36,6 +36,9 @@ inputs:
   nvd-api-key:
     description: Optional NVD API key, to search the NVD faster.
     default: ""
+  webhook-url:
+    description: 'Optional. An incoming webhook that takes {"text":"…"} (Slack, Mattermost, Discord with /slack appended to its URL). It gets one line with the decision and the link of the issue, on the runs that open one.'
+    default: ""
 
 outputs:
   found:
@@ -206,6 +209,20 @@ runs:
         url=$(gh issue create --repo "$GITHUB_REPOSITORY" --label "$LABEL" --body-file "$body.cut" \
           --title "$title ($(date -u +%F))")
         echo "url=$url" >> "$GITHUB_OUTPUT"
+        echo "title=$title" >> "$GITHUB_OUTPUT"
+
+    # A failed notification never fails the watch: the issue is already open.
+    - name: Notify
+      if: steps.issue.outputs.url != '' && inputs.webhook-url != ''
+      shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook-url }}
+        TITLE: ${{ steps.issue.outputs.title }}
+        URL: ${{ steps.issue.outputs.url }}
+      run: |
+        jq -n --arg text "$TITLE for $GITHUB_REPOSITORY: $URL" '{text: $text}' |
+          curl -sS --fail-with-body -m 20 -H 'Content-Type: application/json' -d @- "$WEBHOOK_URL" >/dev/null ||
+          echo "::warning::stackalarm: the webhook could not be notified"
 
     # Saved only once the issue exists or the triage decided none was needed:
     # if the issue could not be opened, the next run handles the items again.

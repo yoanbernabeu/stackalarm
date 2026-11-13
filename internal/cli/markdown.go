@@ -69,6 +69,9 @@ func (a *App) printMarkdown(r newsReport) {
 	if r.AlreadyReported > 0 {
 		fmt.Fprintf(w, "Left out, already reported by an earlier run: %d item%s.\n", r.AlreadyReported, plural(r.AlreadyReported))
 	}
+	if len(r.Ignored) > 0 {
+		fmt.Fprintf(w, "Left out, ignored by the profile: %d item%s.\n", len(r.Ignored), plural(len(r.Ignored)))
+	}
 	for _, sec := range markdownSections {
 		items := byStage[sec.stage]
 		if len(items) == 0 {
@@ -93,6 +96,9 @@ func (a *App) printMarkdown(r newsReport) {
 			if len(it.ExploitedIn) > 0 {
 				line += ", **exploited in the wild** (" + strings.Join(it.ExploitedIn, ", ") + ")"
 			}
+			if len(it.PublicExploitIn) > 0 {
+				line += ", **public exploit** (" + strings.Join(it.PublicExploitIn, ", ") + ")"
+			}
 			if aff := affected(it); aff != "" {
 				line += "\n  Affects " + mdText(aff)
 			}
@@ -116,6 +122,13 @@ func (a *App) printMarkdown(r newsReport) {
 		for _, t := range r.Truncated {
 			fmt.Fprintf(w, "- %s: %d left out\n", t.Source, t.Dropped)
 		}
+	}
+	if len(r.Ignored) > 0 {
+		fmt.Fprint(w, "\n<details><summary><b>Ignored by the profile</b></summary>\n\n")
+		for _, ig := range r.Ignored {
+			fmt.Fprintf(w, "- %s · %s · %s\n", mdText(ig.ID), mdText(ig.Title), mdText(ignoredNote(ig)))
+		}
+		fmt.Fprintln(w, "\n</details>")
 	}
 	for _, warn := range r.Warnings {
 		fmt.Fprintf(w, "\n> Warning: %s\n", mdText(warn))

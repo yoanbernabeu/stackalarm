@@ -1,0 +1,6 @@
+id: ws-advisories
+name: ws (Node.js WebSocket library) security advisories (GitHub)
+type: github-advisories
+repo: websockets/ws
+tags: [ws]
+stage: advisory

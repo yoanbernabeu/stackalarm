@@ -1,0 +1,6 @@
+id: osv-npm
+name: OSV.dev, known vulnerabilities of the npm package versions in use
+type: osv
+ecosystem: npm
+tags: [node, npm]
+stage: advisory

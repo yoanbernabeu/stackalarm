@@ -1,0 +1,6 @@
+id: osv-actions
+name: OSV.dev, known vulnerabilities of the GitHub Actions package versions in use
+type: osv
+ecosystem: "GitHub Actions"
+tags: [github-actions]
+stage: advisory

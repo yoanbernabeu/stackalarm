@@ -1,0 +1,6 @@
+id: lodash-advisories
+name: Lodash security advisories (GitHub)
+type: github-advisories
+repo: lodash/lodash
+tags: [lodash]
+stage: advisory

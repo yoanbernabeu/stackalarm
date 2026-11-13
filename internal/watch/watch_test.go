@@ -26,14 +26,28 @@ stack:
 
 func TestParseProfileRejects(t *testing.T) {
 	for name, data := range map[string]string{
-		"nothing to watch": "packages: [twig/twig]\n",
-		"unknown field":    "tags: [php]\nhost: gitlab.acme.internal\n",
-		"bad precision":    "tags: [php]\nstack:\n  - {name: php, precision: about}\n",
-		"no name":          "tags: [php]\nstack:\n  - {version: \"8.3\"}\n",
+		"nothing to watch":  "packages: [twig/twig]\n",
+		"unknown field":     "tags: [php]\nhost: gitlab.acme.internal\n",
+		"bad precision":     "tags: [php]\nstack:\n  - {name: php, precision: about}\n",
+		"no name":           "tags: [php]\nstack:\n  - {version: \"8.3\"}\n",
+		"ignore, no reason": "tags: [php]\nignore:\n  - {id: CVE-2026-1}\n",
+		"ignore, no id":     "tags: [php]\nignore:\n  - {reason: unused}\n",
+		"ignore, bad date":  "tags: [php]\nignore:\n  - {id: CVE-2026-1, reason: unused, until: soon}\n",
 	} {
 		if _, err := ParseProfile([]byte(data)); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+func TestIgnoreExpires(t *testing.T) {
+	p, err := ParseProfile([]byte("tags: [php]\nignore:\n  - {id: CVE-2026-1, reason: unused, until: 2026-10-23}\n  - {id: CVE-2026-2, reason: unused}\n"))
+	if err != nil || len(p.Ignore) != 2 {
+		t.Fatalf("got %+v, %v", p, err)
+	}
+	day := func(d int) time.Time { return time.Date(2026, 10, d, 15, 0, 0, 0, time.UTC) }
+	if p.Ignore[0].Expired(day(23)) || !p.Ignore[0].Expired(day(24)) || p.Ignore[1].Expired(day(24)) {
+		t.Fatal("a decision holds until the end of its date, and for ever without one")
 	}
 }
 

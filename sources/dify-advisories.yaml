@@ -1,0 +1,6 @@
+id: dify-advisories
+name: Dify security advisories (GitHub)
+type: github-advisories
+repo: langgenius/dify
+tags: [dify]
+stage: advisory

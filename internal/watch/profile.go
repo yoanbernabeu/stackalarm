@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,6 +21,27 @@ type Profile struct {
 	Keywords []string    `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 	Packages []string    `yaml:"packages,omitempty" json:"packages,omitempty"`
 	Stack    []Component `yaml:"stack,omitempty" json:"stack,omitempty"` // shown in reports, never used to filter
+	// Ignore lists the vulnerabilities the team already judged: they are left
+	// out of the reports, and counted, until the date given.
+	Ignore []Ignore `yaml:"ignore,omitempty" json:"ignore,omitempty"`
+}
+
+// Ignore is a decision recorded in the profile: this vulnerability does not
+// concern the project, or its risk is accepted.
+type Ignore struct {
+	ID     string `yaml:"id" json:"id"`                           // a CVE or GHSA id, or the id of an item
+	Reason string `yaml:"reason" json:"reason"`                   // why, for the next reader
+	Until  string `yaml:"until,omitempty" json:"until,omitempty"` // YYYY-MM-DD: the decision is reviewed then
+	// EvenIfExploited keeps the vulnerability ignored once it is reported
+	// exploited in the wild. Without it, exploitation ends the decision: most
+	// are "unlikely to be attacked", which exploitation proves wrong.
+	EvenIfExploited bool `yaml:"even_if_exploited,omitempty" json:"even_if_exploited,omitempty"`
+}
+
+// Expired tells whether the decision is past its review date.
+func (i Ignore) Expired(now time.Time) bool {
+	until, err := time.Parse(time.DateOnly, i.Until)
+	return err == nil && now.UTC().Truncate(24*time.Hour).After(until)
 }
 
 // Component is one technology of the project and the version found for it.
@@ -63,6 +85,17 @@ func ParseProfile(data []byte) (Profile, error) {
 		}
 		if c.Precision != "" && !slices.Contains(precisions, c.Precision) {
 			errs = append(errs, fmt.Errorf("stack[%d]: precision %q must be one of %v", i, c.Precision, precisions))
+		}
+	}
+	for i, ig := range p.Ignore {
+		if strings.TrimSpace(ig.ID) == "" {
+			errs = append(errs, fmt.Errorf("ignore[%d]: id is required (a CVE or GHSA id)", i))
+		}
+		if strings.TrimSpace(ig.Reason) == "" {
+			errs = append(errs, fmt.Errorf("ignore[%d]: reason is required: a decision without its reason cannot be reviewed", i))
+		}
+		if _, err := time.Parse(time.DateOnly, ig.Until); ig.Until != "" && err != nil {
+			errs = append(errs, fmt.Errorf("ignore[%d]: until %q must be a date such as 2027-01-31", i, ig.Until))
 		}
 	}
 	return p, errors.Join(errs...)

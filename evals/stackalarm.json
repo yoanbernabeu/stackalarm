@@ -67,7 +67,7 @@
     {
       "id": 4,
       "prompt": "/stackalarm puis mets en place la veille automatique",
-      "expected_output": "Full check of the Symfony project, then writes .stackalarm.yaml (php, symfony, composer, gitlab, docker tags; frankenphp keyword if relevant; packages from composer.lock; stack with php 8.3 branch from the Dockerfile) and, after asking, the GitLab include since the remote is a self-hosted GitLab.",
+      "expected_output": "Full check of the Symfony project, then writes .stackalarm.yaml (php, symfony, composer, gitlab, docker tags; frankenphp tag if relevant; packages from composer.lock; stack with php 8.3 branch from the Dockerfile) and, after asking, the GitLab include since the remote is a self-hosted GitLab.",
       "files": [
         "fixtures/symfony-app"
       ],
@@ -91,6 +91,21 @@
         "Judges each listed item against the project, saying node:22.23.3 is affected and 22.23.4 fixes it",
         "Answers with the verdict first and the findings grouped by urgency",
         "Says what to change but did not modify any project file"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/stackalarm on est touchés par CVE-2025-29927 ? et note qu'on ignore les failles mod_php, on tourne en FPM",
+      "expected_output": "Runs `stackalarm cve CVE-2025-29927` with the versions read from the project, answers from the affected ranges and the exploitation facts (public exploit, KEV, SSVC) rather than from memory, says the project does not use Next.js if so; for the mod_php decision, asks which CVE it applies to and offers an `ignore` entry in .stackalarm.yaml with the user's reason and a review date, without adding one on its own.",
+      "files": [
+        "fixtures/symfony-app"
+      ],
+      "assertions": [
+        "Ran `stackalarm cve CVE-2025-29927` and based the answer on its output",
+        "States whether a public exploit or exploitation in the wild is reported for the CVE",
+        "Did not add an ignore entry without a CVE or GHSA id, a reason and the user's agreement",
+        "Proposes a review date (until) for the ignore entry",
+        "Has an explicit statement of what could not be checked"
       ]
     }
   ]

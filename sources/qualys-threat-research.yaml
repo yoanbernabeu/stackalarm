@@ -1,0 +1,6 @@
+id: qualys-threat-research
+name: Qualys vulnerabilities and threat research
+type: feed
+url: "https://blog.qualys.com/vulnerabilities-threat-research/feed"
+tags: [general]
+stage: news

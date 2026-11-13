@@ -1,0 +1,6 @@
+id: opensearch-advisories
+name: OpenSearch security advisories (GitHub)
+type: github-advisories
+repo: opensearch-project/OpenSearch
+tags: [opensearch]
+stage: advisory

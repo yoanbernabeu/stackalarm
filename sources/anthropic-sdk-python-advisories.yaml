@@ -1,0 +1,6 @@
+id: anthropic-sdk-python-advisories
+name: Anthropic Python SDK security advisories (GitHub)
+type: github-advisories
+repo: anthropics/anthropic-sdk-python
+tags: [anthropic-sdk]
+stage: advisory

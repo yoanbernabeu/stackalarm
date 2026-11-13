@@ -1,0 +1,6 @@
+id: authentik-advisories
+name: authentik security advisories (GitHub)
+type: github-advisories
+repo: goauthentik/authentik
+tags: [authentik]
+stage: advisory

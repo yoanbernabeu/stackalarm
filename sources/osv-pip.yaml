@@ -1,0 +1,6 @@
+id: osv-pip
+name: OSV.dev, known vulnerabilities of the PyPI package versions in use
+type: osv
+ecosystem: PyPI
+tags: [python, pip]
+stage: advisory

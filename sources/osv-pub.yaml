@@ -1,0 +1,6 @@
+id: osv-pub
+name: OSV.dev, known vulnerabilities of the Pub package versions in use
+type: osv
+ecosystem: Pub
+tags: [dart, flutter]
+stage: advisory

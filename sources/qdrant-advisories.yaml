@@ -1,0 +1,6 @@
+id: qdrant-advisories
+name: Qdrant security advisories (GitHub)
+type: github-advisories
+repo: qdrant/qdrant
+tags: [qdrant]
+stage: advisory

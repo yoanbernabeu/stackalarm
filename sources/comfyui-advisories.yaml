@@ -1,0 +1,6 @@
+id: comfyui-advisories
+name: ComfyUI security advisories (GitHub)
+type: github-advisories
+repo: Comfy-Org/ComfyUI
+tags: [comfyui]
+stage: advisory

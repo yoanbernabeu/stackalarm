@@ -8,11 +8,13 @@ const githubWorkflow = ciFile("ci/github/stackalarm.yml");
 const gitlabVars = gitlabVariables();
 const profile = `# Written by the stackalarm skill, refreshed on each /stackalarm run.
 tags: [php, symfony, composer, gitlab, docker]
-keywords: [frankenphp]
+keywords: [roadrunner]
 packages: [symfony/http-kernel, twig/twig]
 stack:
-  - {name: php, version: "8.3", precision: branch, from: Dockerfile}
-  - {name: gitlab, version: unknown, precision: unknown, from: git remote}`;
+  - {name: php, version: "8.3.35", precision: exact, from: Dockerfile}
+  - {name: gitlab, version: unknown, precision: unknown, from: git remote}
+ignore:
+  - {id: CVE-2026-1234, reason: "only reachable through mod_php, we run FPM", until: "2027-03-31"}`;
 ---
 <Docs title="Scheduled watch" description="Run stackalarm every 4 hours in GitHub Actions or GitLab CI, and get an issue when new security news concerns the project.">
   <p class="lead-in">
@@ -32,7 +34,8 @@ stack:
       <tr><td><code>tags</code></td><td>Technologies to watch, as in <code>--tag</code>.</td></tr>
       <tr><td><code>keywords</code></td><td>Words searched in the general sources, as in <code>--keyword</code>.</td></tr>
       <tr><td><code>packages</code></td><td>Package names from the lockfile, as in <code>--package</code>.</td></tr>
-      <tr><td><code>stack</code></td><td>What the skill found, with the version, its precision (<code>exact</code>, <code>branch</code>, <code>range</code>, <code>unknown</code>) and the file it came from. Shown in reports, never used to filter the news; its versions are looked up on endoflife.date (see below).</td></tr>
+      <tr><td><code>stack</code></td><td>What the skill found, with the version, its precision (<code>exact</code>, <code>branch</code>, <code>range</code>, <code>unknown</code>) and the file it came from. Shown in reports, never used to filter the news; its versions are looked up on endoflife.date (see below), and the <code>exact</code> ones are compared with the vulnerable ranges of the CVE records.</td></tr>
+      <tr><td><code>ignore</code></td><td>The vulnerabilities the team already judged: a CVE or GHSA <code>id</code>, a required <code>reason</code>, and an optional <code>until</code> date. They are left out of the reports, yet counted and listed with their reason. Past the date, or as soon as the vulnerability is reported exploited in the wild, the item is reported again with a warning; <code>even_if_exploited: true</code> keeps it ignored when the reason holds whatever the attackers do.</td></tr>
     </tbody>
   </table>
   <p>
@@ -47,7 +50,9 @@ stack:
   <Code label=".github/workflows/stackalarm.yml" code={githubWorkflow} />
   <p>
     No token to create: the workflow's automatic <code>github.token</code> opens the issue and lifts the GitHub API cap. The optional secrets
-    are <code>ANTHROPIC_API_KEY</code> (the triage, below) and <code>NVD_API_KEY</code>.
+    are <code>ANTHROPIC_API_KEY</code> (the triage, below), <code>NVD_API_KEY</code> and <code>STACKALARM_WEBHOOK_URL</code>: an incoming
+    webhook that takes <code>{'{"text":"…"}'}</code> (Slack, Mattermost, Discord with <code>/slack</code> appended to its URL) and gets one
+    line with the decision and the link, each time an issue is opened.
   </p>
   <p>
     The workflow uses the <code>yoanbernabeu/stackalarm</code> action, which you can also call from your own workflows. Its inputs and outputs,
@@ -109,7 +114,7 @@ stack:
     </li>
     <li>Create a pipeline schedule (Build &gt; Pipeline schedules), every 4 hours: <code>17 */4 * * *</code>. The job runs only on schedules.</li>
   </ol>
-  <p>Two optional variables, read by the CLI as on your machine:</p>
+  <p>Three optional variables:</p>
   <table>
     <thead><tr><th scope="col">Variable</th><th scope="col">Why</th></tr></thead>
     <tbody>
@@ -122,6 +127,7 @@ stack:
         </td>
       </tr>
       <tr><td><code>NVD_API_KEY</code></td><td>Faster NVD searches. <a href="https://nvd.nist.gov/developers/request-an-api-key">Free</a>.</td></tr>
+      <tr><td><code>STACKALARM_WEBHOOK_URL</code></td><td>An incoming webhook (Slack, Mattermost) that gets one line with the link of each issue opened. Masked.</td></tr>
     </tbody>
   </table>
   <p>The job's variables, which you can override:</p>

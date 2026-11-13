@@ -1,0 +1,6 @@
+id: uv-advisories
+name: uv (Python package manager) security advisories (GitHub)
+type: github-advisories
+repo: astral-sh/uv
+tags: [uv]
+stage: advisory

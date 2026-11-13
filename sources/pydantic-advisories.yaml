@@ -1,0 +1,6 @@
+id: pydantic-advisories
+name: Pydantic security advisories (GitHub)
+type: github-advisories
+repo: pydantic/pydantic
+tags: [pydantic]
+stage: advisory

@@ -1,0 +1,6 @@
+id: flowise-advisories
+name: Flowise security advisories (GitHub)
+type: github-advisories
+repo: FlowiseAI/Flowise
+tags: [flowise]
+stage: advisory

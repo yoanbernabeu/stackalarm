@@ -1,0 +1,6 @@
+id: nuclei-templates
+name: Nuclei templates, the CVEs with a public ready-to-run exploit or detection (marks the CVEs of the other sources)
+type: nuclei
+url: https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/main/cves.json
+tags: [general]
+stage: alert

@@ -1,0 +1,6 @@
+id: mercure-advisories
+name: Mercure security advisories (GitHub)
+type: github-advisories
+repo: dunglas/mercure
+tags: [mercure]
+stage: advisory

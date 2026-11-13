@@ -1,0 +1,6 @@
+id: jinja-advisories
+name: Jinja security advisories (GitHub)
+type: github-advisories
+repo: pallets/jinja
+tags: [jinja]
+stage: advisory

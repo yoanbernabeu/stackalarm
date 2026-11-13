@@ -1,0 +1,6 @@
+id: code-server-advisories
+name: code-server security advisories (GitHub)
+type: github-advisories
+repo: coder/code-server
+tags: [code-server]
+stage: advisory

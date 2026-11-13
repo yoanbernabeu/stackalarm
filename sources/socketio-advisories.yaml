@@ -1,0 +1,6 @@
+id: socketio-advisories
+name: Socket.IO security advisories (GitHub)
+type: github-advisories
+repo: socketio/socket.io
+tags: [socket.io]
+stage: advisory

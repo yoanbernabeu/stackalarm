@@ -1,0 +1,7 @@
+id: aikido-blog
+name: Aikido blog, vulnerabilities and malicious packages
+type: feed
+url: "https://www.aikido.dev/blog/rss.xml"
+tags: [general]
+stage: news
+keywords: [CVE, vulnerability, malware, malicious, compromised, supply chain, backdoor]

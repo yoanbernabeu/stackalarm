@@ -1,0 +1,6 @@
+id: pyjwt-advisories
+name: PyJWT security advisories (GitHub)
+type: github-advisories
+repo: jpadilla/pyjwt
+tags: [pyjwt]
+stage: advisory

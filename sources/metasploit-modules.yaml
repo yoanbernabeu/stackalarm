@@ -1,0 +1,6 @@
+id: metasploit-modules
+name: Metasploit Framework, the CVEs with a public exploit module (marks the CVEs of the other sources)
+type: metasploit
+url: https://raw.githubusercontent.com/rapid7/metasploit-framework/master/db/modules_metadata_base.json
+tags: [general]
+stage: alert

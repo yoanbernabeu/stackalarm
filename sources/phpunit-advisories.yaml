@@ -1,0 +1,6 @@
+id: phpunit-advisories
+name: PHPUnit security advisories (GitHub)
+type: github-advisories
+repo: sebastianbergmann/phpunit
+tags: [phpunit]
+stage: advisory

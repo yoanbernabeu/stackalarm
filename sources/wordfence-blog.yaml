@@ -1,0 +1,6 @@
+id: wordfence-blog
+name: Wordfence blog (WordPress vulnerabilities)
+type: feed
+url: "https://www.wordfence.com/feed/"
+tags: [wordpress]
+stage: news

@@ -1,0 +1,6 @@
+id: osv-rubygems
+name: OSV.dev, known vulnerabilities of the RubyGems package versions in use
+type: osv
+ecosystem: RubyGems
+tags: [ruby]
+stage: advisory

@@ -1,0 +1,6 @@
+id: portainer-advisories
+name: Portainer security advisories (GitHub)
+type: github-advisories
+repo: portainer/portainer
+tags: [portainer]
+stage: advisory

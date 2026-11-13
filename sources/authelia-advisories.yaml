@@ -1,0 +1,6 @@
+id: authelia-advisories
+name: Authelia security advisories (GitHub)
+type: github-advisories
+repo: authelia/authelia
+tags: [authelia]
+stage: advisory

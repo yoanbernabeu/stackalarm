@@ -1,0 +1,6 @@
+id: immich-advisories
+name: Immich security advisories (GitHub)
+type: github-advisories
+repo: immich-app/immich
+tags: [immich]
+stage: advisory

@@ -1,0 +1,102 @@
+---
+// Site search, over the index Pagefind builds from the pages after the build.
+// The index is only fetched when the dialog opens.
+---
+<button type="button" class="search-open" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K /">
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+  <span>Search</span>
+  <kbd aria-hidden="true">Ctrl K</kbd>
+</button>
+<dialog class="search" aria-label="Search the site">
+  <form method="dialog" class="search-form" role="search">
+    <label class="visually-hidden" for="search-input">Search the docs, the news and the sources</label>
+    <input id="search-input" type="search" placeholder="php, SBOM, rate limit…" autocomplete="off" spellcheck="false" />
+    <button type="submit" class="search-close">Close</button>
+  </form>
+  <p class="search-status muted small" role="status" aria-live="polite">Search the docs, the news and the sources.</p>
+  <ol class="search-results"></ol>
+</dialog>
+<script>
+  type Result = { url: string; excerpt: string; meta: { title?: string }; sub_results?: { title: string; url: string; excerpt: string }[] };
+  type Pagefind = { init(): Promise<void>; debouncedSearch(q: string, o?: object, ms?: number): Promise<{ results: { data(): Promise<Result> }[] } | null> };
+
+  const dialog = document.querySelector<HTMLDialogElement>("dialog.search")!;
+  const input = dialog.querySelector<HTMLInputElement>("input")!;
+  const status = dialog.querySelector<HTMLElement>(".search-status")!;
+  const list = dialog.querySelector<HTMLOListElement>(".search-results")!;
+  const idle = status.textContent!;
+  let pagefind: Pagefind | undefined;
+
+  async function open() {
+    if (dialog.open) return;
+    dialog.showModal();
+    input.select();
+    if (pagefind) return;
+    try {
+      const path = "/pagefind/pagefind.js"; // written next to the pages by the build
+      pagefind = (await import(/* @vite-ignore */ path)) as Pagefind;
+      await pagefind.init();
+      if (input.value) search();
+    } catch {
+      status.textContent = "The search index is not built in this preview: run npm run build.";
+    }
+  }
+
+  // Excerpts come from the index with <mark> around the words found: only
+  // that tag is kept, everything else is text.
+  function excerpt(html: string): DocumentFragment {
+    const out = document.createDocumentFragment();
+    const decode = document.createElement("textarea"); // decodes entities, never builds elements
+    for (const [i, part] of html.split(/<\/?mark>/).entries()) {
+      decode.innerHTML = part;
+      const text = decode.value;
+      if (i % 2) out.append(Object.assign(document.createElement("mark"), { textContent: text }));
+      else out.append(text);
+    }
+    return out;
+  }
+
+  async function search() {
+    const q = input.value.trim();
+    if (!pagefind || !q) {
+      list.replaceChildren();
+      if (pagefind) status.textContent = idle;
+      return;
+    }
+    const found = await pagefind.debouncedSearch(q, {}, 150);
+    if (!found) return; // a newer search replaced this one
+    const results = await Promise.all(found.results.slice(0, 8).map((r) => r.data()));
+    status.textContent = found.results.length ? `${found.results.length} ${found.results.length === 1 ? "page" : "pages"} for “${q}”` : `Nothing for “${q}”.`;
+    list.replaceChildren(
+      ...results.map((r) => {
+        const li = document.createElement("li");
+        const best = r.sub_results?.find((s) => s.url !== r.url) ?? { title: "", url: r.url, excerpt: r.excerpt };
+        const a = Object.assign(document.createElement("a"), { href: best.url });
+        const title = Object.assign(document.createElement("strong"), { textContent: r.meta.title ?? r.url });
+        a.append(title);
+        if (best.title) a.append(Object.assign(document.createElement("span"), { className: "search-section", textContent: best.title }));
+        const p = document.createElement("p");
+        p.append(excerpt(best.excerpt));
+        li.append(a, p);
+        return li;
+      }),
+    );
+  }
+
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  for (const button of document.querySelectorAll(".search-open")) {
+    button.addEventListener("click", open);
+    if (mac) button.querySelector("kbd")!.textContent = "⌘K";
+  }
+  input.addEventListener("input", search);
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close(); // the backdrop
+  });
+  document.addEventListener("keydown", (e) => {
+    const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
+    if ((e.key === "/" && !typing) || (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey))) {
+      e.preventDefault();
+      open();
+    }
+  });
+</script>

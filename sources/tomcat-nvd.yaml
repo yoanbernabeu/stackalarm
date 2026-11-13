@@ -1,0 +1,7 @@
+id: tomcat-nvd
+name: Apache Tomcat, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "apache:tomcat"
+tags: [tomcat]
+stage: advisory

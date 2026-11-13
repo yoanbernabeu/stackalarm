@@ -1,0 +1,7 @@
+id: apache-nvd
+name: Apache HTTP Server, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "apache:http_server"
+tags: [apache]
+stage: advisory

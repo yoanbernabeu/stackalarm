@@ -27,6 +27,10 @@ Install: \`npx skills add yoanbernabeu/stackalarm\`. On its first run, the skill
 - [GitHub workflow to copy](${raw}/ci/github/stackalarm.yml)
 - [GitLab CI job to include](${raw}/ci/gitlab/stackalarm.yml)
 
+## Live data
+
+- [Security news by tag](https://stackalarm.dev/news/): one page per tag (https://stackalarm.dev/news/<tag>/) with the items of the last 30 days, updated daily, and an Atom feed (https://stackalarm.dev/news/<tag>/feed.xml)
+
 ## Optional
 
 - [Full text for language models](https://stackalarm.dev/llms-full.txt): the README and the skill in one file

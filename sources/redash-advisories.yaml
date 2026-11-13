@@ -1,0 +1,6 @@
+id: redash-advisories
+name: Redash security advisories (GitHub)
+type: github-advisories
+repo: getredash/redash
+tags: [redash]
+stage: advisory

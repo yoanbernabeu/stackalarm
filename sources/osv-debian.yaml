@@ -1,0 +1,6 @@
+id: osv-debian
+name: OSV.dev, known vulnerabilities of the Debian packages an SBOM lists
+type: osv
+ecosystem: Debian
+tags: [debian]
+stage: advisory

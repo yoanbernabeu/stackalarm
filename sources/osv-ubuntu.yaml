@@ -1,0 +1,6 @@
+id: osv-ubuntu
+name: OSV.dev, known vulnerabilities of the Ubuntu packages an SBOM lists
+type: osv
+ecosystem: Ubuntu
+tags: [ubuntu]
+stage: advisory

@@ -266,3 +266,31 @@ func TestCVEGathersEveryDatabase(t *testing.T) {
 		t.Fatal("ValidCVE")
 	}
 }
+
+func TestNVDProductSourceReadsTheRecordsOfItsProduct(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query().Get("virtualMatchString")+"|"+r.URL.Query().Get("keywordSearch"))
+		w.Write([]byte(strings.NewReplacer("php:php", "apache:tomcat", `"baseScore":7.5`, `"baseScore":4.3`).Replace(nvdProduct)))
+	}))
+	defer srv.Close()
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), Now: func() time.Time { return now }}
+	sources := []source.Source{
+		{ID: "tomcat-nvd", Type: source.TypeNVDProduct, URL: srv.URL, Product: "apache:tomcat", Tags: []string{"tomcat"}, Stage: source.StageAdvisory},
+	}
+	q := Query{Tags: []string{"tomcat"}, Since: now.Add(-7 * 24 * time.Hour), Versions: map[string]string{"tomcat": "8.3.20"}}
+	res := f.Fetch(context.Background(), sources, q)
+	if strings.Join(queries, ",") != "cpe:2.3:a:apache:tomcat|" {
+		t.Fatalf("the product is asked for, not a word: %v", queries)
+	}
+	if len(res.Items) != 1 || len(res.Failures) != 0 || res.Items[0].Score != 4.3 {
+		t.Fatalf("a record of the product is kept whatever its wording and its score: %+v %+v", res.Items, res.Failures)
+	}
+	if a := res.Items[0].Affected[0]; a.Package != "tomcat" || a.Status != StatusAffected || a.InUse != "8.3.20" {
+		t.Fatalf("its ranges are named after the tag and compared with the version in use: %+v", res.Items[0].Affected)
+	}
+	if res := f.Fetch(context.Background(), sources, Query{Tags: []string{"php"}, Since: q.Since}); len(res.Items) != 0 || len(queries) != 1 {
+		t.Fatalf("another tag does not read it: %+v %v", res.Items, queries)
+	}
+}

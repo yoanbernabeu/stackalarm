@@ -1,0 +1,6 @@
+id: trpc-advisories
+name: tRPC security advisories (GitHub)
+type: github-advisories
+repo: trpc/trpc
+tags: [trpc]
+stage: advisory

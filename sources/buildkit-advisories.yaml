@@ -1,0 +1,6 @@
+id: buildkit-advisories
+name: BuildKit security advisories (GitHub)
+type: github-advisories
+repo: moby/buildkit
+tags: [buildkit]
+stage: advisory

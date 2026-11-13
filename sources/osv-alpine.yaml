@@ -1,0 +1,6 @@
+id: osv-alpine
+name: OSV.dev, known vulnerabilities of the Alpine packages an SBOM lists
+type: osv
+ecosystem: Alpine
+tags: [alpine]
+stage: advisory

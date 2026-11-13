@@ -1,0 +1,6 @@
+id: etcd-advisories
+name: etcd security advisories (GitHub)
+type: github-advisories
+repo: etcd-io/etcd
+tags: [etcd]
+stage: advisory

@@ -1,0 +1,7 @@
+id: moodle-nvd
+name: Moodle, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "moodle:moodle"
+tags: [moodle]
+stage: advisory

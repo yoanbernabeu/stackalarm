@@ -1,0 +1,6 @@
+id: uptime-kuma-advisories
+name: Uptime Kuma security advisories (GitHub)
+type: github-advisories
+repo: louislam/uptime-kuma
+tags: [uptime-kuma]
+stage: advisory

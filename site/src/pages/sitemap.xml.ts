@@ -1,13 +1,18 @@
 import type { APIRoute } from "astro";
+import { loadNews } from "../lib/news";
 
 const pages = [
   "/",
   "/docs/",
   "/docs/skill/",
   "/docs/cli/",
+  "/docs/sbom/",
   "/docs/watch/",
   "/docs/sources/",
   "/docs/privacy/",
+  "/docs/faq/",
+  "/news/",
+  ...loadNews().map((t) => `/news/${t.tag}/`),
   "/llms.txt",
   "/llms-full.txt",
 ];

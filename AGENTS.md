@@ -10,8 +10,9 @@ A Go CLI that gathers security news (heads-ups, releases, advisories, CERT alert
 
 ```
 cmd/stackalarm/     entry point
+cmd/sitenews/       gathers the news of each tag for the /news/ pages of the site (not released)
 internal/cli/       Cobra commands (news, cve, eol, sources); App holds every dependency
-internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, OSV, NVD, KEV, exploit catalogs), filtering, cache
+internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, OSV, NVD, KEV, exploit catalogs, SBOMs), filtering, cache
 internal/source/    the source format and its validation
 internal/watch/     the project profile and the state of a scheduled watch
 sources/            one YAML file per source, plus search.yaml (how tags are searched in the CVE databases, and their NVD product), embedded in the binary
@@ -29,6 +30,8 @@ site/               the presentation site (Astro), see site/DESIGN.md
 3. `go test ./...` validates every bundled source.
 4. Run `go run ./cmd/stackalarm news --tag <tag> --since 30d --no-cache` and check the entries look right. If a new tag is an ambiguous word, the NVD and EUVD results show it: give it an alias or skip it in `sources/search.yaml`. If the tag is a product of the NVD dictionary, add its `vendor:product` under `cpe` there (check it answers: `https://services.nvd.nist.gov/rest/json/cpes/2.0?cpeMatchString=cpe:2.3:a:<vendor>:<product>&resultsPerPage=1`): its version ranges are then compared with `--tag <tag>@<version>`.
 5. Commit with `Fixes #<issue>`.
+
+A technology that publishes neither a feed nor GitHub advisories (Apache httpd, Tomcat, OpenSSH) gets a `type: nvd-product` source: `url` is the NVD API, `product` its `vendor:product` in the NVD dictionary (checked as in step 4), and its one tag names the version ranges. If the tag is a common word, give it an alias in `sources/search.yaml`.
 
 ## Rules
 

@@ -1,0 +1,6 @@
+id: babel-advisories
+name: Babel security advisories (GitHub)
+type: github-advisories
+repo: babel/babel
+tags: [babel]
+stage: advisory

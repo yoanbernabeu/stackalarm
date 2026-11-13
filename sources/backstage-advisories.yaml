@@ -1,0 +1,6 @@
+id: backstage-advisories
+name: Backstage security advisories (GitHub)
+type: github-advisories
+repo: backstage/backstage
+tags: [backstage]
+stage: advisory

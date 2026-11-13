@@ -1,0 +1,6 @@
+id: jupyter-server-advisories
+name: Jupyter Server security advisories (GitHub)
+type: github-advisories
+repo: jupyter-server/jupyter_server
+tags: [jupyter]
+stage: advisory

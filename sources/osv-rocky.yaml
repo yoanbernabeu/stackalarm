@@ -1,0 +1,6 @@
+id: osv-rocky
+name: OSV.dev, known vulnerabilities of the Rocky Linux packages an SBOM lists
+type: osv
+ecosystem: Rocky Linux
+tags: [rocky]
+stage: advisory

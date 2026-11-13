@@ -48,6 +48,11 @@ import { raw } from "../../lib/repo";
     conditions of step 5 still apply. When you name a CVE, or when one item decides the verdict, it reads its full record with
     <a href="/docs/cli/#cve"><code>stackalarm cve</code></a> instead of piecing it together from web pages.
   </p>
+  <p>
+    When the project ships a container image and <code>trivy</code>, <code>syft</code> or <code>docker sbom</code> is installed, it writes
+    the SBOM of the image and passes it too: the system packages of the image are then checked, which no lockfile declares. See
+    <a href="/docs/sbom/">Container images</a>.
+  </p>
 
   <h2 id="search">3. It searches the web</h2>
   <p>

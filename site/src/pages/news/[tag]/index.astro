@@ -1,0 +1,131 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Code from "../../../components/Code.astro";
+import NewsList from "../../../components/NewsList.astro";
+import { days, day, generalSources, loadNews, type TagNews } from "../../../lib/news";
+import { stages } from "../../../lib/sources";
+import { parse } from "yaml";
+import { readRepoFile, repo } from "../../../lib/repo";
+
+export function getStaticPaths() {
+  return loadNews().map((page) => ({ params: { tag: page.tag }, props: { page } }));
+}
+interface Props {
+  page: TagNews;
+}
+const { page } = Astro.props;
+const { tag, items, exploited, rest } = page;
+const general = generalSources().length;
+// The tags whose product the NVD lists: only for them can the CLI compare a version given with the tag.
+const versioned = Boolean(parse(readRepoFile("sources/search.yaml")).cpe?.[tag]);
+const count = (stage: string) => rest.filter((it) => it.stage === stage).length;
+const used = stages.filter((s) => count(s) > 0);
+const title = `${tag} security news: releases, advisories and exploited flaws`;
+const description = page.gathered
+  ? `${items.length} security ${items.length === 1 ? "item" : "items"} about ${tag} in the last ${days} days${exploited.length ? `, ${exploited.length} exploited in the wild` : ""}: announced releases, fixes, advisories and alerts, from ${page.sources.length + general} sources. Updated every day.`
+  : `The security sources stackalarm reads for ${tag}: announced releases, fixes, advisories and alerts.`;
+const failed = page.failures.map((f) => f.source);
+---
+<Base title={`${title} | stackalarm`} description={description} feed={{ href: `/news/${tag}/feed.xml`, title: `${tag} security news` }}>
+  <main id="content" class="wrap news-page" data-pagefind-body>
+    <p class="crumbs" data-pagefind-ignore><a href="/news/">Security news</a> <span aria-hidden="true">/</span> {tag}</p>
+    <h1><code>{tag}</code> security news</h1>
+    <p class="lead-in">
+      {page.gathered ? (
+        <>
+          What {page.sources.length} {page.sources.length === 1 ? "source" : "sources"} of its own and {general} general ones (CERTs, lists of exploited flaws, exploit feeds, press) published about
+          <code>{tag}</code> in the last {days} days. Updated every day, last on <time datetime={page.generatedAt}>{day(page.generatedAt!)}</time>.
+        </>
+      ) : (
+        <>The news was not gathered for this build. Below, the sources stackalarm reads for <code>{tag}</code>.</>
+      )}
+    </p>
+
+    {page.gathered && (
+      <div class="news-layout">
+        <div>
+          {exploited.length > 0 && (
+            <section class="news-alert" aria-labelledby="exploited">
+              <h2 id="exploited">Exploited in the wild</h2>
+              <p class="muted small">Reported exploited by CISA KEV or the EU vulnerability database. If you run an affected version, patch first, read later.</p>
+              <NewsList items={exploited} />
+            </section>
+          )}
+
+          <section aria-labelledby="news">
+            <h2 id="news">{exploited.length > 0 ? `The rest of the last ${days} days` : `The last ${days} days`}</h2>
+            {items.length === 0 ? (
+              <p>Nothing was published about <code>{tag}</code> in the last {days} days. Quiet is the normal state.</p>
+            ) : (
+              <>
+                {used.length > 1 && (
+                  <div class="stage-filter" role="group" aria-label="Show one stage" data-pagefind-ignore>
+                    <button type="button" aria-pressed="true" data-show="">all {rest.length}</button>
+                    {used.map((s) => <button type="button" aria-pressed="false" data-show={s}>{s} {count(s)}</button>)}
+                  </div>
+                )}
+                <NewsList items={rest} />
+              </>
+            )}
+          </section>
+
+          {failed.length > 0 && (
+            <p class="muted small">
+              Could not be read for this update, so their news may be missing: {failed.map((f, i) => <>{i > 0 && ", "}<code>{f}</code></>)}.
+            </p>
+          )}
+        </div>
+
+        <aside aria-label={`Watching ${tag}`} data-pagefind-ignore>
+          <section class="side-card">
+            <h2>Does it affect your project?</h2>
+            <p class="small">
+              This page shows everything published about <code>{tag}</code>, for every version. stackalarm is a skill for AI coding agents: it
+              reads the versions your project really uses and tells you which of these items concern you.
+            </p>
+            <Code label="Install the skill" code="npx skills add yoanbernabeu/stackalarm" />
+            <p class="small">Then type <code>/stackalarm</code> in your agent. <a href="/docs/">How it works</a></p>
+            {versioned && (
+              <p class="small muted">
+                Without an agent, the CLI compares a version with the vulnerable ranges: <code>stackalarm news --tag {tag}@1.2.3</code>
+              </p>
+            )}
+          </section>
+          <section>
+            <h2>Follow <code>{tag}</code></h2>
+            <p class="small">
+              <a href={`/news/${tag}/feed.xml`}>Atom feed</a> of this page. For an alert only when your project is concerned, set up the
+              <a href="/docs/watch/">scheduled watch</a>.
+            </p>
+          </section>
+          <section>
+            <h2>Sources</h2>
+            <ul class="news-sources">
+              {page.sources.map((s) => <li>{s.name}</li>)}
+              <li class="muted">{general} <a href="/docs/sources/">general sources</a>, kept when they mention it</li>
+            </ul>
+            <p class="small"><a href={`${repo}/issues/new?template=new-source.yml`}>Propose a source</a></p>
+          </section>
+        </aside>
+      </div>
+    )}
+
+    {!page.gathered && (
+      <ul class="news-sources">
+        {page.sources.map((s) => <li><span class="stage" data-stage={s.stage}>{s.stage}</span> {s.name}</li>)}
+      </ul>
+    )}
+  </main>
+</Base>
+<script>
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>(".stage-filter button")];
+  const rows = [...document.querySelectorAll<HTMLElement>("#news ~ .news li")];
+  const groups = [...document.querySelectorAll<HTMLElement>("#news ~ .news .news-day")];
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      for (const b of buttons) b.setAttribute("aria-pressed", String(b === button));
+      for (const li of rows) li.hidden = Boolean(button.dataset.show) && li.dataset.stage !== button.dataset.show;
+      for (const g of groups) g.hidden = !g.querySelector("li:not([hidden])");
+    });
+  }
+</script>

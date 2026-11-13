@@ -119,6 +119,12 @@ type Query struct {
 	// Versions gives the version in use of a tag (php: 8.3.20). It never
 	// filters: the ranges of the CVE records are compared with it.
 	Versions map[string]string
+	// Components are the packages of an SBOM: each names its ecosystem, and
+	// the OSV sources of those ecosystems are read whatever the tags.
+	Components []Component
+	// ComponentsOnly reads nothing but the OSV sources of the components and
+	// the lists that mark their CVEs exploited: a run on an SBOM alone.
+	ComponentsOnly bool
 }
 
 // Fetcher reads sources over HTTP, with a small on-disk cache.
@@ -140,6 +146,9 @@ type Fetcher struct {
 	Now         func() time.Time
 
 	github chan struct{} // bounds the GitHub requests in flight
+	// The pauses between two requests to the NVD and the EUVD, kept from one
+	// Fetch to the next: a program that fetches tag after tag stays in the limits.
+	nvdGate, euvdGate *gate
 }
 
 // GitHubConcurrency bounds the GitHub requests in flight: beyond, its
@@ -149,10 +158,23 @@ const GitHubConcurrency = 16
 // Fetch reads the sources selected by q, in parallel.
 func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
 	selected := selectSources(sources, q.Tags)
+	if q.ComponentsOnly {
+		selected = nil
+	}
+	for _, s := range sources {
+		marks := s.Type == source.TypeKEV || s.Type == source.TypeEUVD && s.Stage == source.StageAlert || s.Type.IsExploitCatalog()
+		inSBOM := s.Type == source.TypeOSV && slices.ContainsFunc(q.Components, func(c Component) bool { return inEcosystem(c.Ecosystem, s.Ecosystem) })
+		if (inSBOM || marks && q.ComponentsOnly) && !slices.ContainsFunc(selected, func(o source.Source) bool { return o.ID == s.ID }) {
+			selected = append(selected, s)
+		}
+	}
 	f.github = make(chan struct{}, GitHubConcurrency)
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
-	nvd, euvd := &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
+	if f.nvdGate == nil {
+		f.nvdGate, f.euvdGate = &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
+	}
+	nvd, euvd := f.nvdGate, f.euvdGate
 	exploited := map[string][]string{} // CVE: the sources reporting it exploited
 	exploits := map[string][]string{}  // CVE: the catalogs holding a public exploit
 
@@ -191,6 +213,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 			}
 			entries = slices.DeleteFunc(entries, func(e entry) bool {
+				if q.ComponentsOnly && s.Type != source.TypeOSV {
+					return true // read for its marks only
+				}
 				if e.Published.IsZero() || !e.Current && e.Published.Before(q.Since) {
 					return true
 				}
@@ -212,8 +237,13 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				if c := cmp.Compare(relevance(a, q), relevance(b, q)); c != 0 {
 					return c
 				}
-				if s.Type.IsSearch() || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
-					if c := cmp.Compare(priority(b.Score), priority(a.Score)); c != 0 {
+				if s.Type == source.TypeOSV { // what an update fixes today, before what has no fix yet
+					if c := cmp.Compare(fixable(b), fixable(a)); c != 0 {
+						return c
+					}
+				}
+				if s.Type.IsSearch() || s.Type == source.TypeNVDProduct || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
+					if c := cmp.Compare(priority(b), priority(a)); c != 0 {
 						return c
 					}
 				}
@@ -281,7 +311,7 @@ var (
 // never merged: their own wording carries information.
 func mergeable(t source.Type) bool {
 	switch t {
-	case source.TypeNVD, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV:
+	case source.TypeNVD, source.TypeNVDProduct, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV:
 		return true
 	}
 	return false
@@ -341,6 +371,16 @@ func (f *Fetcher) addEPSS(ctx context.Context, items []Item) error {
 		}
 	}
 	return nil
+}
+
+// fixable is 1 when a fixed version exists for a range the version in use is in.
+func fixable(e entry) int {
+	for _, a := range e.Affected {
+		if a.Status == StatusAffected && a.Fixed != "" {
+			return 1
+		}
+	}
+	return 0
 }
 
 // statusOrder puts the ranges that hold a version in use first, and those
@@ -602,11 +642,8 @@ func matchers(words []string) []*regexp.Regexp {
 }
 
 // priority ranks an unscored CVE as high: fresh CVEs wait days for a score.
-func priority(score float64) float64 {
-	if score == 0 {
-		return 9
-	}
-	return score
+func priority(e entry) float64 {
+	return cmp.Or(e.Rank, e.Score, 9)
 }
 
 // MaxTerms bounds the requests made to search sources: without a key, the
@@ -737,8 +774,26 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 			}
 		}
 		return out, errors.Join(err, werr)
+	case source.TypeNVDProduct:
+		// Every record of the product, whatever its score: it is the source of
+		// the technology, and the cap keeps the most severe.
+		end := now.Truncate(time.Hour).Add(time.Hour)
+		start := since.UTC().Truncate(24 * time.Hour)
+		if oldest := end.Add(-120 * 24 * time.Hour); start.Before(oldest) {
+			start = oldest // the API caps the range at 120 days
+		}
+		const layout = "2006-01-02T15:04:05.000Z"
+		u := s.URL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+s.Product) + "&pubStartDate=" + start.Format(layout) + "&pubEndDate=" + end.Format(layout)
+		if nvd != nil && !f.isCached(u) {
+			if err := nvd.wait(ctx); err != nil {
+				return nil, err
+			}
+		}
+		return f.readOne(ctx, u, "nvd", func(data []byte) ([]entry, error) {
+			return parseNVD(data, map[string]string{s.Tags[0]: s.Product}, 0)
+		})
 	case source.TypeOSV:
-		return f.readOSV(ctx, s.Ecosystem, q.Packages)
+		return f.readOSV(ctx, s.Ecosystem, q.Packages, q.Components)
 	case source.TypeNuclei:
 		return f.readOne(ctx, s.URL, "", parseNuclei)
 	case source.TypeMetasploit:

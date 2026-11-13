@@ -1,0 +1,6 @@
+id: pihole-advisories
+name: Pi-hole security advisories (GitHub)
+type: github-advisories
+repo: pi-hole/pi-hole
+tags: [pihole]
+stage: advisory

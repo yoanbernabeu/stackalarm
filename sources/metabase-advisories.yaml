@@ -1,0 +1,6 @@
+id: metabase-advisories
+name: Metabase security advisories (GitHub)
+type: github-advisories
+repo: metabase/metabase
+tags: [metabase]
+stage: advisory

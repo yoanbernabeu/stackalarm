@@ -95,17 +95,19 @@ func (a *App) Execute(ctx context.Context) int {
 var errFound = errors.New("new items found")
 
 type newsReport struct {
-	GeneratedAt time.Time         `json:"generated_at"`
-	Since       time.Time         `json:"since"`
-	Tags        []string          `json:"tags"`
-	Keywords    []string          `json:"keywords"`
-	Packages    []string          `json:"packages,omitempty"`
-	Stack       []watch.Component `json:"stack,omitempty"` // from the profile
-	Items       []news.Item       `json:"items"`
-	Failures    []news.Failure    `json:"failures"`
-	Truncated   []news.Truncation `json:"truncated"`
-	Short       []news.Coverage   `json:"short"` // feeds that do not reach back to Since
-	Warnings    []string          `json:"warnings"`
+	GeneratedAt time.Time `json:"generated_at"`
+	Since       time.Time `json:"since"`
+	Tags        []string  `json:"tags"`
+	Keywords    []string  `json:"keywords"`
+	Packages    []string  `json:"packages,omitempty"`
+	// Components are the packages read from the SBOMs given, looked up on OSV.dev.
+	Components []news.Component  `json:"components,omitempty"`
+	Stack      []watch.Component `json:"stack,omitempty"` // from the profile
+	Items      []news.Item       `json:"items"`
+	Failures   []news.Failure    `json:"failures"`
+	Truncated  []news.Truncation `json:"truncated"`
+	Short      []news.Coverage   `json:"short"` // feeds that do not reach back to Since
+	Warnings   []string          `json:"warnings"`
 	// AlreadyReported counts the items left out because the state file says
 	// an earlier run reported them.
 	AlreadyReported int `json:"already_reported,omitempty"`
@@ -126,6 +128,7 @@ func (a *App) newsCommand() *cobra.Command {
 	var (
 		tags, keywords []string
 		packages       []string
+		sboms          []string
 		since, format  string
 		noCache, noOSV bool
 		profilePath    string
@@ -150,11 +153,18 @@ a version locked today is still exposed to a flaw published last year. A tag
 with its version (--tag php@8.3.20) is compared with the version ranges of the
 CVE records. Both mark each range "affected" or "not-affected".
 
+With --sbom, the packages of a CycloneDX or SPDX document (JSON, as syft,
+trivy, docker sbom or cdxgen write it) are looked up on OSV.dev the same way,
+system packages of a container image included: Debian, Ubuntu, Alpine, Rocky
+Linux, AlmaLinux, Wolfi and Chainguard. Given alone, without a tag, a keyword
+nor a profile, only those vulnerabilities are listed.
+
 For a scheduled watch, --profile reads the tags, keywords and packages from a
 file the agent wrote, --state shows only the items no earlier run reported, and
 --fail-on exits with code 2 when a new item has one of the given stages.`,
 		Example: "  stackalarm news --tag php --tag symfony --since 7d\n" +
 			"  stackalarm news --tag node --tag npm --package express@4.21.2,dompurify@3.2.3 --format json\n" +
+			"  stackalarm news --tag php --tag symfony --sbom image.cdx.json --format summary\n" +
 			"  stackalarm news --profile .stackalarm.yaml --state .stackalarm-state --fail-on heads-up,alert,release --since 48h --format markdown",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -198,6 +208,36 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					}
 				}
 			}
+			var (
+				components []news.Component
+				sbomNotes  []string
+			)
+			for _, path := range sboms {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return fmt.Errorf("--sbom: %w", err)
+				}
+				sbom, err := news.ParseSBOM(data)
+				if err != nil {
+					return fmt.Errorf("--sbom %s: %w", path, err)
+				}
+				for _, c := range sbom.Components {
+					if !slices.Contains(components, c) {
+						components = append(components, c)
+					}
+				}
+				if len(sbom.Components) == 0 {
+					sbomNotes = append(sbomNotes, fmt.Sprintf("%s lists no package OSV.dev can look up", path))
+				}
+				if note := sbom.SkippedNote(); note != "" {
+					sbomNotes = append(sbomNotes, fmt.Sprintf("%s: components not looked up: %s", path, note))
+				}
+			}
+			if len(sboms) > 0 && (noOSV || a.Getenv("STACKALARM_NO_OSV") != "") {
+				return errors.New("--sbom looks its packages up on OSV.dev: it cannot be used with --no-osv nor STACKALARM_NO_OSV")
+			}
+			// An SBOM alone asks one question: what hits these packages.
+			sbomOnly := len(components) > 0 && len(tags)+len(keywords)+len(packages) == 0
 			var state watch.State
 			if statePath != "" {
 				if state, err = watch.LoadState(statePath); err != nil {
@@ -206,7 +246,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			}
 			// An unknown tag is searched as a keyword in the general sources rather
 			// than failing: agents guess tags, and a guess should still help.
-			var warnings []string
+			warnings := sbomNotes
 			known := source.Tags(a.Sources)
 			tags = slices.DeleteFunc(lower(tags), func(t string) bool {
 				if slices.Contains(known, t) {
@@ -242,18 +282,21 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				defer close(eolDone)
 				eol, eolErr = f.SupportItems(cmd.Context(), stack)
 			}()
-			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages, Versions: versions})
+			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
 			<-eolDone
 			if eolErr != nil {
 				res.Failures = append(res.Failures, news.Failure{Source: news.SupportSource, Error: eolErr.Error()})
 			}
-			res.Items = append(eol, res.Items...)
+			res.Items = append(slices.Clip(eol), res.Items...)
+			if res.Items == nil {
+				res.Items = []news.Item{}
+			}
 			if len(res.NotSearched) > 0 {
 				warnings = append(warnings, fmt.Sprintf("the CVE databases are searched for %d words at most, in the order given: %s not searched (their tagged sources were still read); put the most important tags and keywords first, or run again for these",
 					news.MaxTerms, strings.Join(res.NotSearched, ", ")))
 			}
 			report := newsReport{
-				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Stack: stack,
+				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Components: components, Stack: stack,
 				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Short: res.Short, Warnings: nonNil(warnings),
 			}
 			for _, ig := range ignores {
@@ -329,6 +372,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "technology to watch, repeatable (php, node, gitlab…); with its exact version (php@8.3.20), the version ranges of the CVE records are compared with it")
 	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (roadrunner, htmx…)")
 	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "packages from the lockfile, repeatable, with their version or not (next@15.1.0, dompurify): the GitHub Advisory Database sources then return only their recent advisories, for that version, and OSV.dev every known vulnerability of that version")
+	cmd.Flags().StringSliceVar(&sboms, "sbom", nil, "SBOM of the project or of its container image, repeatable (CycloneDX or SPDX, in JSON): OSV.dev is asked for every known vulnerability of its packages, system packages included")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json, markdown (an issue body) or sarif (the items a version in use proves, for a code scanning dashboard)")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "always fetch the sources (responses are otherwise reused for an hour)")
@@ -341,8 +385,11 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 
 func (a *App) printNews(r newsReport) {
 	scope := "all sources"
-	if len(r.Tags) > 0 {
+	switch {
+	case len(r.Tags) > 0:
 		scope = strings.Join(r.Tags, ", ")
+	case len(r.Components) > 0 && len(r.Keywords)+len(r.Packages) == 0:
+		scope = fmt.Sprintf("the %d packages of the SBOM", len(r.Components))
 	}
 	for _, w := range r.Warnings {
 		fmt.Fprintln(a.Err, "Warning:", w)

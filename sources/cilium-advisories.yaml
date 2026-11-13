@@ -1,0 +1,6 @@
+id: cilium-advisories
+name: Cilium security advisories (GitHub)
+type: github-advisories
+repo: cilium/cilium
+tags: [cilium]
+stage: advisory

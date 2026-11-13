@@ -1,0 +1,7 @@
+id: zabbix-nvd
+name: Zabbix, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "zabbix:zabbix"
+tags: [zabbix]
+stage: advisory

@@ -1,0 +1,6 @@
+id: clickhouse-advisories
+name: ClickHouse security advisories (GitHub)
+type: github-advisories
+repo: ClickHouse/ClickHouse
+tags: [clickhouse]
+stage: advisory

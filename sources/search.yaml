@@ -17,6 +17,29 @@ aliases:
   api-platform: api platform
   anthropic-sdk: anthropic
   gcp: google cloud
+  # Common words, or names shared with something else: Azure Synapse, Hyper-V,
+  # a "monthly rollup" of patches, the Tower of Babel, a plausible scenario.
+  flux: fluxcd
+  hyper: hyperium
+  synapse: matrix synapse
+  rollup: rollup.js
+  babel: babeljs
+  bind: bind 9
+  apollo: apollo server
+  tornado: tornadoweb
+  plausible: plausible analytics
+  backstage: spotify backstage
+  outline: getoutline
+  drizzle: drizzle orm
+  # "apache" alone names every project of the foundation.
+  apache: apache http server
+  # Written with a dot, a dash or a space in the texts.
+  vertx: vert.x
+  wikijs: wiki.js
+  pihole: pi-hole
+  rocketchat: rocket.chat
+  uptime-kuma: uptime kuma
+  argo-workflows: argo workflows
 
 # Tags the CVE databases are not searched for by word. General sources (CERTs,
 # KEV, press) still match them, and an explicit --keyword is still searched.
@@ -116,3 +139,30 @@ cpe:
   openssl: openssl:openssl
   mariadb: mariadb:mariadb
   mongodb: mongodb:mongodb
+  tensorflow: google:tensorflow
+  pytorch: linuxfoundation:pytorch
+  jupyter: jupyter:notebook
+  squid: squid-cache:squid
+  bind: isc:bind
+  dovecot: dovecot:dovecot
+  coredns: coredns.io:coredns
+  etcd: etcd:etcd
+  clickhouse: clickhouse:clickhouse
+  nats: nats:nats_server
+  podman: podman_project:podman
+  cilium: cilium:cilium
+  kyverno: kyverno:kyverno
+  rancher: suse:rancher
+  phpmyadmin: phpmyadmin:phpmyadmin
+  magento: magento:magento
+  mediawiki: mediawiki:mediawiki
+  matomo: matomo:matomo
+  woocommerce: woocommerce:woocommerce
+  jellyfin: jellyfin:jellyfin
+  metabase: metabase:metabase
+  rocketchat: rocket.chat:rocket.chat
+  synapse: matrix:synapse
+  pihole: pi-hole:pi-hole
+  gogs: gogs:gogs
+  backstage: linuxfoundation:backstage
+  outline: getoutline:outline

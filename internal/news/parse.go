@@ -30,6 +30,9 @@ type entry struct {
 	Exact     bool         // found by product in a search source: kept whatever its wording
 	Current   bool         // hits a version in use now: kept whatever its date
 	Exploit   bool         // an entry of a catalog of public exploits: it marks its CVE
+	// Rank orders the entry among those of its source in place of Score, when a
+	// distribution rates the flaw itself (Ubuntu's priority, Debian's "unimportant").
+	Rank float64
 }
 
 type xmlLink struct {

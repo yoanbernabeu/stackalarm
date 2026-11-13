@@ -1,0 +1,6 @@
+id: osv-chainguard
+name: OSV.dev, known vulnerabilities of the Chainguard packages an SBOM lists
+type: osv
+ecosystem: Chainguard
+tags: [chainguard]
+stage: advisory

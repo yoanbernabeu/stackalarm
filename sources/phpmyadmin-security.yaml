@@ -1,0 +1,6 @@
+id: phpmyadmin-security
+name: phpMyAdmin security announcements
+type: feed
+url: "https://www.phpmyadmin.net/security/feed/"
+tags: [phpmyadmin]
+stage: advisory

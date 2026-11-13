@@ -1,0 +1,83 @@
+---
+import Base from "../../layouts/Base.astro";
+import { days, day, loadNews, meta } from "../../lib/news";
+import { loadSources } from "../../lib/sources";
+
+const all = loadNews();
+const { generated_at } = meta();
+const total = loadSources().length;
+const busiest = all
+  .filter((t) => t.items.length > 0)
+  .sort((a, b) => b.exploited.length - a.exploited.length || b.items.length - a.items.length)
+  .slice(0, 10);
+const description = `The security news of ${all.length} tags (languages, frameworks, tools, distributions, vendors) over the last ${days} days: announced releases, fixes, advisories and exploited flaws, read from ${total} sources and updated every day.`;
+---
+<Base title="Security news by tag: stackalarm" description={description}>
+  <main id="content" class="wrap news-page" data-pagefind-body>
+    <h1>Security news, by tag</h1>
+    <p class="lead-in">
+      What the {total} sources of stackalarm published over the last {days} days, sorted into {all.length} tags: languages, frameworks, tools, distributions and vendors.
+      {generated_at ? <>Updated every day, last on <time datetime={generated_at}>{day(generated_at)}</time>.</> : "The news was not gathered for this build."}
+      These pages show everything; <a href="/docs/">the skill</a> keeps only what affects your project.
+    </p>
+
+    {busiest.length > 0 && (
+      <section aria-labelledby="busiest" data-pagefind-ignore>
+        <h2 id="busiest">Most active this month</h2>
+        <table class="news-table">
+          <thead><tr><th scope="col">Tag</th><th scope="col" class="num">Items</th><th scope="col" class="num">Exploited</th><th scope="col">Latest</th></tr></thead>
+          <tbody>
+            {busiest.map((t) => (
+              <tr>
+                <td><a href={`/news/${t.tag}/`}><code>{t.tag}</code></a></td>
+                <td class="num">{t.items.length}</td>
+                <td class="num">{t.exploited.length > 0 ? <span class="alert-text">{t.exploited.length}</span> : <span class="muted">–</span>}</td>
+                <td class="latest"><time datetime={t.items[0].published}>{day(t.items[0].published).slice(5)}</time> {t.items[0].title}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    <section aria-labelledby="all">
+      <h2 id="all">All tags</h2>
+      <div class="news-tools">
+        <label class="filter">
+          <span class="visually-hidden">Filter the tags</span>
+          <input type="search" id="tag-filter" placeholder="Filter: php, kube, next…" autocomplete="off" spellcheck="false" />
+        </label>
+        <p class="muted small">Number of items in the last {days} days. <span class="dot" aria-hidden="true"></span> exploited in the wild.</p>
+      </div>
+      <ul class="news-list" id="tag-all">
+        {all.map((t) => (
+          <li data-tag={t.tag}>
+            <a href={`/news/${t.tag}/`} class:list={{ quiet: t.items.length === 0 }}>
+              <code>{t.tag}</code>
+              {t.exploited.length > 0 && <span class="dot" role="img" aria-label="exploited in the wild"></span>}
+              <span class="count">{t.items.length || "–"}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p class="muted small" id="tag-none" hidden>
+        No tag by that name. An unknown name still works as a <code>--keyword</code> in the CLI, and you can
+        <a href="https://github.com/yoanbernabeu/stackalarm/issues/new?template=new-source.yml">propose a source</a> for it.
+      </p>
+    </section>
+  </main>
+</Base>
+<script>
+  const input = document.querySelector<HTMLInputElement>("#tag-filter")!;
+  const items = [...document.querySelectorAll<HTMLElement>("#tag-all li")];
+  const none = document.querySelector<HTMLElement>("#tag-none")!;
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    for (const li of items) {
+      li.hidden = !li.dataset.tag!.includes(q);
+      if (!li.hidden) shown++;
+    }
+    none.hidden = shown > 0;
+  });
+</script>

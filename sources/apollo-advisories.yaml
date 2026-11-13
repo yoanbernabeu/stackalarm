@@ -1,0 +1,6 @@
+id: apollo-advisories
+name: Apollo Server security advisories (GitHub)
+type: github-advisories
+repo: apollographql/apollo-server
+tags: [apollo]
+stage: advisory

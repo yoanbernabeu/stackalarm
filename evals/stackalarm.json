@@ -107,6 +107,21 @@
         "Proposes a review date (until) for the ignore entry",
         "Has an explicit statement of what could not be checked"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "/stackalarm our image in production is built from the Dockerfile, are its system packages fine?",
+      "expected_output": "Reads the Dockerfile; when trivy, syft or docker sbom is installed, writes the SBOM of the image (the deployed one when it can be named, otherwise the base image of the FROM line, saying so) and passes it with `--sbom`; groups the fixable system packages into one finding (rebuild the image on the current base), gives only the number of flaws the distribution has not fixed and details the exploited ones, leaves the `[unimportant]` ones out. Without any of the three tools, says the system packages were not checked and names the command that would.",
+      "files": [
+        "fixtures/symfony-app"
+      ],
+      "assertions": [
+        "Either ran `stackalarm news` with `--sbom`, or stated that the system packages of the image were not checked and named a tool that writes an SBOM",
+        "Did not install trivy, syft or any other tool without asking",
+        "Says which image was scanned (the deployed image or the base image of the FROM line)",
+        "Does not list every unfixed distribution flaw one by one",
+        "Has an explicit statement of what could not be checked"
+      ]
     }
   ]
 }

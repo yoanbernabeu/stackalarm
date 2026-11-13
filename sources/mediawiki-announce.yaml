@@ -1,0 +1,7 @@
+id: mediawiki-announce
+name: MediaWiki announcements, security releases
+type: feed
+url: "https://lists.wikimedia.org/hyperkitty/list/mediawiki-announce@lists.wikimedia.org/feed/"
+tags: [mediawiki]
+stage: release
+keywords: [security, vulnerability, vulnerabilities]

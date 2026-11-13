@@ -1,0 +1,6 @@
+id: jupyter-notebook-advisories
+name: Jupyter Notebook security advisories (GitHub)
+type: github-advisories
+repo: jupyter/notebook
+tags: [jupyter]
+stage: advisory

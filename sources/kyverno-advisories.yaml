@@ -1,0 +1,6 @@
+id: kyverno-advisories
+name: Kyverno security advisories (GitHub)
+type: github-advisories
+repo: kyverno/kyverno
+tags: [kyverno]
+stage: advisory

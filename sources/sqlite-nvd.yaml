@@ -1,0 +1,7 @@
+id: sqlite-nvd
+name: SQLite, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "sqlite:sqlite"
+tags: [sqlite]
+stage: advisory

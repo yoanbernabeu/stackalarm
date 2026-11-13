@@ -1,0 +1,6 @@
+id: openfga-advisories
+name: OpenFGA security advisories (GitHub)
+type: github-advisories
+repo: openfga/openfga
+tags: [openfga]
+stage: advisory

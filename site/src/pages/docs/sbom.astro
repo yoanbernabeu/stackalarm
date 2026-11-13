@@ -1,0 +1,95 @@
+---
+import Docs from "../../layouts/Docs.astro";
+import Code from "../../components/Code.astro";
+import { latestTag } from "../../lib/version";
+
+const output = `2026-11-05 | advisory | osv-alpine | 8.1 | [high] musl: musl libc before 1.2.7, when an untrusted regular expression is used with regcomp… (CVE-2026-107891) | https://osv.dev/vulnerability/ALPINE-CVE-2026-107891 | affects musl < 1.2.5-r24 (fixed in 1.2.5-r24) [1.2.5-r21 in use: AFFECTED]
+2026-09-29 | advisory | osv-npm | 7.5 | [high] brace-expansion: DoS via uncontrolled recursion on nested brace groups… (CVE-2026-102278) | https://osv.dev/vulnerability/GHSA-qhr7-859c-m2p7 | affects brace-expansion >= 2.0.0, < 2.1.6 (fixed in 2.1.6) [2.0.2 in use: AFFECTED]
+TRUNCATED | osv-alpine | 9 older entries left out`;
+
+const workflow = `      - uses: anchore/sbom-action@v0 # or any tool that writes CycloneDX or SPDX
+        with:
+          image: ghcr.io/acme/app:latest
+          format: cyclonedx-json
+          output-file: image.cdx.json
+      - uses: yoanbernabeu/stackalarm@v${latestTag()}
+        with:
+          sbom: image.cdx.json`;
+---
+<Docs title="Container images" description="Check the system packages of a container image with an SBOM: Debian, Ubuntu, Alpine, Rocky Linux, AlmaLinux, Wolfi and Chainguard.">
+  <p class="lead-in">
+    A lockfile lists your libraries, not the OpenSSL, glibc or curl that ship in your image. Give the CLI an SBOM of the image and it looks
+    up every package in it, system packages included.
+  </p>
+
+  <h2 id="write">Write the SBOM</h2>
+  <p>
+    An SBOM (software bill of materials) is the list of the packages of an image or a project. stackalarm does not write it: the tools that
+    read images already do it well. It reads CycloneDX and SPDX 2, in JSON.
+  </p>
+  <Code label="trivy" code="trivy image --format cyclonedx --output image.cdx.json ghcr.io/acme/app:latest" />
+  <Code label="syft" code="syft ghcr.io/acme/app:latest -o cyclonedx-json=image.cdx.json" />
+  <Code label="Docker" code="docker sbom --format cyclonedx-json -o image.cdx.json ghcr.io/acme/app:latest" />
+  <p>
+    Scan the image you deploy, not only the base image of the <code>FROM</code> line: what the Dockerfile installs on top is part of it.
+  </p>
+
+  <h2 id="check">Check it</h2>
+  <Code code="stackalarm news --sbom image.cdx.json --format summary" />
+  <Code label="What comes back" code={output} copy={false} />
+  <p>
+    Given alone, <code>--sbom</code> lists only the known vulnerabilities of the packages, whatever their date. With tags, a profile or
+    packages, they are added to the usual news. The option is repeatable, one file per image.
+  </p>
+  <p>
+    <a href="https://osv.dev">OSV.dev</a> is asked about each package in its own ecosystem, and each answer says whether a fixed version
+    exists. CVEs listed in CISA KEV or holding a public exploit are marked, as in the rest of the CLI.
+  </p>
+
+  <h2 id="covered">What is covered</h2>
+  <table>
+    <thead><tr><th scope="col">Packages</th><th scope="col">Ecosystems</th></tr></thead>
+    <tbody>
+      <tr><td>System packages</td><td>Debian, Ubuntu, Alpine, Rocky Linux, AlmaLinux, Wolfi, Chainguard</td></tr>
+      <tr><td>Libraries</td><td>npm, Packagist, PyPI, Go, RubyGems, crates.io, Maven, NuGet, Pub, Hex, Swift, GitHub Actions</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Anything else is counted in a warning, never dropped in silence: Red Hat and SUSE packages, binaries copied into the image without a
+    package, components without a package URL. A distribution package is looked up under its source package (<code>libssl3</code> is
+    <code>openssl</code>), which trivy and syft both record.
+  </p>
+
+  <h2 id="read">Read the result</h2>
+  <p>An up-to-date Debian or Ubuntu image always carries dozens of open flaws. Three cases matter:</p>
+  <table>
+    <thead><tr><th scope="col">In the output</th><th scope="col">Meaning</th><th scope="col">What to do</th></tr></thead>
+    <tbody>
+      <tr><td><code>(fixed in …)</code></td><td>The distribution ships a fix, and the image holds an older package.</td><td>Rebuild the image on the current base, or upgrade the package. These come first.</td></tr>
+      <tr><td><code>(no fix yet)</code></td><td>The distribution has not fixed it.</td><td>Nothing to install. Look closer when it is exploited, or in a library your application feeds untrusted input to.</td></tr>
+      <tr><td><code>[unimportant]</code></td><td>Debian judges the flaw is no security issue in its package.</td><td>Nothing. Listed last.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Each ecosystem shows its 30 most pressing entries: fixable first, then by severity. The output says how many were left out. Ubuntu rates
+    its records with a priority (<code>[medium]</code>) rather than a score.
+  </p>
+
+  <h2 id="watch">In the scheduled watch</h2>
+  <p>
+    Write the SBOM in a step before the action and pass its path. The watch then reports a package of the image the day a vulnerability is
+    published for it.
+  </p>
+  <Code label=".github/workflows/stackalarm.yml (excerpt)" code={workflow} copy={false} />
+  <p>
+    On GitLab, set the <code>STACKALARM_SBOM</code> variable to the path of a file an earlier job passed as an artifact. Vulnerabilities of
+    packages are advisories: add <code>advisory</code> to <code>fail-on</code> to be woken by them, or keep the default and read them in the
+    report of the next alert.
+  </p>
+
+  <h2 id="privacy">What is sent</h2>
+  <p>
+    The names and versions of the packages of the SBOM go to OSV.dev (Google), and nothing else from the file. <code>--sbom</code> cannot be
+    combined with <code>--no-osv</code>. See <a href="/docs/privacy/">Privacy and security</a>.
+  </p>
+</Docs>

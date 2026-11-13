@@ -1,0 +1,6 @@
+id: jupyterhub-advisories
+name: JupyterHub security advisories (GitHub)
+type: github-advisories
+repo: jupyterhub/jupyterhub
+tags: [jupyter]
+stage: advisory

@@ -1,0 +1,6 @@
+id: magento-releases
+name: Magento Open Source releases and security patches (GitHub)
+type: feed
+url: "https://github.com/magento/magento2/releases.atom"
+tags: [magento]
+stage: release

@@ -1,0 +1,6 @@
+id: adguard-advisories
+name: AdGuard Home security advisories (GitHub)
+type: github-advisories
+repo: AdguardTeam/AdGuardHome
+tags: [adguard]
+stage: advisory

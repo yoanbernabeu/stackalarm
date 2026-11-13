@@ -1,0 +1,7 @@
+id: log4j-nvd
+name: Apache Log4j, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "apache:log4j"
+tags: [log4j]
+stage: advisory

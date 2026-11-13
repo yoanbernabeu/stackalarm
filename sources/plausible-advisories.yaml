@@ -1,0 +1,6 @@
+id: plausible-advisories
+name: Plausible Analytics security advisories (GitHub)
+type: github-advisories
+repo: plausible/analytics
+tags: [plausible]
+stage: advisory

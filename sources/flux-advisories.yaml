@@ -1,0 +1,6 @@
+id: flux-advisories
+name: Flux security advisories (GitHub)
+type: github-advisories
+repo: fluxcd/flux2
+tags: [flux]
+stage: advisory

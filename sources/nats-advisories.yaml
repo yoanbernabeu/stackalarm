@@ -1,0 +1,6 @@
+id: nats-advisories
+name: NATS Server security advisories (GitHub)
+type: github-advisories
+repo: nats-io/nats-server
+tags: [nats]
+stage: advisory

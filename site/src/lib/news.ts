@@ -1,4 +1,4 @@
-// The news gathered for each tag by cmd/techdata (npm run tech), read at build
+// The news gathered for each tag by cmd/sitenews (npm run news), read at build
 // time. Without the data (a local build that did not run it), the
 // pages still list the sources of each tag and say the news is missing.
 import { existsSync, readFileSync } from "node:fs";
@@ -21,7 +21,7 @@ export type Item = {
   affected: Affected[];
   more_affected: number;
 };
-export type Tech = {
+export type TagNews = {
   tag: string;
   sources: Source[]; // its own sources, without the general ones
   gathered: boolean;
@@ -32,10 +32,10 @@ export type Tech = {
   exploited: Item[];
 };
 
-const dir = resolve(process.cwd(), ".data/tech");
+const dir = resolve(process.cwd(), ".data/news");
 
 // The general sources read for every page: all but the CVE databases searched
-// by word, which cmd/techdata leaves out.
+// by word, which cmd/sitenews leaves out.
 export const generalSources = () => loadSources().filter((s) => s.tags.includes("general") && !["nvd", "euvd-search"].includes(s.type));
 
 export const days = 30;
@@ -48,9 +48,9 @@ export function meta(): { generated_at?: string; failed: string[] } {
   return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : { failed: [] };
 }
 
-let cache: Tech[] | undefined;
+let cache: TagNews[] | undefined;
 
-export function loadTech(): Tech[] {
+export function loadNews(): TagNews[] {
   if (cache) return cache;
   const sources = loadSources();
   const tags = [...new Set(sources.flatMap((s) => s.tags))].filter((t) => t !== "general").sort();

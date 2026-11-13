@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { loadTech } from "../lib/tech";
+import { loadNews } from "../lib/news";
 
 const pages = [
   "/",
@@ -11,8 +11,8 @@ const pages = [
   "/docs/sources/",
   "/docs/privacy/",
   "/docs/faq/",
-  "/tech/",
-  ...loadTech().map((t) => `/tech/${t.tag}/`),
+  "/news/",
+  ...loadNews().map((t) => `/news/${t.tag}/`),
   "/llms.txt",
   "/llms-full.txt",
 ];

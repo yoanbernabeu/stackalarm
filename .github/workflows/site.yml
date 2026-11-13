@@ -3,8 +3,8 @@ name: Site
 # Publishes site/ to GitHub Pages (stackalarm.dev). The site reads sources/, ci/, the
 # README and the skill at build time, so a change to any of them republishes it.
 #
-# The /tech/ pages show the news of the last 30 days for each tag. It is
-# gathered once a day with the code of the commit (cmd/techdata, a few
+# The /news/ pages show the news of the last 30 days for each tag. It is
+# gathered once a day with the code of the commit (cmd/sitenews, a few
 # minutes), kept in the cache, and reused by the builds a push starts. If the
 # gathering fails, nothing is published and the site stays as it was.
 on:
@@ -52,25 +52,25 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - run: npm ci
-      - name: Restore the news of the technology pages
-        id: tech
+      - name: Restore the news of the news pages
+        id: news
         uses: actions/cache/restore@v6
         with:
-          path: site/.data/tech
-          key: tech-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: tech-
-      - name: Gather the news of the technology pages
+          path: site/.data/news
+          key: news-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: news-
+      - name: Gather the news of the news pages
         id: gather
-        if: github.event_name != 'push' || steps.tech.outputs.cache-matched-key == ''
+        if: github.event_name != 'push' || steps.news.outputs.cache-matched-key == ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npm run tech
+        run: npm run news
       - name: Keep the news for the next builds
         if: steps.gather.outcome == 'success'
         uses: actions/cache/save@v6
         with:
-          path: site/.data/tech
-          key: tech-${{ github.run_id }}-${{ github.run_attempt }}
+          path: site/.data/news
+          key: news-${{ github.run_id }}-${{ github.run_attempt }}
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
         with:

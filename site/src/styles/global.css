@@ -1301,7 +1301,7 @@ main > section:not(.hero) {
   }
 }
 
-/* Shared by the pages outside the landing: search, technology pages, table of contents. */
+/* Shared by the pages outside the landing: search, news pages, table of contents. */
 
 .visually-hidden {
   position: absolute;
@@ -1496,39 +1496,39 @@ main > section:not(.hero) {
   margin: 1rem 0 1.25rem;
 }
 
-/* Technology pages */
+/* News pages */
 
-.tech {
+.news-page {
   padding-block: 2rem 4rem;
 }
 
 @media (min-width: 64rem) {
-  .tech {
+  .news-page {
     padding-block: 3rem 6rem;
   }
 }
 
-main.tech section {
+main.news-page section {
   padding-block: 0; /* the landing spaces its sections widely, these pages do not */
 }
 
-.tech h1 {
+.news-page h1 {
   font-size: clamp(2.2rem, 1.4rem + 3vw, 3.4rem);
   letter-spacing: -0.035em;
   margin-bottom: 1rem;
 }
 
-.tech h1 code {
+.news-page h1 code {
   font-size: 0.9em;
   color: var(--accent);
 }
 
-.tech h2 {
+.news-page h2 {
   font-size: clamp(1.4rem, 1.2rem + 1vw, 1.8rem);
   margin-top: 2.5rem;
 }
 
-.tech .lead-in {
+.news-page .lead-in {
   max-width: 50rem;
   font-size: 1.15em;
   color: var(--muted);
@@ -1544,38 +1544,38 @@ main.tech section {
   color: var(--alert);
 }
 
-.tech-exploited {
+.news-exploited {
   max-width: 50rem;
   margin-top: 1.5rem;
 }
 
-.tech-table {
+.news-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
 }
 
-.tech-table th,
-.tech-table td {
+.news-table th,
+.news-table td {
   padding: 0.6rem 1rem 0.6rem 0;
   text-align: left;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 
-.tech-table th {
+.news-table th {
   font: 500 0.8rem var(--mono);
   color: var(--muted);
   border-bottom-color: var(--edge);
 }
 
-.tech-table .num {
+.news-table .num {
   text-align: right;
   font-family: var(--mono);
   width: 5.5rem;
 }
 
-.tech-table .latest {
+.news-table .latest {
   width: 100%;
   max-width: 0; /* lets the cell shrink, so the title is cut with an ellipsis */
   overflow: hidden;
@@ -1584,30 +1584,30 @@ main.tech section {
   padding-right: 0;
 }
 
-.tech-table .latest time {
+.news-table .latest time {
   margin-right: 0.5rem;
   font-size: 0.8rem;
 }
 
 @media (max-width: 40rem) {
-  .tech-table .latest,
-  .tech-table th:last-child {
+  .news-table .latest,
+  .news-table th:last-child {
     display: none;
   }
 }
 
-.tech-tools {
+.news-tools {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0 1.5rem;
 }
 
-.tech-tools .filter {
+.news-tools .filter {
   flex: 1 1 16rem;
 }
 
-.tech-tools p {
+.news-tools p {
   margin: 0;
 }
 
@@ -1619,7 +1619,7 @@ main.tech section {
   background: var(--alert);
 }
 
-.tech-list {
+.news-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
   column-gap: 2.5rem;
@@ -1628,7 +1628,7 @@ main.tech section {
   list-style: none;
 }
 
-.tech-list a {
+.news-list a {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1638,80 +1638,80 @@ main.tech section {
   white-space: nowrap;
 }
 
-.tech-list a:hover code {
+.news-list a:hover code {
   color: var(--accent);
 }
 
-.tech-list code {
+.news-list code {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.92rem;
 }
 
-.tech-list .count {
+.news-list .count {
   margin-left: auto;
   font: 0.85rem var(--mono);
   color: var(--muted);
 }
 
-.tech-list .quiet code {
+.news-list .quiet code {
   color: var(--muted);
 }
 
-.tech-layout {
+.news-layout {
   display: grid;
   gap: 1rem 4rem;
 }
 
-.tech-layout > * {
+.news-layout > * {
   min-width: 0;
 }
 
 @media (min-width: 64rem) {
-  .tech-layout {
+  .news-layout {
     grid-template-columns: minmax(0, 1fr) 20rem;
     align-items: start;
   }
 }
 
-.tech-layout aside h2 {
+.news-layout aside h2 {
   font-size: 1.15rem;
   letter-spacing: -0.01em;
 }
 
-.tech-layout aside .code {
+.news-layout aside .code {
   margin-block: 0.75rem;
 }
 
-.tech-layout {
+.news-layout {
   margin-top: 2rem;
 }
 
-.tech-layout > div > section:first-child:not(.tech-alert) h2,
-.tech-layout aside > section:first-child h2 {
+.news-layout > div > section:first-child:not(.news-alert) h2,
+.news-layout aside > section:first-child h2 {
   margin-top: 0;
 }
 
-.tech-alert {
+.news-alert {
   margin-top: 0;
   padding: 0.25rem 1.1rem 0.5rem;
   border: 1px solid var(--alert);
   border-radius: 12px;
 }
 
-.tech-alert h2 {
+.news-alert h2 {
   margin-top: 1rem;
   color: var(--alert);
 }
 
-.tech-sources {
+.news-sources {
   margin: 0 0 1rem;
   padding: 0;
   list-style: none;
   font-size: 0.92rem;
 }
 
-.tech-sources li {
+.news-sources li {
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--line);
 }
@@ -1744,19 +1744,19 @@ main.tech section {
   color: var(--bg);
 }
 
-.tech-layout aside pre {
+.news-layout aside pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-main.tech .side-card {
+main.news-page .side-card {
   padding: 1.1rem 1.2rem 0.4rem;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--bg-2);
 }
 
-.tech-layout aside .side-card h2 {
+.news-layout aside .side-card h2 {
   margin-top: 0;
 }
 
@@ -1863,11 +1863,11 @@ main.tech .side-card {
   color: var(--alert);
 }
 
-.tech-alert .news-day:first-child h3 {
+.news-alert .news-day:first-child h3 {
   margin-top: 0.75rem;
 }
 
-.tech-alert .news-day li:last-child {
+.news-alert .news-day li:last-child {
   border-bottom: 0;
 }
 

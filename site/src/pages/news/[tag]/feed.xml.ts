@@ -1,16 +1,16 @@
-// The Atom feed of a technology page: the same items, for a feed reader.
+// The Atom feed of a news page: the same items, for a feed reader.
 import type { APIRoute } from "astro";
-import { affectedText, days, loadTech, safeURL, type Tech } from "../../../lib/tech";
+import { affectedText, days, loadNews, safeURL, type TagNews } from "../../../lib/news";
 
 export function getStaticPaths() {
-  return loadTech().map((tech) => ({ params: { tag: tech.tag }, props: { tech } }));
+  return loadNews().map((page) => ({ params: { tag: page.tag }, props: { page } }));
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export const GET: APIRoute = ({ props, site }) => {
-  const { tag, items, generatedAt } = props.tech as Tech;
-  const page = new URL(`/tech/${tag}/`, site).href;
+  const { tag, items, generatedAt } = props.page as TagNews;
+  const link = new URL(`/news/${tag}/`, site).href;
   const updated = items[0]?.published ?? generatedAt ?? new Date(0).toISOString();
   const entries = items.map((it, i) => {
     const facts = [
@@ -21,7 +21,7 @@ export const GET: APIRoute = ({ props, site }) => {
     ].filter(Boolean);
     const link = safeURL(it.url);
     return `  <entry>
-    <id>${esc(link ?? `${page}#${i}-${it.published}`)}</id>
+    <id>${esc(link ?? `${link}#${i}-${it.published}`)}</id>
     <title>${esc(`[${it.stage}] ${it.title}`)}</title>
     <updated>${esc(it.published)}</updated>
     ${link ? `<link href="${esc(link)}" />` : ""}
@@ -32,11 +32,11 @@ export const GET: APIRoute = ({ props, site }) => {
   return new Response(
     `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <id>${page}</id>
+  <id>${link}</id>
   <title>${esc(tag)} security news, by stackalarm</title>
   <subtitle>Announced releases, fixes, advisories and alerts about ${esc(tag)} over the last ${days} days.</subtitle>
-  <link href="${page}" />
-  <link rel="self" href="${page}feed.xml" />
+  <link href="${link}" />
+  <link rel="self" href="${link}feed.xml" />
   <updated>${esc(updated)}</updated>
   <author><name>stackalarm</name></author>
 ${entries.join("\n")}

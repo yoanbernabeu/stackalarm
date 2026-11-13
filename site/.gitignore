@@ -2,5 +2,5 @@ node_modules/
 dist/
 .astro/
 
-# the news gathered for the /tech/ pages
+# the news gathered for the /news/ pages
 .data/

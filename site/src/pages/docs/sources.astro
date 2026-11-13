@@ -16,9 +16,9 @@ const general = sources.filter((s) => s.tags.includes("general"));
   <h2 id="tags">Tags</h2>
   <p>Pass them with <code>--tag</code>. An unknown tag is searched as a keyword in the general sources.</p>
   <ul class="tag-list">
-    {tags.map((t) => <li><a href={`/tech/${t}/`}><code>{t}</code></a></li>)}
+    {tags.map((t) => <li><a href={`/news/${t}/`}><code>{t}</code></a></li>)}
   </ul>
-  <p>Each tag has <a href="/tech/">its own page</a> with the news of the last 30 days and a feed.</p>
+  <p>Each tag has <a href="/news/">its own page</a> with the news of the last 30 days and a feed.</p>
   <p>
     The {general.length} sources tagged <code>general</code> (CERTs, CVE databases, exploit feeds, press) are read on every run, and only their
     entries that mention one of your tags or keywords are kept.

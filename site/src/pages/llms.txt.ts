@@ -29,7 +29,7 @@ Install: \`npx skills add yoanbernabeu/stackalarm\`. On its first run, the skill
 
 ## Live data
 
-- [Security news by technology](https://stackalarm.dev/tech/): one page per tag (https://stackalarm.dev/tech/<tag>/) with the items of the last 30 days, updated daily, and an Atom feed (https://stackalarm.dev/tech/<tag>/feed.xml)
+- [Security news by tag](https://stackalarm.dev/news/): one page per tag (https://stackalarm.dev/news/<tag>/) with the items of the last 30 days, updated daily, and an Atom feed (https://stackalarm.dev/news/<tag>/feed.xml)
 
 ## Optional
 

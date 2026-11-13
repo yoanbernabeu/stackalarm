@@ -10,7 +10,7 @@ A Go CLI that gathers security news (heads-ups, releases, advisories, CERT alert
 
 ```
 cmd/stackalarm/     entry point
-cmd/techdata/       gathers the news of each tag for the /tech/ pages of the site (not released)
+cmd/sitenews/       gathers the news of each tag for the /news/ pages of the site (not released)
 internal/cli/       Cobra commands (news, cve, eol, sources); App holds every dependency
 internal/news/      fetching, parsing (RSS, RDF, Atom, GitHub advisories, OSV, NVD, KEV, exploit catalogs, SBOMs), filtering, cache
 internal/source/    the source format and its validation

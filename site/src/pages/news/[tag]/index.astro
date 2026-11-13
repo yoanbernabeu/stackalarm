@@ -2,47 +2,47 @@
 import Base from "../../../layouts/Base.astro";
 import Code from "../../../components/Code.astro";
 import NewsList from "../../../components/NewsList.astro";
-import { days, day, generalSources, loadTech, type Tech } from "../../../lib/tech";
+import { days, day, generalSources, loadNews, type TagNews } from "../../../lib/news";
 import { stages } from "../../../lib/sources";
 import { repo } from "../../../lib/repo";
 
 export function getStaticPaths() {
-  return loadTech().map((tech) => ({ params: { tag: tech.tag }, props: { tech } }));
+  return loadNews().map((page) => ({ params: { tag: page.tag }, props: { page } }));
 }
 interface Props {
-  tech: Tech;
+  page: TagNews;
 }
-const { tech } = Astro.props;
-const { tag, items, exploited, rest } = tech;
+const { page } = Astro.props;
+const { tag, items, exploited, rest } = page;
 const general = generalSources().length;
 const count = (stage: string) => rest.filter((it) => it.stage === stage).length;
 const used = stages.filter((s) => count(s) > 0);
 const title = `${tag} security news: releases, advisories and exploited flaws`;
-const description = tech.gathered
-  ? `${items.length} security ${items.length === 1 ? "item" : "items"} about ${tag} in the last ${days} days${exploited.length ? `, ${exploited.length} exploited in the wild` : ""}: announced releases, fixes, advisories and alerts, from ${tech.sources.length + general} sources. Updated every day.`
+const description = page.gathered
+  ? `${items.length} security ${items.length === 1 ? "item" : "items"} about ${tag} in the last ${days} days${exploited.length ? `, ${exploited.length} exploited in the wild` : ""}: announced releases, fixes, advisories and alerts, from ${page.sources.length + general} sources. Updated every day.`
   : `The security sources stackalarm reads for ${tag}: announced releases, fixes, advisories and alerts.`;
-const failed = tech.failures.map((f) => f.source);
+const failed = page.failures.map((f) => f.source);
 ---
-<Base title={`${title} | stackalarm`} description={description} feed={{ href: `/tech/${tag}/feed.xml`, title: `${tag} security news` }}>
-  <main id="content" class="wrap tech" data-pagefind-body>
-    <p class="crumbs" data-pagefind-ignore><a href="/tech/">Technologies</a> <span aria-hidden="true">/</span> {tag}</p>
+<Base title={`${title} | stackalarm`} description={description} feed={{ href: `/news/${tag}/feed.xml`, title: `${tag} security news` }}>
+  <main id="content" class="wrap news-page" data-pagefind-body>
+    <p class="crumbs" data-pagefind-ignore><a href="/news/">Security news</a> <span aria-hidden="true">/</span> {tag}</p>
     <h1><code>{tag}</code> security news</h1>
     <p class="lead-in">
-      {tech.gathered ? (
+      {page.gathered ? (
         <>
-          What {tech.sources.length} {tech.sources.length === 1 ? "source" : "sources"} of its own and {general} general ones (CERTs, lists of exploited flaws, exploit feeds, press) published about
-          <code>{tag}</code> in the last {days} days. Updated every day, last on <time datetime={tech.generatedAt}>{day(tech.generatedAt!)}</time>.
+          What {page.sources.length} {page.sources.length === 1 ? "source" : "sources"} of its own and {general} general ones (CERTs, lists of exploited flaws, exploit feeds, press) published about
+          <code>{tag}</code> in the last {days} days. Updated every day, last on <time datetime={page.generatedAt}>{day(page.generatedAt!)}</time>.
         </>
       ) : (
         <>The news was not gathered for this build. Below, the sources stackalarm reads for <code>{tag}</code>.</>
       )}
     </p>
 
-    {tech.gathered && (
-      <div class="tech-layout">
+    {page.gathered && (
+      <div class="news-layout">
         <div>
           {exploited.length > 0 && (
-            <section class="tech-alert" aria-labelledby="exploited">
+            <section class="news-alert" aria-labelledby="exploited">
               <h2 id="exploited">Exploited in the wild</h2>
               <p class="muted small">Reported exploited by CISA KEV or the EU vulnerability database. If you run an affected version, patch first, read later.</p>
               <NewsList items={exploited} />
@@ -83,14 +83,14 @@ const failed = tech.failures.map((f) => f.source);
           <section>
             <h2>Follow <code>{tag}</code></h2>
             <p class="small">
-              <a href={`/tech/${tag}/feed.xml`}>Atom feed</a> of this page. For an alert only when your project is concerned, set up the
+              <a href={`/news/${tag}/feed.xml`}>Atom feed</a> of this page. For an alert only when your project is concerned, set up the
               <a href="/docs/watch/">scheduled watch</a>.
             </p>
           </section>
           <section>
             <h2>Sources</h2>
-            <ul class="tech-sources">
-              {tech.sources.map((s) => <li>{s.name}</li>)}
+            <ul class="news-sources">
+              {page.sources.map((s) => <li>{s.name}</li>)}
               <li class="muted">{general} <a href="/docs/sources/">general sources</a>, kept when they mention it</li>
             </ul>
             <p class="small"><a href={`${repo}/issues/new?template=new-source.yml`}>Propose a source</a></p>
@@ -99,9 +99,9 @@ const failed = tech.failures.map((f) => f.source);
       </div>
     )}
 
-    {!tech.gathered && (
-      <ul class="tech-sources">
-        {tech.sources.map((s) => <li><span class="stage" data-stage={s.stage}>{s.stage}</span> {s.name}</li>)}
+    {!page.gathered && (
+      <ul class="news-sources">
+        {page.sources.map((s) => <li><span class="stage" data-stage={s.stage}>{s.stage}</span> {s.name}</li>)}
       </ul>
     )}
   </main>

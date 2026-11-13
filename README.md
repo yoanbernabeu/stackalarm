@@ -52,7 +52,7 @@ stackalarm sources                          # the sources and their tags
 stackalarm news --help                      # every option
 ```
 
-No install needed to look around: [stackalarm.dev/tech](https://stackalarm.dev/tech/) shows the security news of each technology over the last 30 days, with a feed per technology.
+No install needed to look around: [stackalarm.dev/news](https://stackalarm.dev/news/) shows the security news of the last 30 days, tag by tag (a language, a framework, a tool, a vendor), with a feed for each.
 
 ## Scheduled watch
 

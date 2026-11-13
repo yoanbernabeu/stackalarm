@@ -1,9 +1,9 @@
-// Command techdata gathers what the sources say of each tag over the last 30
-// days, for the technology pages of the site (site/src/pages/tech): one JSON
+// Command sitenews gathers what the sources say of each tag over the last 30
+// days, for the news pages of the site (site/src/pages/news): one JSON
 // file per tag. It is run by the site workflow, and is not part of a release.
 //
-//	go run ./cmd/techdata -out site/.data/tech
-//	go run ./cmd/techdata -out site/.data/tech -only php,node
+//	go run ./cmd/sitenews -out site/.data/news
+//	go run ./cmd/sitenews -out site/.data/news -only php,node
 //
 // The CVE databases searched by word (NVD, EUVD) are left out: on a public
 // page, "php" would list every plugin written in PHP, and the NVD allows one
@@ -51,7 +51,7 @@ type page struct {
 }
 
 func main() {
-	out := flag.String("out", "site/.data/tech", "folder the JSON files are written to")
+	out := flag.String("out", "site/.data/news", "folder the JSON files are written to")
 	only := flag.String("only", "", "comma-separated tags, instead of all of them")
 	flag.Parse()
 	if err := run(*out, *only); err != nil {

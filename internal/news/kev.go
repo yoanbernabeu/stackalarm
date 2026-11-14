@@ -297,7 +297,7 @@ func namesProduct(entry string, names []string) bool {
 		if n == "" {
 			continue
 		}
-		if named(product, n) {
+		if named(product, n) && !strings.HasPrefix(strings.ToLower(product), n+" on ") { // Ruby on Rails is not Ruby
 			return true
 		}
 		if named(vendor, n) && !strings.HasPrefix(normalName(product), n) {

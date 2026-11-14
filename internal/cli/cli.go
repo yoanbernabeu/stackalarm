@@ -635,7 +635,7 @@ func batches(items []news.Item, section func(news.Item) int, types map[string]so
 		if it.Source == news.NVDVersionsSource || packages {
 			day = "" // the flaws of a version in use, whatever their date
 		}
-		k := strings.Join([]string{fmt.Sprint(section(it)), it.Source, day, af.Package, af.Fixed, af.Status}, "\n")
+		k := strings.Join([]string{fmt.Sprint(section(it)), it.Source, day, af.Package, af.Fixed, af.Status, af.InUse, sbomOf(it.Title)}, "\n")
 		if _, ok := byKey[k]; !ok {
 			keys = append(keys, k)
 		}
@@ -660,8 +660,13 @@ func batchLine(items []news.Item, group []int) string {
 	slices.SortStableFunc(g, func(a, b int) int { return cmp.Compare(items[b].Score, items[a].Score) })
 	top := items[g[0]]
 	var ids []string
+	seen := map[string]bool{}
 	for _, i := range g {
 		id := cmp.Or(cveRe.FindString(items[i].Title), ghsaRe.FindString(items[i].Title+" "+items[i].URL), items[i].URL)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
 		if items[i].Score > 0 {
 			id += fmt.Sprintf(" [%.1f]", items[i].Score)
 		}
@@ -671,7 +676,11 @@ func batchLine(items []news.Item, group []int) string {
 	if top.Score > 0 {
 		score = fmt.Sprintf("%.1f", top.Score)
 	}
-	title := fmt.Sprintf("%d records of %s fixed by one release (%s); the most severe: %s", len(g), top.Affected[0].Package, strings.Join(ids, ", "), top.Title)
+	label := top.Affected[0].Package
+	if from := sbomOf(top.Title); from != "" {
+		label = from + ", " + label
+	}
+	title := fmt.Sprintf("%d records of %s fixed by one release (%s); the most severe: %s", len(ids), label, strings.Join(ids, ", "), strings.TrimPrefix(top.Title, sbomOf(top.Title)+", "))
 	line := strings.Join([]string{top.Published.Format("2006-01-02"), string(top.Stage), top.Source, score, title, top.URL}, " | ")
 	if aff := affected(top); aff != "" {
 		line += " | affects " + aff
@@ -680,6 +689,15 @@ func batchLine(items []news.Item, group []int) string {
 		line += " | EPSS " + epss(top.EPSS)
 	}
 	return line
+}
+
+// sbomOf gives the SBOM an item was found in, from its title ("pg.cdx.json,
+// [high] …"), or "": the image's flaws are not the project's.
+func sbomOf(title string) string {
+	if before, _, ok := strings.Cut(title, ", "); ok && strings.HasSuffix(before, ".json") && !strings.Contains(before, " ") {
+		return before
+	}
+	return ""
 }
 
 var (
@@ -789,6 +807,10 @@ func affected(it news.Item) string {
 			break
 		}
 		part := af.Package + " " + cmp.Or(af.Versions, "all versions")
+		if af.Notice {
+			parts = append(parts, part+" (a notice, no vulnerability: replace the package when convenient) ["+af.InUse+" in use]")
+			continue
+		}
 		switch {
 		case af.Fixed != "" && af.Status == news.StatusAffected && otherBranch(af.InUse, af.Fixed) && !fixedOnBranch(it.Affected, af.InUse):
 			// node 20 against a fix in 22.23.4: no patch release of 20 will come
@@ -804,13 +826,22 @@ func affected(it news.Item) string {
 		case news.StatusAffected:
 			part += " [" + af.InUse + " in use: AFFECTED]"
 		case news.StatusPossiblyAffected:
-			part += " [" + af.InUse + " in use: POSSIBLY AFFECTED, the patch level decides]"
+			if isRelease(af.InUse) {
+				part += " [" + af.InUse + " in use: POSSIBLY AFFECTED, the record names a later release only: check whether this one has the vulnerable code]"
+			} else {
+				part += " [" + af.InUse + " in use: POSSIBLY AFFECTED, the patch level decides]"
+			}
 		case news.StatusNotAffected:
 			part += " [" + af.InUse + " in use: not affected]"
 		}
 		parts = append(parts, part)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// isRelease tells a release (8.3.20) from a branch (8.3, 20).
+func isRelease(v string) bool {
+	return strings.Count(strings.TrimPrefix(v, "v"), ".") >= 2 || strings.ContainsAny(v, "-+")
 }
 
 // branchOf gives the major version of a version in use: "20" for 20.20.2.

@@ -207,15 +207,22 @@ func repoStatus(version, rng, patched string) (status, fixed string, ok bool) {
 	if bounds, ok := branchBounds(rng); ok && !isBranch(version) {
 		return boundsStatus(version, bounds, patches, fixed)
 	}
-	// A bare release with its fix: the release a reporter found it in.
+	// A bare release with its fix: the release a reporter found it in. It
+	// proves that release; a later one carrying the fix is not affected; an
+	// earlier one may predate the code (LibreChat's "v0.8.3", for a feature
+	// 0.8.1 lacks): no verdict, rather than a guess.
 	if v := strings.TrimSpace(rng); len(patches) > 0 && versionLike.MatchString(v) && !strings.Contains(v, ".x") && !strings.Contains(v, "*") {
-		if isBranch(version) || branchOfRelease(strings.TrimPrefix(v, "v")) != branchOfRelease(version) {
-			return "", "", false // another branch: the record says nothing of it
-		}
-		if compareVersions(version, v) <= 0 && !isFixed(version, patches) {
+		switch {
+		case isBranch(version):
+			return "", "", false
+		case compareVersions(version, v) == 0:
 			return StatusAffected, fixed, true
+		case compareVersions(version, v) > 0 && isFixed(version, patches):
+			return StatusNotAffected, fixed, true
+		case compareVersions(version, v) < 0 && branchOfRelease(strings.TrimPrefix(v, "v")) == branchOfRelease(version):
+			return StatusPossiblyAffected, fixed, true // same branch, earlier: whether it has the code decides
 		}
-		return StatusNotAffected, fixed, true
+		return "", "", false
 	}
 	expr, readable := repoRange(rng, len(patches) > 0)
 	if !readable {

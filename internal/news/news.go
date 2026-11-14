@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -73,6 +74,9 @@ type Affected struct {
 	// version was given or the range could not be read.
 	InUse  string `json:"in_use,omitempty"`
 	Status string `json:"status,omitempty"`
+	// Notice tells a range of a notice that is no vulnerability (RustSec's
+	// unmaintained crates): InUse is in it, but there is nothing to patch.
+	Notice bool `json:"notice,omitempty"`
 }
 
 // Statuses of a version in use against a vulnerable range.
@@ -211,7 +215,10 @@ type Fetcher struct {
 const GitHubConcurrency = 16
 
 // Fetch reads the sources selected by q, in parallel.
-func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) Result {
+func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) (res Result) {
+	given := q.Versions
+	q.Versions = releasesOf(q.Versions)
+	defer func() { restoreVersions(&res, given, q.Versions) }()
 	selected := selectSources(sources, q.Tags)
 	if len(q.Tags) == 0 && len(q.Keywords) > 0 {
 		// Keywords alone search the general sources: no technology was named,
@@ -258,10 +265,10 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	)
 
 	var (
-		mu  sync.Mutex
-		res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}, NotSearched: []string{}, Short: []Coverage{}}
-		wg  sync.WaitGroup
+		mu sync.Mutex
+		wg sync.WaitGroup
 	)
+	res = Result{Items: []Item{}, Failures: []Failure{}, Truncated: []Truncation{}, NotSearched: []string{}, Short: []Coverage{}}
 	if slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type.IsSearch() }) {
 		res.NotSearched = append(res.NotSearched, left...)
 	}
@@ -535,6 +542,58 @@ func turns(entries []entry) []entry {
 	return out
 }
 
+// restoreVersions writes back the versions as they were given (16.11, not
+// the 16.11.0 compared).
+func restoreVersions(res *Result, given, compared map[string]string) {
+	back := map[string]string{}
+	for tag, v := range compared {
+		if given[tag] != v {
+			back[v] = given[tag]
+		}
+	}
+	if len(back) == 0 {
+		return
+	}
+	for i := range res.Items {
+		for j, a := range res.Items[i].Affected {
+			if v, ok := back[a.InUse]; ok {
+				res.Items[i].Affected[j].InUse = v
+			}
+		}
+	}
+	for i, c := range res.Exploited {
+		if v, ok := back[c.Version]; ok {
+			res.Exploited[i].Version = v
+		}
+	}
+	for i, t := range res.Truncated {
+		for j, p := range t.Packages {
+			for norm, v := range back {
+				res.Truncated[i].Packages[j] = strings.Replace(p, "@"+norm+" ", "@"+v+" ", 1)
+			}
+		}
+	}
+}
+
+// twoPartReleases are the products whose releases have two parts since a
+// major version: PostgreSQL 16.11 is a release, not a branch.
+var twoPartReleases = map[string]int{"postgresql": 10, "postgres": 10}
+
+// releasesOf writes the two-part releases of those products with three parts
+// (16.11 as 16.11.0), so they are compared as releases.
+func releasesOf(versions map[string]string) map[string]string {
+	out := map[string]string{}
+	for tag, v := range versions {
+		out[tag] = v
+		if since, ok := twoPartReleases[tag]; ok && isBranch(v) && strings.Count(v, ".") == 1 {
+			if major, err := strconv.Atoi(strings.TrimPrefix(v[:strings.Index(v, ".")], "v")); err == nil && major >= since {
+				out[tag] = v + ".0"
+			}
+		}
+	}
+	return out
+}
+
 // goToolchain adds the Go release in use, from the go tag or the stdlib
 // package, as both packages OSV files its flaws under: stdlib (the standard
 // library, in every binary) and toolchain (cmd/go, cgo, the linker, which
@@ -790,7 +849,7 @@ func relevance(e entry, q Query) int {
 // and its Node.js driver both go by "mongodb", with versions of their own.
 func annotate(affected []Affected, q Query, products bool) []Affected {
 	for i, a := range affected {
-		if a.Status != "" {
+		if a.Status != "" || a.Notice {
 			continue // the source already told
 		}
 		version := q.Versions[strings.ToLower(a.Package)]
@@ -809,6 +868,17 @@ func annotate(affected []Affected, q Query, products bool) []Affected {
 		watched = append(watched, name+"@"+version)
 	}
 	return watchedFirst(affected, watched)
+}
+
+// lockedVersions gives the versions of a package among those given.
+func lockedVersions(pkg string, given []string) []string {
+	var out []string
+	for _, p := range given {
+		if name := packageName(p); name != p && strings.EqualFold(name, pkg) {
+			out = append(out, strings.TrimPrefix(p, name+"@"))
+		}
+	}
+	return out
 }
 
 // unlisted tells that a package of a repository advisory is a component the
@@ -1288,16 +1358,31 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 					continue
 				}
 				// Ranges written by hand, with the fixes apart: the fixes listed
-				// decide, branch by branch.
-				if status, fixed, ok := repoStatus(version, a.Versions, a.Fixed); ok {
-					entries[i].Affected[j].InUse, entries[i].Affected[j].Status = version, status
-					if fixed != "" {
-						entries[i].Affected[j].Fixed = fixed
+				// decide, branch by branch. A package the lockfile holds is
+				// compared with its own version: the MongoDB Node.js driver's
+				// advisories are read under the mongodb tag, the server's version.
+				versions := []string{version}
+				if locked := lockedVersions(entries[i].Affected[j].Package, given); len(locked) > 0 {
+					versions = locked
+				}
+				for _, v := range versions {
+					if status, fixed, ok := repoStatus(v, a.Versions, a.Fixed); ok {
+						entries[i].Affected[j].InUse, entries[i].Affected[j].Status = v, status
+						if fixed != "" {
+							entries[i].Affected[j].Fixed = fixed
+						}
+						if status == StatusAffected {
+							break
+						}
 					}
 				}
 			}
 			branchwise(entries[i].Affected)
-			entries[i].Current = slices.ContainsFunc(entries[i].Affected, func(a Affected) bool { return a.Status == StatusAffected })
+			// Possibly, for a release (not a branch): an earlier release of the
+			// branch a record names alone, kept for the reader to judge.
+			entries[i].Current = slices.ContainsFunc(entries[i].Affected, func(a Affected) bool {
+				return a.Status == StatusAffected || a.Status == StatusPossiblyAffected && !isBranch(a.InUse)
+			})
 		}
 		return entries, err
 	case source.TypeGitHubAdvisoryDatabase:

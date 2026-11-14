@@ -1,0 +1,7 @@
+id: pgvector-nvd
+name: pgvector, its records in the NVD
+type: nvd-product
+url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+product: "pgvector:pgvector"
+tags: [pgvector]
+stage: advisory

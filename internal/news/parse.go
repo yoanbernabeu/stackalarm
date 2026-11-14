@@ -243,7 +243,11 @@ func parseGitHubDated(data []byte, keepSeverity func(string) bool, cveDate bool)
 			// A repository advisory may leave the package unnamed: it is then the
 			// repository's own product, which the source's tag names.
 			if v.Package.Name != "" || cveDate && (v.Range != "" || v.Patched != "") {
-				e.Affected = append(e.Affected, Affected{Package: v.Package.Name, Versions: strings.TrimSpace(v.Range), Fixed: strings.TrimSpace(cmp.Or(v.FirstPatched, v.Patched))})
+				fixed := strings.TrimSpace(cmp.Or(v.FirstPatched, v.Patched))
+				if fixed != "" && !strings.ContainsAny(fixed, "0123456789") {
+					fixed = "" // "TBD": written before the fix, never updated
+				}
+				e.Affected = append(e.Affected, Affected{Package: v.Package.Name, Versions: strings.TrimSpace(v.Range), Fixed: fixed, FixUnknown: fixed == "" && v.Patched != ""})
 			}
 		}
 		e.Published, _ = parseDate(a.PublishedAt)

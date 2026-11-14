@@ -308,7 +308,7 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 						ranges = append(ranges, Affected{Package: q.Package.Name, Versions: osvRange(from, "< "+ev.Fixed), Fixed: ev.Fixed})
 						open = false
 					case ev.LastAffected != "":
-						ranges = append(ranges, Affected{Package: q.Package.Name, Versions: osvRange(from, "<= "+ev.LastAffected)})
+						ranges = append(ranges, Affected{Package: q.Package.Name, Versions: osvRange(from, "<= "+ev.LastAffected), FixUnknown: true}) // the last affected release, not "no fix"
 						open = false
 					}
 				}
@@ -334,9 +334,9 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		} else {
 			ranges = slices.DeleteFunc(ranges, func(a Affected) bool { return a.Status == "" }) // the other branches
 		}
-		if notice { // no vulnerability: nothing hits the version, the crate is to replace
+		if notice { // no vulnerability: nothing to fix in the version, the crate is to replace
 			for i := range ranges {
-				ranges[i].Status, ranges[i].InUse = "", ""
+				ranges[i].Status, ranges[i].Notice = "", true
 			}
 		}
 		e.Affected = append(e.Affected, ranges...)

@@ -21,8 +21,9 @@ func TestRepoStatus(t *testing.T) {
 		ok                    bool
 	}{
 		{"1.30.0", "≤ 1.36.0 ", "1.36.1", StatusAffected, "1.36.1", true},
-		{"1.30.0", "1.35.3", "1.35.4", "", "", false}, // the release it was found in proves its branch only
-		{"1.35.1", "1.35.3", "1.35.4", StatusAffected, "1.35.4", true},
+		{"1.30.0", "1.35.3", "1.35.4", "", "", false},                          // the release it was found in proves its branch only
+		{"1.35.1", "1.35.3", "1.35.4", StatusPossiblyAffected, "1.35.4", true}, // earlier than the release it was found in: may predate the code
+		{"1.35.3", "1.35.3", "1.35.4", StatusAffected, "1.35.4", true},
 		{"1.35.4", "1.35.3", "1.35.4", StatusNotAffected, "1.35.4", true},
 		{"4.2.0", "v4.3.0-beta.1", "4.3.0-beta.2", "", "", false},
 		{"4.2.0", "<= 4.2.8, <= 4.1.16", "4.2.9, 4.1.17", StatusAffected, "4.2.9", true}, // one bound per branch
@@ -43,7 +44,7 @@ func TestRepoStatus(t *testing.T) {
 		{"15.1.0", ">= 13.5.1", "13.5.7, 14.2.10", StatusNotAffected, "", true},
 		{"14.0.0", ">= 13.5.1", "13.5.7, 14.2.10", StatusAffected, "14.2.10", true},
 		{"0.8.1-rc1", "< v0.8.4-rc1", "v0.8.4-rc1", StatusAffected, "0.8.4-rc1", true},
-		{"0.8.1-rc1", "0.8.2-rc1", "0.8.2-rc2", StatusAffected, "0.8.2-rc2", true}, // LibreChat's MCP stdio RCE
+		{"0.8.1-rc1", "v0.8.3", "0.8.4", StatusPossiblyAffected, "0.8.4", true}, // LibreChat: a feature 0.8.1 may lack
 		{"8.38.0", "<= 8.39.0", "8.40.0", StatusAffected, "8.40.0", true},
 		{"0.8.1-rc1", "v0.8.2-rc2, v0.8.2-rc3", "0.8.2", StatusNotAffected, "0.8.2", true}, // a list of the affected releases
 		{"0.8.2-rc3", "v0.8.2-rc2, v0.8.2-rc3", "0.8.2", StatusAffected, "0.8.2", true},
@@ -304,5 +305,41 @@ func TestNamesProduct(t *testing.T) {
 		if got := namesProduct(entry, []string{"php", "gitlab"}); got != want {
 			t.Errorf("%s: %v", entry, got)
 		}
+	}
+}
+
+func TestTwoPartReleasesArePostgreSQLReleases(t *testing.T) {
+	got := releasesOf(map[string]string{"postgresql": "16.11", "node": "20", "go": "1.25", "postgres": "9.6"})
+	if got["postgresql"] != "16.11.0" || got["node"] != "20" || got["go"] != "1.25" || got["postgres"] != "9.6" {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestRubyOnRailsIsNotRuby(t *testing.T) {
+	if namesProduct("Rails|Ruby on Rails", []string{"ruby"}) || !namesProduct("Ruby|Ruby", []string{"ruby"}) {
+		t.Fatal("Ruby on Rails is not Ruby")
+	}
+}
+
+// The MongoDB Node.js driver's advisories are read under the mongodb tag,
+// which carries the server's version: the locked driver decides.
+func TestARepositoryAdvisoryComparesTheLockedPackage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`[{"ghsa_id":"GHSA-aaaa-bbbb-cccc","cve_id":"CVE-2026-126837","html_url":"https://x/1","summary":"SRV redirect","severity":"critical","state":"published","published_at":"2025-01-27T10:00:00Z","updated_at":"2025-01-27T10:00:00Z",
+ "vulnerabilities":[{"package":{"ecosystem":"npm","name":"mongodb"},"vulnerable_version_range":">= 3.3.3, < 7.8.0","patched_versions":"7.8.0"}]},
+{"ghsa_id":"GHSA-dddd-eeee-ffff","cve_id":null,"html_url":"https://x/2","summary":"Pending","severity":"high","state":"published","published_at":"2025-01-27T10:00:00Z","updated_at":"2025-01-27T10:00:00Z",
+ "vulnerabilities":[{"package":{"ecosystem":"","name":"redis-server"},"vulnerable_version_range":">= 2.8","patched_versions":"TBD"}]}]`))
+	}))
+	defer srv.Close()
+	sources := []source.Source{{ID: "mongodb-node-driver-advisories", Type: source.TypeGitHubAdvisories, Repo: "mongodb/node-mongodb-native", Tags: []string{"mongodb"}, Stage: source.StageAdvisory}}
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+	f := &Fetcher{Client: srv.Client(), UserAgent: "test", GitHubAPI: srv.URL, Now: func() time.Time { return now }}
+	res := f.Fetch(context.Background(), sources, Query{Tags: []string{"mongodb"}, Versions: map[string]string{"mongodb": "8.0"}, Packages: []string{"mongodb@6.14.2"}, Since: now.Add(-7 * 24 * time.Hour)})
+	if len(res.Items) != 1 || affectedLine(res.Items[0]) != "mongodb >= 3.3.3, < 7.8.0 fixed 7.8.0 [6.14.2 affected]" {
+		t.Fatalf("items: %+v", res.Items)
+	}
+	entries, _ := parseGitHubAdvisories([]byte(`[{"ghsa_id":"GHSA-dddd-eeee-ffff","html_url":"https://x/2","summary":"Pending","severity":"high","published_at":"2025-01-27T10:00:00Z","vulnerabilities":[{"package":{"name":"redis-server"},"vulnerable_version_range":">= 2.8","patched_versions":"TBD"}]}]`))
+	if a := entries[0].Affected[0]; a.Fixed != "" || !a.FixUnknown {
+		t.Fatalf("TBD is no fixed version: %+v", a)
 	}
 }

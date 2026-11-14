@@ -191,6 +191,9 @@ func rubyRange(patched, unaffected []string) string {
 func lowestFix(patched []string, version string) string {
 	var best string
 	for _, c := range patched {
+		// "~> 8.0.5, >= 8.0.5.2": both bounds hold, so the first fixed release
+		// is the higher one, 8.0.5.2.
+		low := ""
 		for _, part := range strings.Split(c, ",") {
 			part = strings.TrimSpace(part)
 			v, ok := strings.CutPrefix(part, ">=")
@@ -200,13 +203,15 @@ func lowestFix(patched []string, version string) string {
 			if !ok {
 				continue
 			}
-			v = strings.TrimSpace(v)
-			if version != "" && compareVersions(v, version) <= 0 {
-				continue
+			if v = strings.TrimSpace(v); low == "" || compareVersions(v, low) > 0 {
+				low = v
 			}
-			if best == "" || compareVersions(v, best) < 0 {
-				best = v
-			}
+		}
+		if low == "" || version != "" && compareVersions(low, version) <= 0 {
+			continue
+		}
+		if best == "" || compareVersions(low, best) < 0 {
+			best = low
 		}
 	}
 	return best

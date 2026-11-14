@@ -1,0 +1,6 @@
+id: librechat-advisories
+name: LibreChat security advisories (GitHub)
+type: github-advisories
+repo: LibreChat-AI/LibreChat
+tags: [librechat]
+stage: advisory

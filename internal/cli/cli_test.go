@@ -239,3 +239,9 @@ func TestScheduledWatchReportsTheEndOfSupportOnce(t *testing.T) {
 		t.Fatal("without a profile, no version is known: nothing is looked up")
 	}
 }
+
+func TestBranchesBefore1AreMajorAndMinor(t *testing.T) {
+	if !otherBranch("0.3.21", "0.4.16") || otherBranch("0.4.1", "0.4.16") || !otherBranch("0.9.1", "0.10.0") || !otherBranch("20.20.2", "22.23.4") || otherBranch("8.3.1", "8.3.36") {
+		t.Fatal("0.3 and 0.4 are two branches, 0.10 comes after 0.9")
+	}
+}

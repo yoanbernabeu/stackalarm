@@ -197,7 +197,7 @@ func TestOSVEntriesTakeTurnsByPackage(t *testing.T) {
 		return entry{Title: fmt.Sprint(pkg, n), Affected: []Affected{{Package: pkg, Status: StatusAffected}}}
 	}
 	var titles []string
-	for _, x := range inTurns([]entry{e("pillow", 1), e("pillow", 2), e("pillow", 3), e("jinja2", 1), e("urllib3", 1), e("jinja2", 2)}) {
+	for _, x := range inTurns([]entry{e("pillow", 1), e("pillow", 2), e("pillow", 3), e("jinja2", 1), e("urllib3", 1), e("jinja2", 2)}, false) {
 		titles = append(titles, x.Title)
 	}
 	if strings.Join(titles, ",") != "pillow1,jinja21,urllib31,pillow2,jinja22,pillow3" {

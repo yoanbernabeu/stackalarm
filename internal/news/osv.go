@@ -20,7 +20,7 @@ import (
 // record is downloaded for one ecosystem, and the downloads in flight.
 const (
 	osvBatch       = 500
-	MaxOSVRecords  = 500
+	MaxOSVRecords  = 1500
 	osvConcurrency = 8
 )
 
@@ -109,7 +109,7 @@ func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []stri
 		}
 	}
 	if len(order) > MaxOSVRecords {
-		errs = append(errs, fmt.Errorf("partial: %d vulnerabilities hit the %s packages given, only %d read (give fewer packages at a time)", len(order), ecosystem, MaxOSVRecords))
+		errs = append(errs, fmt.Errorf("partial: %d vulnerabilities hit the %s packages given, only %d read (give fewer packages at a time, or one SBOM per run)", len(order), ecosystem, MaxOSVRecords))
 		order = order[:MaxOSVRecords]
 	}
 	var (
@@ -174,7 +174,8 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 			Score string `json:"score"`
 		} `json:"severity"`
 		Specific struct {
-			Severity string `json:"severity"`
+			Severity      string `json:"severity"`
+			Informational string `json:"informational"` // RustSec: "unmaintained", "unsound", "notice"
 		} `json:"database_specific"`
 		References []struct {
 			Type string `json:"type"`
@@ -188,6 +189,9 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 			Specific struct {
 				Urgency string `json:"urgency"` // Debian: "unimportant" is no security issue there
 			} `json:"ecosystem_specific"`
+			DatabaseSpecific struct {
+				Informational string `json:"informational"`
+			} `json:"database_specific"`
 			Ranges []struct {
 				Type   string `json:"type"`
 				Events []struct {
@@ -245,8 +249,20 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		title = string(r[:140]) + "…"
 	}
 	severity := strings.ToLower(cmp.Or(v.Specific.Severity, priority, severityOf(e.Score)))
+	if e.Score == 0 && e.Rank == 0 {
+		e.Rank = severityRanks[severity] // rated with a word only ("LOW"): placed by it under the cap
+	}
 	if strings.HasPrefix(v.ID, "MAL-") { // a version published with malicious code
 		severity, e.Stage = "malware", source.StageAlert
+	}
+	// A RustSec notice that is no vulnerability: a crate unmaintained, renamed.
+	informational := v.Specific.Informational
+	for _, a := range v.Affected {
+		informational = cmp.Or(informational, a.DatabaseSpecific.Informational)
+	}
+	notice := informational == "unmaintained" || informational == "notice"
+	if notice {
+		severity, e.Rank = informational, 0.5 // listed, after the flaws
 	}
 	// A distribution record has no summary, only the text of the CVE: name the
 	// package, and say when the distribution judges the flaw harmless there.
@@ -269,7 +285,7 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	// and the npm or pip tools it carries, are not the project's lockfile.
 	if len(asked) > 0 && asked[0].From != "" {
 		title = asked[0].From + ", " + title
-		e.Alone = true
+		e.Alone, e.Scope = true, asked[0].From
 	}
 	e.Title = clean(title + " (" + id + ")")
 
@@ -317,6 +333,11 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 			ranges = []Affected{{Package: q.Package.Name, Versions: q.Version, InUse: q.Version, Status: StatusAffected, Fixed: lastFixed(ranges)}}
 		} else {
 			ranges = slices.DeleteFunc(ranges, func(a Affected) bool { return a.Status == "" }) // the other branches
+		}
+		if notice { // no vulnerability: nothing hits the version, the crate is to replace
+			for i := range ranges {
+				ranges[i].Status, ranges[i].InUse = "", ""
+			}
 		}
 		e.Affected = append(e.Affected, ranges...)
 	}

@@ -1,0 +1,6 @@
+id: gotenberg-advisories
+name: Gotenberg security advisories (GitHub)
+type: github-advisories
+repo: gotenberg/gotenberg
+tags: [gotenberg]
+stage: advisory

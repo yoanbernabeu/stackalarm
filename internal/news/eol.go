@@ -123,9 +123,12 @@ func (f *Fetcher) Support(ctx context.Context, components []string) ([]Support, 
 // judge sets the status of s from the releases of its product.
 func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 	v := strings.TrimPrefix(s.Version, "v")
+	if i := strings.Index(v, "-"); i > 0 && isBranch(v[:i]) {
+		v = v[:i] // an image tag (16-alpine) follows the latest release of its branch
+	}
 	var r *eolRelease
 	for i, rel := range releases { // the longest cycle the version belongs to: 1.27 rather than 1
-		if (v == rel.Name || strings.HasPrefix(v, rel.Name+".")) && (r == nil || len(rel.Name) > len(r.Name)) {
+		if inCycle(v, rel.Name) && (r == nil || len(rel.Name) > len(r.Name)) {
 			r = &releases[i]
 		}
 	}
@@ -193,6 +196,21 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 	if r.IsEOAS && !r.IsEOL {
 		s.Note += " (active support has ended, only security fixes are published)"
 	}
+}
+
+// inCycle tells whether a version belongs to a cycle: 8.3.35 to 8.3, and the
+// releases written with a letter or an image variant, 1.1.1w to OpenSSL's
+// 1.1.1 and 16-alpine to PostgreSQL's 16.
+func inCycle(v, cycle string) bool {
+	rest, ok := strings.CutPrefix(v, cycle)
+	if !ok || cycle == "" {
+		return false
+	}
+	if rest == "" || rest[0] == '.' || rest[0] == '-' {
+		return true
+	}
+	// a letter right after the last number (1.1.1w), not a longer number (1.10)
+	return len(rest) <= 2 && rest[0] >= 'a' && rest[0] <= 'z' && cycle[len(cycle)-1] >= '0' && cycle[len(cycle)-1] <= '9'
 }
 
 // SupportSource names the items SupportItems makes.

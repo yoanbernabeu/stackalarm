@@ -161,7 +161,7 @@ func TestOSVOrderPutsWhatAnUpdateFixesFirst(t *testing.T) {
 	if fixable(fixed) != 1 || fixable(entry{Score: 9.8, Affected: []Affected{{Status: StatusAffected}}}) != 0 {
 		t.Fatal("a fixed version makes an entry fixable")
 	}
-	if priority(entry{Score: 9.8, Rank: 0.1}) != 0.1 || priority(entry{}) != 9 || priority(entry{Score: 4}) != 4 {
+	if priority(entry{Score: 9.8, Rank: 0.1}, true) != 0.1 || priority(entry{}, false) != 9 || priority(entry{}, true) != 5 || priority(entry{Score: 4}, true) != 4 {
 		t.Fatal("the rank a distribution gives comes before the score, and no score ranks high")
 	}
 }

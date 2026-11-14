@@ -55,7 +55,7 @@ func Default(version string) (*App, error) {
 			Client:     &http.Client{Timeout: 45 * time.Second}, // the NVD API is often slow
 			UserAgent:  "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
 			CacheTTL:   time.Hour,
-			NVDDelay:   6 * time.Second, // 5 requests per 30 s without a key
+			NVDDelay:   6500 * time.Millisecond, // 5 requests per 30 s without a key, with a margin: requests landing close together get HTTP 429
 			EUVDDelay:  time.Second,
 			RetryDelay: 3 * time.Second,
 			EPSSAPI:    "https://api.first.org/data/v1/epss",
@@ -134,6 +134,7 @@ func (a *App) newsCommand() *cobra.Command {
 		tags, keywords []string
 		order          []string // tags and keywords as given, for the limit of the CVE database searches
 		packages       []string
+		repos          []string
 		sboms          []string
 		since, format  string
 		noCache, noOSV bool
@@ -248,7 +249,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				return errors.New("--sbom looks its packages up on OSV.dev: it cannot be used with --no-osv nor STACKALARM_NO_OSV")
 			}
 			// An SBOM alone asks one question: what hits these packages.
-			sbomOnly := len(components) > 0 && len(tags)+len(keywords)+len(packages) == 0
+			sbomOnly := len(components) > 0 && len(tags)+len(keywords)+len(packages)+len(repos) == 0
 			var state watch.State
 			if statePath != "" {
 				if state, err = watch.LoadState(statePath); err != nil {
@@ -267,11 +268,48 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				warnings = append(warnings, fmt.Sprintf("no source is tagged %q: searched as a keyword in the general sources instead (%s)", t, closeTags(t, known)))
 				return true
 			})
+			if len(packages) == 0 && len(components) == 0 {
+				for _, t := range tags {
+					if t != "go" && t != "ruby" && knownEcosystem(t) {
+						warnings = append(warnings, fmt.Sprintf("the %s tag without --package lists the recent advisories of the whole ecosystem, not those of the project: pass the packages of the lockfile with their versions", t))
+					}
+				}
+			}
+			// A self-hosted application without a source of its own: the security
+			// advisories of its GitHub repository are read like a bundled source.
+			srcs := a.Sources
+			for _, r := range repos {
+				repo, version, _ := strings.Cut(strings.TrimSpace(r), "@")
+				owner, name, ok := strings.Cut(repo, "/")
+				if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
+					return fmt.Errorf("--repo %q: use owner/name, or owner/name@version (gotenberg/gotenberg@8.38.0)", r)
+				}
+				tag := strings.ToLower(name)
+				if i := slices.IndexFunc(srcs, func(s source.Source) bool {
+					return s.Type == source.TypeGitHubAdvisories && strings.EqualFold(s.Repo, repo)
+				}); i >= 0 {
+					tag = srcs[i].Tags[0] // already watched: its source is read
+				} else {
+					srcs = append(slices.Clip(srcs), source.Source{
+						ID: "repo-" + strings.ToLower(owner) + "-" + tag, Name: repo + " security advisories (GitHub)",
+						Type: source.TypeGitHubAdvisories, Repo: repo, Tags: []string{tag}, Stage: source.StageAdvisory,
+					})
+				}
+				if !slices.Contains(tags, tag) {
+					tags = append(tags, tag)
+				}
+				if version != "" {
+					versions[tag] = version
+				}
+			}
 			f := *a.Fetcher
 			f.Now = a.Now
 			f.GitHubToken = cmp.Or(a.Getenv("GITHUB_TOKEN"), a.Getenv("GH_TOKEN"))
 			if f.NVDAPIKey = a.Getenv("NVD_API_KEY"); f.NVDAPIKey != "" {
 				f.NVDDelay = 700 * time.Millisecond // 50 requests per 30 s with a key
+			} else if terminal(a.Err) && !sbomOnly && len(tags)+len(keywords) > 0 {
+				// Minutes of silence read as a hang: say why it takes time.
+				fmt.Fprintln(a.Err, "stackalarm: the NVD allows one request every 6.5 seconds without NVD_API_KEY: a first run takes a few minutes (responses are then reused for an hour)")
 			}
 			if !noCache {
 				if dir, err := a.CacheRoot(); err == nil {
@@ -304,6 +342,9 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			var plain []string
 			scoped := map[string][]string{}
 			for _, p := range packages {
+				if p = strings.TrimSpace(p); p == "" || strings.HasPrefix(p, "@") && !strings.Contains(p, "/") {
+					continue // an empty value (--package "") would read the whole ecosystem
+				}
 				if eco, rest, ok := strings.Cut(p, ":"); ok && knownEcosystem(eco) {
 					e := news.NormalEcosystem(eco)
 					scoped[e] = append(scoped[e], rest)
@@ -312,7 +353,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				plain = append(plain, p)
 			}
 			packages = plain
-			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Order: order, PackagesIn: scoped, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
+			res := f.Fetch(cmd.Context(), srcs, news.Query{Tags: tags, Keywords: keywords, Order: order, PackagesIn: scoped, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
 			<-eolDone
 			if eolErr != nil {
 				res.Failures = append(res.Failures, news.Failure{Source: news.SupportSource, Error: eolErr.Error()})
@@ -402,6 +443,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 	cmd.Flags().VarP(orderedList{&tags, &order}, "tag", "t", "technology to watch, repeatable (php, node, gitlab…); with its exact version (php@8.3.20), the version ranges of the CVE records are compared with it, and the flaws exploited in the wild that hit it are listed whatever their date")
 	cmd.Flags().VarP(orderedList{&keywords, &order}, "keyword", "k", "extra word to look for in general sources, repeatable (roadrunner, htmx…); the CVE databases are searched for the first 8 tags and keywords, in the order given")
 	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "packages from the lockfile, repeatable, with their version or not (next@15.1.0, dompurify): the GitHub Advisory Database sources then return only their recent advisories, for that version, and OSV.dev every known vulnerability of that version")
+	cmd.Flags().StringSliceVar(&repos, "repo", nil, "GitHub repository of a self-hosted application without a tag, repeatable, with its version (gotenberg/gotenberg@8.38.0): the security advisories of the repository that hit that version are listed whatever their date")
 	cmd.Flags().StringSliceVar(&sboms, "sbom", nil, "SBOM of the project or of its container image, repeatable (CycloneDX or SPDX, in JSON): OSV.dev is asked for every known vulnerability of its packages, system packages included")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
 	cmd.Flags().StringVar(&format, "format", "text", "output format: text, summary (one line per item, for agents), json, markdown (an issue body) or sarif (the items a version in use proves, for a code scanning dashboard)")
@@ -458,7 +500,10 @@ func (a *App) printNews(r newsReport) {
 	if len(r.Truncated) > 0 {
 		fmt.Fprintf(a.Out, "\nSources with more entries than shown (%d per source, %d for the OSV sources asked about packages):\n", news.MaxPerSource, news.MaxOSVPerSource)
 		for _, t := range r.Truncated {
-			fmt.Fprintf(a.Out, "  %s: %d more entries left out, the least severe or the oldest (narrow with --since, more precise keywords or fewer packages)\n", t.Source, t.Dropped)
+			fmt.Fprintf(a.Out, "  %s: %d more entries left out, those ranked last: the least severe, and in an image those without a fix (narrow with --since, more precise keywords or fewer packages)\n", t.Source, t.Dropped)
+			if len(t.Packages) > 0 {
+				fmt.Fprintf(a.Out, "    packages with more flaws: %s\n", strings.Join(t.Packages, ", "))
+			}
 		}
 	}
 	if len(r.Short) > 0 {
@@ -503,11 +548,18 @@ func (a *App) printSummary(r newsReport) {
 	}
 	items := slices.Clone(r.Items)
 	slices.SortStableFunc(items, func(x, y news.Item) int { return cmp.Compare(section(x), section(y)) })
+	groups := batches(items, section, types)
 	current := -1
-	for _, it := range items {
+	for i, it := range items {
 		if s := section(it); s != current {
 			current = s
 			fmt.Fprintf(a.Out, "SECTION | %s\n", sections[s])
+		}
+		if g, ok := groups[i]; ok {
+			if len(g) > 0 {
+				fmt.Fprintln(a.Out, batchLine(items, g))
+			}
+			continue
 		}
 		score := "-"
 		if it.Score > 0 {
@@ -538,7 +590,11 @@ func (a *App) printSummary(r newsReport) {
 		fmt.Fprintf(a.Out, "FAILED | %s | %s\n", f.Source, f.Error)
 	}
 	for _, t := range r.Truncated {
-		fmt.Fprintf(a.Out, "TRUNCATED | %s | %d more entries left out, the least severe or the oldest\n", t.Source, t.Dropped)
+		line := fmt.Sprintf("TRUNCATED | %s | %d more entries left out, those ranked last: the least severe, and in an image those without a fix", t.Source, t.Dropped)
+		if len(t.Packages) > 0 {
+			line += " | packages with more flaws: " + strings.Join(t.Packages, ", ")
+		}
+		fmt.Fprintln(a.Out, line)
 	}
 	for _, c := range r.Short {
 		fmt.Fprintf(a.Out, "SHORT | %s | its feed only goes back to %s\n", c.Source, c.Since.Format("2006-01-02 15:04"))
@@ -553,6 +609,83 @@ func (a *App) printSummary(r newsReport) {
 		fmt.Fprintf(a.Out, "IGNORED | %s | %s | %s\n", ig.ID, ig.Title, ignoredNote(ig))
 	}
 }
+
+// minBatch is the number of CVE records fixed by one release from which the
+// summary writes them on one line: a PostgreSQL release fixes thirty at once,
+// and thirty lines bury the rest for one upgrade to make.
+const minBatch = 3
+
+// batches finds the CVE records of one section and one database that one
+// release fixes for one product (the same date too, for the news): the first
+// index of each group maps to the group, the others to nil.
+func batches(items []news.Item, section func(news.Item) int, types map[string]source.Type) map[int][]int {
+	byKey := map[string][]int{}
+	var keys []string
+	for i, it := range items {
+		t := types[it.Source]
+		packages := t.IsPackageDatabase() || t == source.TypeGitHubAdvisoryDatabase
+		if !t.IsSearch() && t != source.TypeNVDProduct && it.Source != news.NVDVersionsSource && !packages {
+			continue
+		}
+		if len(it.Affected) == 0 || it.Affected[0].Fixed == "" || len(it.ExploitedIn) > 0 || len(it.PublicExploitIn) > 0 {
+			continue // an exploited flaw keeps its own line
+		}
+		af := it.Affected[0]
+		day := it.Published.Format("2006-01-02")
+		if it.Source == news.NVDVersionsSource || packages {
+			day = "" // the flaws of a version in use, whatever their date
+		}
+		k := strings.Join([]string{fmt.Sprint(section(it)), it.Source, day, af.Package, af.Fixed, af.Status}, "\n")
+		if _, ok := byKey[k]; !ok {
+			keys = append(keys, k)
+		}
+		byKey[k] = append(byKey[k], i)
+	}
+	out := map[int][]int{}
+	for _, k := range keys {
+		if g := byKey[k]; len(g) >= minBatch {
+			out[g[0]] = g
+			for _, i := range g[1:] {
+				out[i] = nil
+			}
+		}
+	}
+	return out
+}
+
+// batchLine writes a group of CVE records on one line: the most severe
+// record's title, then every CVE with its score.
+func batchLine(items []news.Item, group []int) string {
+	g := slices.Clone(group)
+	slices.SortStableFunc(g, func(a, b int) int { return cmp.Compare(items[b].Score, items[a].Score) })
+	top := items[g[0]]
+	var ids []string
+	for _, i := range g {
+		id := cmp.Or(cveRe.FindString(items[i].Title), ghsaRe.FindString(items[i].Title+" "+items[i].URL), items[i].URL)
+		if items[i].Score > 0 {
+			id += fmt.Sprintf(" [%.1f]", items[i].Score)
+		}
+		ids = append(ids, id)
+	}
+	score := "-"
+	if top.Score > 0 {
+		score = fmt.Sprintf("%.1f", top.Score)
+	}
+	title := fmt.Sprintf("%d records of %s fixed by one release (%s); the most severe: %s", len(g), top.Affected[0].Package, strings.Join(ids, ", "), top.Title)
+	line := strings.Join([]string{top.Published.Format("2006-01-02"), string(top.Stage), top.Source, score, title, top.URL}, " | ")
+	if aff := affected(top); aff != "" {
+		line += " | affects " + aff
+	}
+	if top.EPSS > 0 {
+		line += " | EPSS " + epss(top.EPSS)
+	}
+	return line
+}
+
+var (
+	cveRe  = regexp.MustCompile(`CVE-\d{4}-\d+`)
+	ghsaRe = regexp.MustCompile(`GHSA(-[23456789cfghjmpqrvwx]{4}){3}`)
+)
 
 func (a *App) eolCommand() *cobra.Command {
 	var format, profilePath string
@@ -682,7 +815,11 @@ func affected(it news.Item) string {
 
 // branchOf gives the major version of a version in use: "20" for 20.20.2.
 func branchOf(v string) string {
-	major, _, _ := strings.Cut(strings.TrimPrefix(v, "v"), ".")
+	major, rest, _ := strings.Cut(strings.TrimPrefix(v, "v"), ".")
+	if major == "0" { // 0.3 and 0.4 are two branches: semver breaks on the minor before 1.0
+		minor, _, _ := strings.Cut(rest, ".")
+		return major + "." + minor
+	}
 	return major
 }
 
@@ -697,9 +834,29 @@ func fixedOnBranch(ranges []news.Affected, inUse string) bool {
 // otherBranch tells whether the first fixed version is on a later major
 // version than the one in use, with numbers on both sides.
 func otherBranch(inUse, fixed string) bool {
-	a, errA := strconv.Atoi(branchOf(inUse))
-	b, errB := strconv.Atoi(branchOf(fixed))
-	return errA == nil && errB == nil && b > a
+	a, b := branchOf(inUse), branchOf(fixed)
+	_, errA := strconv.ParseFloat(a, 64)
+	_, errB := strconv.ParseFloat(b, 64)
+	return errA == nil && errB == nil && laterBranch(b, a)
+}
+
+// laterBranch compares two branches part by part, numbers as numbers: 0.10
+// comes after 0.9.
+func laterBranch(b, a string) bool {
+	bp, ap := strings.Split(b, "."), strings.Split(a, ".")
+	for i := range max(len(bp), len(ap)) {
+		var x, y int
+		if i < len(bp) {
+			x, _ = strconv.Atoi(bp[i])
+		}
+		if i < len(ap) {
+			y, _ = strconv.Atoi(ap[i])
+		}
+		if x != y {
+			return x > y
+		}
+	}
+	return false
 }
 
 // epss writes a probability as a percentage: "0.4%", "37%".
@@ -708,6 +865,16 @@ func epss(p float64) string {
 		return fmt.Sprintf("%.1f%%", p*100)
 	}
 	return fmt.Sprintf("%.0f%%", p*100)
+}
+
+// terminal tells whether w is a terminal a person watches.
+func terminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 // knownEcosystem tells whether a prefix names a package ecosystem.

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/yoanbernabeu/stackalarm/internal/source"
 )
@@ -118,6 +119,7 @@ func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, 
 			defer mu.Unlock()
 			if len(ranges) == 0 {
 				checks[c.tag].Unproven++
+				checks[c.tag].UnprovenIDs = append(checks[c.tag].UnprovenIDs, id)
 			}
 			if len(hit) == 0 {
 				return // another branch, a version already fixed, or no range to prove it
@@ -150,18 +152,27 @@ type ExploitedCheck struct {
 	Hits    int    `json:"hits"`        // those that hit the version (or possibly, for a branch)
 	// Unproven counts the entries whose CVE record gives no range for the
 	// product: they could not be compared, and are not listed.
-	Unproven int `json:"unproven,omitempty"`
+	Unproven    int      `json:"unproven,omitempty"`
+	UnprovenIDs []string `json:"unproven_ids,omitempty"` // their CVEs, to check by hand
 	// Incomplete tells that the NVD search of the version failed: the flaws
 	// it links to the product, and those with a public exploit, may be missing.
 	Incomplete bool `json:"incomplete,omitempty"`
+	// NoProduct tells that the technology has no product in the NVD
+	// dictionary known to stackalarm: the NVD records of the release, outside
+	// KEV, were not compared with it.
+	NoProduct bool `json:"no_product,omitempty"`
 }
 
 // Note says the outcome in one line.
 func (c ExploitedCheck) Note() string {
-	if c.Incomplete {
-		return c.note() + " — INCOMPLETE: the NVD search of this version failed (see nvd-versions), run again before calling it clear"
+	note := c.note()
+	if c.NoProduct {
+		note += "; no NVD product is known for it, so its other NVD records were not compared with this release (search them by hand, or with stackalarm cve)"
 	}
-	return c.note()
+	if c.Incomplete {
+		note += " — INCOMPLETE: the NVD search of this version failed (see nvd-versions), run again before calling it clear"
+	}
+	return note
 }
 
 func (c ExploitedCheck) note() string {
@@ -176,7 +187,12 @@ func (c ExploitedCheck) note() string {
 		note = fmt.Sprintf("none of the %d most recent of its %d KEV entries hits this version", c.Checked, c.Entries)
 	}
 	if c.Unproven > 0 {
-		note += fmt.Sprintf(" (%d without a range to compare: check them by hand with stackalarm cve)", c.Unproven)
+		ids := slices.Sorted(slices.Values(c.UnprovenIDs))
+		note += fmt.Sprintf(" (%d without a range to compare: check them by hand with stackalarm cve", c.Unproven)
+		if len(ids) > 0 {
+			note += ": " + strings.Join(ids[:min(len(ids), 8)], ", ")
+		}
+		note += ")"
 	}
 	return note
 }
@@ -224,7 +240,21 @@ func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []ent
 func (f *Fetcher) proves(it Item, word string) bool {
 	names := f.productNames(word)
 	return slices.ContainsFunc(it.Affected, func(a Affected) bool {
-		return (a.Status == StatusAffected || a.Status == StatusPossiblyAffected) && (a.Package == word || slices.Contains(names, normalName(a.Package)))
+		return (a.Status == StatusAffected || a.Status == StatusPossiblyAffected) && (a.Package == word || slices.Contains(names, normalName(a.Package)) || ofProduct(a.Package, names))
+	})
+}
+
+// ofRepository tells whether a package a repository advisory names is the
+// product of the tag: "next" for nextjs, the image "vaultwarden/server" for
+// vaultwarden, the module "@angular/core" for angular.
+func (f *Fetcher) ofRepository(pkg, tag string) bool {
+	names := f.productNames(tag)
+	// Each part of a path: the owner of an image, the module of a Go path
+	// (github.com/gotenberg/gotenberg/v8); or the product named before a
+	// component ("LibreChat MCP Stdio").
+	candidates := append([]string{pkg}, strings.FieldsFunc(strings.TrimPrefix(pkg, "@"), func(r rune) bool { return r == '/' || r == ' ' })...)
+	return slices.ContainsFunc(candidates, func(c string) bool {
+		return sameProduct(c, tag) || slices.Contains(names, normalName(c)) || ofProduct(c, names) // valkey-server of valkey
 	})
 }
 
@@ -251,13 +281,26 @@ func normalName(s string) string {
 	return nonAlnum.ReplaceAllString(strings.ToLower(s), "")
 }
 
-// namesProduct tells whether a KEV vendor and product ("PHP Group PHP",
-// "GitLab Community and Enterprise Editions") name one of the products: as a
-// word of it, or as the whole of it.
-func namesProduct(product string, names []string) bool {
-	words := nonAlnum.Split(strings.ToLower(product), -1)
+// namesProduct tells whether a KEV entry ("PHP Group|PHP", "GitLab|Community
+// and Enterprise Editions") is about one of the products: its product names
+// it, as a word or as a whole; or its vendor does, unless the product is
+// another one built on the name (PHP's PHPMailer, a library, not PHP).
+func namesProduct(entry string, names []string) bool {
+	vendor, product, ok := strings.Cut(entry, "|")
+	if !ok {
+		vendor, product = "", entry
+	}
+	named := func(text, n string) bool {
+		return slices.Contains(nonAlnum.Split(strings.ToLower(text), -1), n) || normalName(text) == n
+	}
 	for _, n := range names {
-		if n != "" && (slices.Contains(words, n) || normalName(product) == n) {
+		if n == "" {
+			continue
+		}
+		if named(product, n) {
+			return true
+		}
+		if named(vendor, n) && !strings.HasPrefix(normalName(product), n) {
 			return true
 		}
 	}
@@ -312,6 +355,8 @@ func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query
 		}
 	}
 	ranges, records, failed := map[string]map[string][]Affected{}, map[string][]entry{}, map[string]bool{}
+	noProduct := map[string]bool{}
+	defer func() { f.noProduct = noProduct }()
 	if nvdURL == "" {
 		return ranges, records, failed, nil
 	}
@@ -319,6 +364,16 @@ func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query
 	var errs []error
 	for _, word := range words {
 		version, cpe := q.Versions[word], f.Search.CPE[word]
+		if cpe == "" { // a technology read through its NVD product (Apache httpd, SQLite)
+			for _, s := range sources {
+				if s.Type == source.TypeNVDProduct && slices.Contains(s.Tags, word) {
+					cpe = s.Product
+				}
+			}
+		}
+		if cpe == "" && !isBranch(version) {
+			noProduct[word] = true
+		}
 		var u string
 		switch {
 		case cpe != "" && !isBranch(version):
@@ -352,6 +407,11 @@ func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query
 				}
 			}
 		}
+		if err == nil && cpe != "" && !isBranch(version) {
+			var deferred []entry
+			deferred, err = f.deferredRecords(ctx, nvdURL, word, records[word], nvd)
+			records[word] = append(records[word], deferred...)
+		}
 		if err != nil {
 			failed[word] = true
 			errs = append(errs, fmt.Errorf("%s: %w", word, err))
@@ -360,19 +420,106 @@ func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query
 	return ranges, records, failed, errors.Join(errs...)
 }
 
-// exploitableInUse lists the NVD records of a release in use that have a
-// public exploit (a Nuclei template, a Metasploit module), whatever their
-// date: anyone can run the attack, even if CISA has not seen it exploited.
-// The KEV ones are listed by the KEV search, and a CVE already listed is
-// left to its item.
-func exploitableInUse(records map[string][]entry, q Query, exploits, exploited map[string][]string, listed []Item, nvd source.Source) []Item {
+// maxDeferred bounds the CVE records read for the NVD records of one product
+// that have no range: the most recent first.
+const maxDeferred = 40
+
+// deferredWindow is how far back the records without a range are looked for:
+// the NVD API caps a search at 120 days.
+const deferredWindow = 120 * 24 * time.Hour
+
+// deferredRecords finds the recent NVD records of a product that the NVD never
+// tied to it, so that its search by product misses them: those it deferred
+// (Django's of November 3, "Deferred" for good) or has not analysed yet. The
+// word of the product finds them; the range their publisher wrote in the CVE
+// Program record says whether they hit the release in use, and those that do
+// are returned with that range, under the word.
+func (f *Fetcher) deferredRecords(ctx context.Context, nvdURL, word string, known []entry, nvd *gate) ([]entry, error) {
+	if f.CVEAPI == "" || f.Now == nil {
+		return nil, nil
+	}
+	term := word
+	if alias, ok := f.Search.Aliases[word]; ok {
+		term = alias
+	}
+	end := f.Now().UTC().Truncate(time.Hour).Add(time.Hour) // whole hours: a stable URL, for the cache
+	const layout = "2006-01-02T15:04:05.000Z"
+	u := nvdURL + "?keywordSearch=" + neturl.QueryEscape(term) + "&pubStartDate=" + end.Add(-deferredWindow).Format(layout) + "&pubEndDate=" + end.Format(layout)
+	if nvd != nil && !f.isCached(u) {
+		if err := nvd.wait(ctx); err != nil {
+			return nil, err
+		}
+	}
+	data, _, err := f.get(ctx, u, "nvd")
+	if err != nil {
+		return nil, err
+	}
+	entries, err := parseNVD(data, nil, 0)
+	if err != nil && len(entries) == 0 {
+		return nil, err
+	}
+	words := matchers([]string{term})
+	var candidates []entry
+	for _, e := range entries {
+		id := cveID.FindString(e.Title)
+		text := matchText(e)
+		if len(e.Affected) > 0 || id == "" || !words[0].MatchString(text) || word != "wordpress" && wordpressPlugin.MatchString(text) ||
+			slices.ContainsFunc(known, func(k entry) bool { return cveID.FindString(k.Title) == id }) {
+			continue
+		}
+		candidates = append(candidates, e)
+	}
+	slices.SortStableFunc(candidates, func(a, b entry) int { return b.Published.Compare(a.Published) })
+	candidates = candidates[:min(len(candidates), maxDeferred)]
+	names := f.productNames(word)
+	var (
+		mu  sync.Mutex
+		wg  sync.WaitGroup
+		sem = make(chan struct{}, kevConcurrency)
+		out []entry
+	)
+	for _, e := range candidates {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			ranges := f.programRanges(ctx, cveID.FindString(e.Title), names)
+			for i := range ranges {
+				ranges[i].Package = word
+			}
+			if len(ranges) == 0 {
+				return
+			}
+			e.Affected = ranges
+			mu.Lock()
+			out = append(out, e)
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
+	slices.SortFunc(out, func(a, b entry) int { return cmp.Compare(a.Title, b.Title) })
+	return out, nil
+}
+
+// wordpressPlugin finds the records of WordPress plugins, which name PHP and
+// every library they misuse: hundreds a month, never the product itself.
+var wordpressPlugin = regexp.MustCompile(`(?i)\b(plugin|theme) for WordPress\b`)
+
+// NVDVersionsSource names the items of the NVD records that hit a release in
+// use, whatever their date.
+const NVDVersionsSource = "nvd-versions"
+
+// knownInUse lists the NVD records whose ranges hold a release in use
+// (php@8.3.35, django@5.2.18), whatever their date, like OSV does for the
+// packages: a security release published two weeks ago and not applied is a
+// flaw to fix today, even outside a seven-day window. Those with a public
+// exploit (a Nuclei template, a Metasploit module) come first: anyone can run
+// the attack. The KEV ones are listed by the KEV search.
+func knownInUse(records map[string][]entry, q Query, exploits, exploited map[string][]string, nvd source.Source) []Item {
 	var out []Item
 	for _, word := range slices.Sorted(maps.Keys(records)) {
 		for _, e := range records[word] {
 			id := cveID.FindString(e.Title)
-			if id == "" || len(exploits[id]) == 0 || len(exploited[id]) > 0 ||
-				slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id && it.Source == nvd.ID }) ||
-				slices.ContainsFunc(out, func(it Item) bool { return it.cve == id }) {
+			if id == "" || len(exploited[id]) > 0 || slices.ContainsFunc(out, func(it Item) bool { return it.cve == id }) {
 				continue
 			}
 			var hit []Affected
@@ -380,7 +527,7 @@ func exploitableInUse(records map[string][]entry, q Query, exploits, exploited m
 				if normalName(a.Package) != normalName(word) {
 					continue
 				}
-				if status, ok := versionStatus(q.Versions[word], a.Versions); ok && status == StatusAffected {
+				if status, ok := statusOf(q.Versions[word], a); ok && status == StatusAffected {
 					a.InUse, a.Status = q.Versions[word], status
 					hit = append(hit, a)
 				}
@@ -389,12 +536,19 @@ func exploitableInUse(records map[string][]entry, q Query, exploits, exploited m
 				continue
 			}
 			it := Item{
-				Source: nvd.ID, Tags: nvd.Tags, Stage: nvd.Stage, Title: e.Title, URL: e.URL, Published: e.Published,
+				Source: NVDVersionsSource, Tags: nvd.Tags, Stage: source.StageAdvisory, Title: e.Title, URL: e.URL, Published: e.Published,
 				Summary: e.Summary, Score: e.Score, Language: nvd.Language, Affected: hit, cve: id,
 			}
 			it.ID = itemID(it)
 			out = append(out, it)
 		}
+	}
+	// The cap keeps those anyone can exploit, then the most severe.
+	slices.SortStableFunc(out, func(a, b Item) int {
+		return cmp.Or(cmp.Compare(len(exploits[b.cve]), len(exploits[a.cve])), cmp.Compare(cmp.Or(b.Score, 9), cmp.Or(a.Score, 9)))
+	})
+	for i := range out {
+		out[i].rank = i
 	}
 	return out
 }
@@ -429,13 +583,29 @@ func (f *Fetcher) nvdRanges(ctx context.Context, nvdURL, id string, names []stri
 // when it is the tag's ("react-server-dom-webpack" for react), dropped when
 // it only shares the word ("The Streamit plugin for WordPress… PHP"). A
 // record that cannot be read is kept: a doubt never hides a flaw.
-func (f *Fetcher) freshOfProducts(ctx context.Context, entries []entry, precise map[string][]string, matched []string, words []*regexp.Regexp) []entry {
+//
+// The record also gives the vulnerable ranges days before the NVD does: they
+// are taken, under the tag's name, so the version given is compared with them.
+func (f *Fetcher) freshOfProducts(ctx context.Context, entries []entry, q Query, precise map[string][]string, matched []string, words []*regexp.Regexp) []entry {
 	if f.CVEAPI == "" {
 		return entries
 	}
+	tagOf := map[string]string{} // match term: the tag or keyword given with a version
+	for _, t := range append(slices.Clone(q.Tags), q.Keywords...) {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if q.Versions[t] == "" {
+			continue
+		}
+		term := t
+		if alias, ok := f.Search.Aliases[t]; ok {
+			term = alias
+		}
+		tagOf[term] = t
+	}
 	type check struct {
 		i     int
-		names []string
+		names map[string][]string // tag: the names of its product
+		loose bool                // an ordinary word matched it too: never dropped
 	}
 	var checks []check
 	for i, e := range entries {
@@ -443,21 +613,20 @@ func (f *Fetcher) freshOfProducts(ctx context.Context, entries []entry, precise 
 			continue
 		}
 		text := matchText(e)
-		var names []string
-		loose := false
+		c := check{i: i, names: map[string][]string{}}
 		for j, re := range words {
 			if !re.MatchString(text) {
 				continue
 			}
 			n, ok := precise[matched[j]]
 			if !ok || n == nil {
-				loose = true // an ordinary word matched it too: kept as before
-				break
+				c.loose = true
+				continue
 			}
-			names = append(names, n...)
+			c.names[tagOf[matched[j]]] = n
 		}
-		if !loose && len(names) > 0 {
-			checks = append(checks, check{i, names})
+		if len(c.names) > 0 {
+			checks = append(checks, c)
 		}
 	}
 	drop := make([]bool, len(entries))
@@ -478,7 +647,28 @@ func (f *Fetcher) freshOfProducts(ctx context.Context, entries []entry, precise 
 			if err != nil || len(products) == 0 {
 				return
 			}
-			drop[c.i] = !slices.ContainsFunc(products, func(p string) bool { return ofProduct(p, c.names) })
+			var all []string
+			for _, n := range c.names {
+				all = append(all, n...)
+			}
+			if !c.loose && !slices.ContainsFunc(products, func(p string) bool { return ofProduct(p, all) }) {
+				drop[c.i] = true
+				return
+			}
+			p, err := parseCVEProgram(data)
+			if err != nil {
+				return
+			}
+			var ranges []Affected
+			for _, tag := range slices.Sorted(maps.Keys(c.names)) {
+				for _, a := range rangesOf(p.Affected, c.names[tag]) {
+					a.Package = tag
+					if !slices.Contains(ranges, a) {
+						ranges = append(ranges, a)
+					}
+				}
+			}
+			entries[c.i].Affected = ranges // its own index: no other goroutine writes it
 		})
 	}
 	wg.Wait()

@@ -46,6 +46,15 @@ const stageText: Record<string, string> = {
     <code>STACKALARM_NO_OSV</code> variable) turns it off.
   </p>
   <p>
+    Give every package of the lockfile, transitive ones included: thousands go in one run, and the cap keeps the most severe flaws of
+    each package. For Go, <code>--tag go@1.25.5</code> (or <code>--package stdlib@1.25.5</code>) asks about the standard library and the
+    toolchain of that release, the two packages OSV.dev files Go's own flaws under.
+  </p>
+  <p>
+    OSV.dev compares no version of a GitHub Action: with the <code>github-actions</code> tag, the actions given with their version
+    (<code>--package tj-actions/changed-files@45.0.7</code>) are looked up in the GitHub Advisory Database whatever the date instead.
+  </p>
+  <p>
     Two ecosystems have an audit database OSV.dev does not mirror in full, and both are read too. Composer packages are asked about on
     the Packagist API, the one <code>composer audit</code> reads, which holds the FriendsOfPHP database: it often lists a flaw days before
     OSV.dev. Gems are looked up in the Ruby Advisory Database, the one <code>bundle audit</code> reads, read as one archive; a version on the
@@ -59,10 +68,27 @@ const stageText: Record<string, string> = {
     deciding. Never give a range (<code>&gt;=8.2</code>). With a version, the NVD records a tag's word finds are kept only when they name its product, or none yet (a CVE of the day): the word <code>php</code> otherwise brings every WordPress plugin of the week. The products known for each tag are
     listed under <code>cpe</code> in <a href={`${repo}/blob/main/sources/search.yaml`}><code>sources/search.yaml</code></a>; a tag too
     ambiguous to be searched by word (<code>composer</code>, <code>flask</code>, <code>npm</code>…) is searched in the NVD by product instead.
+    A CVE of the day that the NVD has not tied to a range yet gets the range its publisher wrote in the CVE Program record.
+  </p>
+  <p>
+    With an exact release (<code>--tag django@5.2.18</code>, not a branch), every NVD record whose range holds it is listed whatever its
+    date, as <code>nvd-versions</code> items: a security release published three weeks ago and not applied is a flaw to fix today. The
+    records the NVD never analysed (Django's are often "Deferred") are found by word over 120 days and compared with the range of their CVE
+    Program record. The <code>summary</code> format writes the records one release fixes on one line. A technology without a product in
+    the NVD dictionary (<code>cpe</code> in <code>sources/search.yaml</code>, or an <code>nvd-product</code> source) is only checked
+    against KEV, and its <code>KEV</code> line says so.
+  </p>
+  <p>
+    The advisories a project publishes on its GitHub repository are read whatever their date when its tag has a version, ranges written by
+    hand included (<code>≤ 1.36.0</code>, <code>all</code> with the fixed releases listed, branch by branch). A self-hosted application
+    without a tag gets the same with <code>--repo owner/name@version</code> (<code>--repo gotenberg/gotenberg@8.38.0</code>): many of
+    those advisories carry no CVE, so no CVE database lists them.
   </p>
   <p>
     With a version, the CISA KEV catalog is also searched for the product, whatever the date its flaws were added: the entries that name
-    it, and those the NVD links to it (Node.js reaches a Brotli flaw whose KEV entry never names Node.js). Each one whose CVE record holds
+    it, and those the NVD links to it (Node.js reaches a Brotli flaw whose KEV entry never names Node.js). A record
+    that names a single tested release and no fix proves that release affected and says nothing of the others; a pre-release
+    (<code>4.2.0:rc1</code> in the NVD) is never the final release. Each one whose CVE record holds
     the version in a vulnerable range is listed as an alert, marked <code>AFFECTED</code>. A flaw exploited in the wild last month on the PHP
     you deploy today is the first thing to fix, and a seven-day window would miss it. A <code>KEV</code> line then tells, for each tag with a
     version, how many KEV entries name the product and how many hit the version: a silence reads as a check done. For an exact release
@@ -118,12 +144,12 @@ const stageText: Record<string, string> = {
 
   <h3 id="limits">Limits, failures and cache</h3>
   <ul>
-    <li>Each source shows at most 30 entries. For the CVE databases, the most severe come first, so the cap drops the minor ones. A CVE found in several databases is shown once and takes one place. The output lists the sources that had more.</li>
+    <li>Each source shows at most 30 entries, 100 for what reads like an audit of the versions in use (the package databases asked about packages, <code>nvd-versions</code>, the repository advisories of a product given with its version). For the CVE databases, the most severe come first, so the cap drops the minor ones; in an image, what Debian rates unimportant and the flaws without a fix come last. A CVE found in several databases is shown once and takes one place. The output lists the sources that had more.</li>
     <li>Paginated APIs (GitHub, EUVD) are read page by page, up to 10 pages per query. A query that matches more is reported as a <code>partial</code> failure, with what was read.</li>
     <li>A source that cannot be read is always listed: a silent watch tool is worse than a noisy one.</li>
     <li>A feed keeps only its latest entries: when its oldest one is newer than the start of the period, it is listed as <code>short</code>, since older news may be missing. A scheduled watch that runs every few hours is not affected.</li>
     <li>Responses are reused for an hour, from <code>stackalarm</code> in your user cache folder. <code>--no-cache</code> fetches everything again.</li>
-    <li>Without <code>NVD_API_KEY</code>, the NVD allows one request every 6 seconds; with it, about one every 0.7 seconds.</li>
+    <li>Without <code>NVD_API_KEY</code>, the NVD allows five requests every 30 seconds: one every 6.5 seconds, a try again after a rate limit taking its turn too; with it, about one every 0.7 seconds.</li>
   </ul>
 
   <h3 id="exit">Exit codes</h3>

@@ -76,3 +76,12 @@ func TestRubySecGivesTheAdvisoriesOfTheGemsAndOfRuby(t *testing.T) {
 		t.Fatalf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestLowestFixTakesTheHigherBoundOfAConstraint(t *testing.T) {
+	if got := lowestFix([]string{"~> 7.3, >= 7.3.5", ">= 8.0.1"}, "7.2.0"); got != "7.3.5" {
+		t.Fatalf("got %q", got)
+	}
+	if got := lowestFix([]string{"~> 8.0.5, >= 8.0.5.2"}, "8.0.5"); got != "8.0.5.2" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -226,13 +226,40 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 		}
 		return cmp.Compare(named(a), named(b))
 	})
-	q := Query{Packages: inUse, Versions: map[string]string{}}
+	// Each version given is compared, two of one product too (postgresql@16.16
+	// and postgresql@16.15, two servers): the first one marks the ranges, each
+	// other one a copy of the ranges of its product.
+	var rounds [][]string
+	seen := map[string]int{}
 	for _, p := range inUse {
-		if name := packageName(p); name != p {
-			q.Versions[strings.ToLower(name)] = strings.TrimPrefix(p, name+"@")
+		name := strings.ToLower(packageName(p))
+		k := seen[name]
+		seen[name]++
+		if k == len(rounds) {
+			rounds = append(rounds, nil)
 		}
+		rounds[k] = append(rounds[k], p)
 	}
-	rec.Affected = annotate(rec.Affected, q)
+	base := slices.Clone(rec.Affected)
+	for k, round := range rounds {
+		q := Query{Packages: round, Versions: map[string]string{}}
+		for _, p := range round {
+			if name := packageName(p); name != p {
+				q.Versions[strings.ToLower(name)] = strings.TrimPrefix(p, name+"@")
+			}
+		}
+		if k == 0 {
+			rec.Affected = annotate(rec.Affected, q, false)
+			continue
+		}
+		var more []Affected
+		for _, a := range base {
+			if slices.ContainsFunc(round, func(p string) bool { n := packageName(p); return a.Package == n || strings.EqualFold(a.Package, n) }) {
+				more = append(more, a)
+			}
+		}
+		rec.Affected = append(rec.Affected, annotate(more, q, false)...)
+	}
 	for _, p := range inUse {
 		name := packageName(p)
 		if name != p && len(rec.Affected) > 0 && !slices.ContainsFunc(rec.Affected, func(a Affected) bool { return sameProduct(a.Package, name) }) {
@@ -349,9 +376,15 @@ func parseCVEProgram(data []byte) (cveProgram, error) {
 		}
 	}
 	for _, a := range cna.Affected {
+		if na(a.Product) {
+			continue // "n/a": the record names no product
+		}
 		for _, v := range a.Versions {
-			if v.Status != "affected" || len(p.Affected) == maxNVDAffected {
+			if v.Status != "affected" || len(p.Affected) == maxNVDAffected || na(v.Version) && v.LessThan == "" && v.LessThanOrEqual == "" {
 				continue
+			}
+			if na(v.Version) {
+				v.Version = ""
 			}
 			af := Affected{Package: a.Product, Versions: v.Version}
 			from := v.Version
@@ -378,6 +411,12 @@ func parseCVEProgram(data []byte) (cveProgram, error) {
 		}
 	}
 	return p, nil
+}
+
+// na tells the placeholders a record writes for "not given".
+func na(s string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return s == "n/a" || s == "na" || s == "unknown"
 }
 
 // CVEURL is the page of a CVE on cve.org.

@@ -170,3 +170,5 @@ cpe:
   gogs: gogs:gogs
   backstage: linuxfoundation:backstage
   outline: getoutline:outline
+  mastodon: joinmastodon:mastodon
+  vaultwarden: dani-garcia:vaultwarden

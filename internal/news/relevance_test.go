@@ -29,7 +29,7 @@ func TestNVDRangesAreComparedWithTheVersionInUse(t *testing.T) {
 	if err != nil || len(entries) != 1 || len(entries[0].Affected) != 3 {
 		t.Fatalf("got %+v, %v", entries, err)
 	}
-	got := annotate(entries[0].Affected, Query{Versions: map[string]string{"php": "8.3.20"}})
+	got := annotate(entries[0].Affected, Query{Versions: map[string]string{"php": "8.3.20"}}, true)
 	if got[0] != (Affected{Package: "php", Versions: ">= 8.3.0, < 8.3.35", Fixed: "8.3.35", InUse: "8.3.20", Status: StatusAffected}) {
 		t.Fatalf("the range holding the version in use comes first, named after the tag: %+v", got)
 	}

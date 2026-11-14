@@ -1,0 +1,6 @@
+id: packagist-advisories
+name: Packagist security advisories (FriendsOfPHP and GitHub), for the Composer packages in use
+type: packagist
+url: https://packagist.org/api/security-advisories/
+tags: [php, composer]
+stage: advisory

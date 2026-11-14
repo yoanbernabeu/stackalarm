@@ -133,7 +133,7 @@ func caps(sources []source.Source, q Query) map[string]int {
 		return out
 	}
 	for _, s := range sources {
-		if s.Type == source.TypeOSV {
+		if s.Type.IsPackageDatabase() {
 			out[s.ID] = MaxOSVPerSource
 		}
 	}
@@ -300,19 +300,19 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				if c := cmp.Compare(relevance(a, q), relevance(b, q)); c != 0 {
 					return c
 				}
-				if s.Type == source.TypeOSV { // what an update fixes today, before what has no fix yet
+				if s.Type.IsPackageDatabase() { // what an update fixes today, before what has no fix yet
 					if c := cmp.Compare(fixable(b), fixable(a)); c != 0 {
 						return c
 					}
 				}
-				if s.Type.IsSearch() || s.Type == source.TypeNVDProduct || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type == source.TypeOSV { // most severe first, so the cap drops the minor ones
+				if s.Type.IsSearch() || s.Type == source.TypeNVDProduct || s.Type == source.TypeGitHubAdvisoryDatabase || s.Type.IsPackageDatabase() { // most severe first, so the cap drops the minor ones
 					if c := cmp.Compare(priority(b), priority(a)); c != 0 {
 						return c
 					}
 				}
 				return b.Published.Compare(a.Published)
 			})
-			if s.Type == source.TypeOSV {
+			if s.Type.IsPackageDatabase() {
 				entries = inTurns(entries)
 			}
 			for rank, e := range entries {
@@ -444,7 +444,7 @@ func inTurns(entries []entry) []entry {
 // never merged: their own wording carries information.
 func mergeable(t source.Type) bool {
 	switch t {
-	case source.TypeNVD, source.TypeNVDProduct, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV:
+	case source.TypeNVD, source.TypeNVDProduct, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV, source.TypePackagist:
 		return true
 	}
 	return false
@@ -952,6 +952,8 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 		})
 	case source.TypeOSV:
 		return f.readOSV(ctx, s.Ecosystem, q.Packages, q.Components)
+	case source.TypePackagist:
+		return f.readPackagist(ctx, s.URL, q.Packages, since)
 	case source.TypeNuclei:
 		return f.readOne(ctx, s.URL, "", parseNuclei)
 	case source.TypeMetasploit:

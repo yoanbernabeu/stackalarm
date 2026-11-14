@@ -33,11 +33,18 @@ const (
 	// TypeOSV asks OSV.dev which known vulnerabilities hit the package
 	// versions in use, for one ecosystem.
 	TypeOSV Type = "osv"
+	// TypePackagist asks the Packagist API for the security advisories of the
+	// Composer packages: FriendsOfPHP lists some days before OSV.dev does.
+	TypePackagist Type = "packagist"
 	// TypeNuclei and TypeMetasploit are catalogs of public exploits: they mark
 	// the CVEs of the other sources and give no entry of their own.
 	TypeNuclei     Type = "nuclei"     // the CVE index of the Nuclei templates
 	TypeMetasploit Type = "metasploit" // the module metadata of the Metasploit Framework
 )
+
+// IsPackageDatabase tells whether the source answers about the package
+// versions given: the known flaws of each, whatever their date.
+func (t Type) IsPackageDatabase() bool { return t == TypeOSV || t == TypePackagist }
 
 // IsExploitCatalog tells whether the source only marks the CVEs that have a
 // public exploit.
@@ -82,7 +89,7 @@ var (
 	idPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	tagPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
 	cpePattern = regexp.MustCompile(`^[a-z0-9._+-]+:[a-z0-9._+-]+$`)
-	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD, TypeNVDProduct, TypeOSV, TypeNuclei, TypeMetasploit}
+	types      = []Type{TypeFeed, TypeGitHubAdvisories, TypeKEV, TypeGitHubAdvisoryDatabase, TypeEUVD, TypeEUVDSearch, TypeNVD, TypeNVDProduct, TypeOSV, TypePackagist, TypeNuclei, TypeMetasploit}
 )
 
 // Stages lists every stage, in the order they usually happen.

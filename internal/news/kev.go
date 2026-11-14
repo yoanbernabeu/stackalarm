@@ -169,15 +169,17 @@ func (c ExploitedCheck) Note() string {
 }
 
 // kevInUse turns the KEV entries that hit a version in use into items. A CVE
-// a vulnerability database already listed in the period is left to it: that
-// record proves the version, and the KEV mark reaches it. A KEV alert the
-// period listed alone gets the ranges that prove it, instead of a second item.
+// an item already proves for the same product (a database record whose range
+// holds the version) is left to it: the KEV mark reaches it. The same CVE on
+// another component (Brotli in an image, Node.js in the front end) is two
+// findings, kept apart. A KEV alert the period listed alone gets the ranges
+// that prove it, instead of a second item.
 func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []entry, q Query, sources []source.Source, nvd *gate, nvdKEV map[string]map[string][]Affected, listed []Item) ([]Item, []ExploitedCheck) {
 	var out []Item
 	found, checks := f.exploitedInUse(ctx, catalog, q, sources, nvd, nvdKEV)
 	for _, e := range found {
 		id := cveID.FindString(e.Title)
-		if slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id }) {
+		if slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id && f.proves(it, e.Affected[0].Package) }) {
 			continue
 		}
 		if i := slices.IndexFunc(listed, func(it Item) bool { return it.Source == kev.ID && cveID.FindString(it.Title) == id }); i >= 0 {
@@ -186,12 +188,21 @@ func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []ent
 		}
 		it := Item{
 			Source: kev.ID, Tags: kev.Tags, Stage: kev.Stage, Title: e.Title, URL: e.URL, Published: e.Published,
-			Summary: e.Summary, Language: kev.Language, Affected: e.Affected, cve: id,
+			Summary: e.Summary, Language: kev.Language, Affected: e.Affected, cve: id, alone: true,
 		}
 		it.ID = itemID(it)
 		out = append(out, it)
 	}
 	return out, checks
+}
+
+// proves tells whether an item marks the version in use of a product (a tag
+// or keyword) affected, or possibly affected.
+func (f *Fetcher) proves(it Item, word string) bool {
+	names := f.productNames(word)
+	return slices.ContainsFunc(it.Affected, func(a Affected) bool {
+		return (a.Status == StatusAffected || a.Status == StatusPossiblyAffected) && (a.Package == word || slices.Contains(names, normalName(a.Package)))
+	})
 }
 
 // productNames returns the names a tag's product goes by in the CVE records:
@@ -336,7 +347,7 @@ func exploitableInUse(records map[string][]entry, q Query, exploits, exploited m
 		for _, e := range records[word] {
 			id := cveID.FindString(e.Title)
 			if id == "" || len(exploits[id]) == 0 || len(exploited[id]) > 0 ||
-				slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id || cveID.FindString(it.Title) == id }) ||
+				slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id && it.Source == nvd.ID }) ||
 				slices.ContainsFunc(out, func(it Item) bool { return it.cve == id }) {
 				continue
 			}

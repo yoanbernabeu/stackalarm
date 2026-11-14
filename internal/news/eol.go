@@ -137,6 +137,21 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 				maintained = append(maintained, rel.Name)
 			}
 		}
+		// endoflife.date lists only the recent cycles of some products
+		// (gitlab-runner): a release older than all of them is long unsupported.
+		if len(releases) > 0 && v != "" && v[0] >= '0' && v[0] <= '9' {
+			oldest := releases[0].Name
+			for _, rel := range releases {
+				if compareVersions(rel.Name, oldest) < 0 {
+					oldest = rel.Name
+				}
+			}
+			if compareVersions(v, oldest) < 0 {
+				s.Status = StatusEOL
+				s.Note = "older than every cycle endoflife.date lists (the oldest is " + oldest + "): no security fixes; upgrade to a maintained cycle: " + strings.Join(maintained, ", ")
+				return
+			}
+		}
 		s.Note = "version unknown or too vague to find its cycle; maintained cycles: " + strings.Join(maintained, ", ")
 		return
 	}

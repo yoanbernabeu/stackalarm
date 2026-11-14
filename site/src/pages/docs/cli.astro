@@ -50,7 +50,7 @@ const stageText: Record<string, string> = {
     the version and marked <code>affected</code> or <code>not-affected</code> (<code>[8.3.20 in use: AFFECTED]</code> in the text formats),
     and the records that hit the version come first under the cap. A branch works too (<code>--tag node@20</code>): a range covering the whole
     branch is <code>affected</code>, since no release of it is fixed, and one covering part of it <code>possibly-affected</code>, the patch level
-    deciding. Never give a range (<code>&gt;=8.2</code>). The products known for each tag are
+    deciding. Never give a range (<code>&gt;=8.2</code>). With a version, a tag of the NVD dictionary is searched there by product rather than by word: the word <code>php</code> brings every WordPress plugin of the week. The products known for each tag are
     listed under <code>cpe</code> in <a href={`${repo}/blob/main/sources/search.yaml`}><code>sources/search.yaml</code></a>; a tag too
     ambiguous to be searched by word (<code>composer</code>, <code>flask</code>, <code>npm</code>…) is searched in the NVD by product instead.
   </p>

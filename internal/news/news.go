@@ -51,6 +51,7 @@ type Item struct {
 
 	cve     string   // CVE id of a CVE database entry, used to merge duplicates
 	related []string // upstream CVEs of the advisory: the lists of exploited flaws may name it by one of them
+	alone   bool     // never merged with another item of its CVE: a KEV alert on a component in use
 	dup     string   // GHSA id of an advisory without a CVE, used the same way
 	rank    int      // order within its source, for the cap
 }
@@ -631,7 +632,7 @@ func mergeAndCap(items []Item, caps map[string]int) ([]Item, []Truncation) {
 		return MaxPerSource
 	}
 	key := func(i int) string {
-		if k := cmp.Or(items[i].cve, items[i].dup); k != "" {
+		if k := cmp.Or(items[i].cve, items[i].dup); k != "" && !items[i].alone {
 			return k
 		}
 		return fmt.Sprint("#", i)
@@ -831,7 +832,10 @@ func searchTerms(q Query, s source.Search) (searched terms, left []string) {
 	var cpes []string
 	tags := slices.DeleteFunc(slices.Clone(q.Tags), func(t string) bool {
 		t = strings.ToLower(strings.TrimSpace(t))
-		if !slices.Contains(s.Skip, t) {
+		// A tag given with its version and known in the dictionary is searched
+		// by product instead: the word "php" brings every WordPress plugin of the
+		// week, the product only PHP's own records.
+		if !slices.Contains(s.Skip, t) && (q.Versions[t] == "" || s.CPE[t] == "") {
 			return false
 		}
 		if cpe := s.CPE[t]; cpe != "" && !slices.Contains(cpes, cpe) {
@@ -1121,7 +1125,16 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 	for attempt := 1; ; attempt++ {
 		resp, err = f.Client.Do(req)
 		if err != nil {
-			return nil, "", fmt.Errorf("unreachable: %w", err)
+			// The NVD also times out for a moment: tried again like a 503.
+			if api != "nvd" || attempt == nvdAttempts || ctx.Err() != nil {
+				return nil, "", fmt.Errorf("unreachable: %w", err)
+			}
+			select {
+			case <-ctx.Done():
+				return nil, "", ctx.Err()
+			case <-time.After(time.Duration(attempt) * f.RetryDelay):
+			}
+			continue
 		}
 		// The NVD often answers 502 to 504 for a moment: a second try usually works.
 		if api != "nvd" || attempt == nvdAttempts || resp.StatusCode < 502 || resp.StatusCode > 504 {

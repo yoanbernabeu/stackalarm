@@ -2,6 +2,7 @@ package news
 
 import (
 	"cmp"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -14,6 +15,20 @@ func inRange(version, rng string) (in, ok bool) {
 	if version == "" || strings.TrimSpace(rng) == "" {
 		return false, false
 	}
+	// "< 13.5.7 || >= 14.0.0, < 14.2.10": in any of the alternatives.
+	if strings.Contains(rng, "||") {
+		readable := false
+		for _, alt := range strings.Split(rng, "||") {
+			in, ok := inRange(version, alt)
+			if ok && in {
+				return true, true
+			}
+			readable = readable || ok
+		}
+		return false, readable
+	}
+	// Some advisories leave the comma out: ">=9.5.5 <=14.2.14".
+	rng = boundsWithoutComma.ReplaceAllString(strings.TrimSpace(rng), "$1, $2")
 	for _, c := range strings.Split(rng, ",") {
 		c = strings.TrimSpace(c)
 		op := c[:len(c)-len(strings.TrimLeft(c, "<>="))]
@@ -90,6 +105,10 @@ func branchStatus(branch, rng string) (string, bool) {
 	parts[len(parts)-1] = strconv.Itoa(last + 1)
 	lo, hi := branch, strings.Join(parts, ".")
 	whole, some := true, true
+	if strings.Contains(rng, "||") {
+		return "", false // alternatives against a branch: the patch level decides, no mark
+	}
+	rng = boundsWithoutComma.ReplaceAllString(strings.TrimSpace(rng), "$1, $2")
 	for _, c := range strings.Split(rng, ",") {
 		c = strings.TrimSpace(c)
 		op := c[:len(c)-len(strings.TrimLeft(c, "<>="))]
@@ -160,6 +179,9 @@ func fixedIn(rng string) string {
 	}
 	return ""
 }
+
+// boundsWithoutComma finds two bounds written side by side without a comma.
+var boundsWithoutComma = regexp.MustCompile(`([0-9A-Za-z.\-+]) +([<>=])`)
 
 // compareVersions compares dotted versions part by part, numbers as numbers:
 // 1.10.0 > 1.9.0, 1.0.0 > 1.0.0-rc.1. Good enough for ordering.

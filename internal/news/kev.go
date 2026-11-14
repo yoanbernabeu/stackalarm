@@ -151,10 +151,20 @@ type ExploitedCheck struct {
 	// Unproven counts the entries whose CVE record gives no range for the
 	// product: they could not be compared, and are not listed.
 	Unproven int `json:"unproven,omitempty"`
+	// Incomplete tells that the NVD search of the version failed: the flaws
+	// it links to the product, and those with a public exploit, may be missing.
+	Incomplete bool `json:"incomplete,omitempty"`
 }
 
 // Note says the outcome in one line.
 func (c ExploitedCheck) Note() string {
+	if c.Incomplete {
+		return c.note() + " — INCOMPLETE: the NVD search of this version failed (see nvd-versions), run again before calling it clear"
+	}
+	return c.note()
+}
+
+func (c ExploitedCheck) note() string {
 	switch {
 	case c.Entries == 0:
 		return "no KEV entry names this product: no flaw of it is known to be exploited"
@@ -180,7 +190,17 @@ func (c ExploitedCheck) Note() string {
 func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []entry, q Query, sources []source.Source, nvd *gate, nvdKEV map[string]map[string][]Affected, listed []Item) ([]Item, []ExploitedCheck) {
 	var out []Item
 	found, checks := f.exploitedInUse(ctx, catalog, q, sources, nvd, nvdKEV)
+	// One alert per CVE: React2Shell hits react and nextjs, one item with both.
+	var merged []entry
 	for _, e := range found {
+		id := cveID.FindString(e.Title)
+		if k := slices.IndexFunc(merged, func(m entry) bool { return cveID.FindString(m.Title) == id }); k >= 0 {
+			merged[k].Affected = append(merged[k].Affected, e.Affected...)
+			continue
+		}
+		merged = append(merged, e)
+	}
+	for _, e := range merged {
 		id := cveID.FindString(e.Title)
 		if slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id && f.proves(it, e.Affected[0].Package) }) {
 			continue
@@ -284,16 +304,16 @@ func (f *Fetcher) programRanges(ctx context.Context, id string, names []string) 
 // the KEV search compares, and the records of each release, among which those
 // with a public exploit are listed. A failed search is reported, and the KEV
 // catalog is still searched by name.
-func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query, nvd *gate) (map[string]map[string][]Affected, map[string][]entry, error) {
+func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query, nvd *gate) (map[string]map[string][]Affected, map[string][]entry, map[string]bool, error) {
 	var nvdURL string
 	for _, s := range sources {
 		if s.Type == source.TypeNVD {
 			nvdURL = s.URL
 		}
 	}
-	ranges, records := map[string]map[string][]Affected{}, map[string][]entry{}
+	ranges, records, failed := map[string]map[string][]Affected{}, map[string][]entry{}, map[string]bool{}
 	if nvdURL == "" {
-		return ranges, records, nil
+		return ranges, records, failed, nil
 	}
 	words := slices.Sorted(maps.Keys(q.Versions)) // a stable order, for the cache and the errors
 	var errs []error
@@ -310,7 +330,7 @@ func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query
 		}
 		if nvd != nil && !f.isCached(u) {
 			if err := nvd.wait(ctx); err != nil {
-				return ranges, records, err
+				return ranges, records, failed, err
 			}
 		}
 		data, _, err := f.get(ctx, u, "nvd")
@@ -333,10 +353,11 @@ func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query
 			}
 		}
 		if err != nil {
+			failed[word] = true
 			errs = append(errs, fmt.Errorf("%s: %w", word, err))
 		}
 	}
-	return ranges, records, errors.Join(errs...)
+	return ranges, records, failed, errors.Join(errs...)
 }
 
 // exploitableInUse lists the NVD records of a release in use that have a

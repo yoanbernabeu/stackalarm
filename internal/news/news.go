@@ -254,13 +254,14 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	var (
 		kevNVD     map[string]map[string][]Affected
 		nvdRecords map[string][]entry
+		kevFailed  map[string]bool
 		kevErr     error
 		kevDone    = make(chan struct{})
 	)
 	go func() {
 		defer close(kevDone)
 		if !q.ComponentsOnly && len(q.Versions) > 0 && slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type == source.TypeKEV }) {
-			kevNVD, nvdRecords, kevErr = f.nvdKnown(ctx, selected, q, nvd)
+			kevNVD, nvdRecords, kevFailed, kevErr = f.nvdKnown(ctx, selected, q, nvd)
 		}
 	}()
 	for _, s := range selected {
@@ -371,10 +372,15 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	wg.Wait()
 	<-kevDone
 	if kevErr != nil {
-		res.Failures = append(res.Failures, Failure{Source: "nvd-kev", Error: kevErr.Error()})
+		res.Failures = append(res.Failures, Failure{Source: "nvd-versions", Error: "the flaws exploited or exploitable on the versions given may be missing: " + kevErr.Error()})
 	}
 	if !q.ComponentsOnly {
 		found, checks := f.kevInUse(ctx, kevSource, kevCatalog, q, sources, nvd, kevNVD, res.Items)
+		for i := range checks {
+			if kevFailed[checks[i].Tag] {
+				checks[i].Incomplete = true
+			}
+		}
 		res.Items, res.Exploited = append(res.Items, found...), checks
 		if i := slices.IndexFunc(selected, func(s source.Source) bool { return s.Type == source.TypeNVD }); i >= 0 {
 			res.Items = append(res.Items, exploitableInUse(nvdRecords, q, exploits, exploited, res.Items, selected[i])...)
@@ -1021,7 +1027,10 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 		entries, err := f.readGitHub(ctx, u, time.Time{}, parseGitHubAdvisories)
 		for i := range entries {
 			for j, a := range entries[i].Affected {
-				if !sameProduct(a.Package, tag) {
+				// A repository advisory may give an open range and its patches
+				// apart (">= 13.5.1", patched "13.5.7"): no mark, rather than a
+				// false AFFECTED on every later release.
+				if !sameProduct(a.Package, tag) || !strings.Contains(a.Versions, "<") && a.Fixed != "" {
 					continue
 				}
 				if status, ok := versionStatus(version, a.Versions); ok {
@@ -1291,15 +1300,22 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 			}
 			continue
 		}
-		// The NVD often answers 502 to 504 for a moment: a second try usually works.
-		if api != "nvd" || attempt == nvdAttempts || resp.StatusCode < 502 || resp.StatusCode > 504 {
+		// The NVD often answers 502 to 504 for a moment, and 403 or 429 when
+		// requests come too close: a later try usually works, later still for
+		// the rate limit, which counts requests over 30 seconds.
+		limited := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusForbidden
+		if api != "nvd" || attempt == nvdAttempts || !limited && (resp.StatusCode < 502 || resp.StatusCode > 504) {
 			break
 		}
 		resp.Body.Close()
+		wait := time.Duration(attempt) * f.RetryDelay
+		if limited {
+			wait *= 3
+		}
 		select {
 		case <-ctx.Done():
 			return nil, "", ctx.Err()
-		case <-time.After(time.Duration(attempt) * f.RetryDelay):
+		case <-time.After(wait):
 		}
 	}
 	defer resp.Body.Close()

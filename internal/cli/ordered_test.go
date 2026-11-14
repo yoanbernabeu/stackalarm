@@ -38,3 +38,13 @@ func TestAFixOnALaterMajorVersionIsSaid(t *testing.T) {
 		t.Fatalf("a fix on the same major version is a patch: %q", got)
 	}
 }
+
+func TestNoBranchUpgradeWhenTheBranchHasAFix(t *testing.T) {
+	it := news.Item{Affected: []news.Affected{
+		{Package: "redis", Versions: "< 8.2.2", Fixed: "8.2.2", InUse: "6.2.6", Status: news.StatusAffected},
+		{Package: "redis", Versions: "< 6.2.20", Fixed: "6.2.20", InUse: "6.2.6", Status: news.StatusAffected},
+	}}
+	if got := affected(it); strings.Contains(got, "upgrade the branch") {
+		t.Fatalf("6.2.20 fixes the branch: %q", got)
+	}
+}

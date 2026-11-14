@@ -116,15 +116,31 @@ func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []stri
 		mu  sync.Mutex
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, osvConcurrency)
-		out = make([]*entry, len(order))
+		out = make([][]entry, len(order))
 	)
 	for i, id := range order {
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			data, _, err := f.get(ctx, f.OSVAPI+"/vulns/"+neturl.PathEscape(id), "")
-			if err == nil {
-				out[i], err = parseOSV(data, hits[id], order)
+			// One entry per SBOM: a flaw found in two images is two images to
+			// rebuild, each with its own versions.
+			var groups [][]osvQuery
+			for _, q := range hits[id] {
+				if k := slices.IndexFunc(groups, func(g []osvQuery) bool { return g[0].From == q.From }); k >= 0 {
+					groups[k] = append(groups[k], q)
+				} else {
+					groups = append(groups, []osvQuery{q})
+				}
+			}
+			for _, g := range groups {
+				if err != nil {
+					break
+				}
+				var e *entry
+				if e, err = parseOSV(data, g, order); e != nil {
+					out[i] = append(out[i], *e)
+				}
 			}
 			if err != nil {
 				mu.Lock()
@@ -135,10 +151,8 @@ func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []stri
 	}
 	wg.Wait()
 	var entries []entry
-	for _, e := range out {
-		if e != nil {
-			entries = append(entries, *e)
-		}
+	for _, list := range out {
+		entries = append(entries, list...)
 	}
 	return entries, errors.Join(errs...)
 }
@@ -238,10 +252,6 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	// package, and say when the distribution judges the flaw harmless there.
 	if len(asked) > 0 && isDistribution(asked[0].Package.Ecosystem) {
 		title = asked[0].Package.Name + ": " + title
-		if asked[0].From != "" { // which image to rebuild, when several are checked
-			title = asked[0].From + ", " + title
-			e.Alone = true
-		}
 		matched, harmless := false, true
 		for _, a := range v.Affected {
 			if inEcosystem(a.Package.Ecosystem, asked[0].Package.Ecosystem) && strings.EqualFold(a.Package.Name, asked[0].Package.Name) {
@@ -254,6 +264,12 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	}
 	if severity != "" {
 		title = "[" + severity + "] " + title
+	}
+	// Which image to rebuild, when several are checked: its system packages,
+	// and the npm or pip tools it carries, are not the project's lockfile.
+	if len(asked) > 0 && asked[0].From != "" {
+		title = asked[0].From + ", " + title
+		e.Alone = true
 	}
 	e.Title = clean(title + " (" + id + ")")
 

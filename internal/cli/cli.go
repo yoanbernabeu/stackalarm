@@ -232,9 +232,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					return fmt.Errorf("--sbom %s: %w", path, err)
 				}
 				for _, c := range sbom.Components {
-					if len(sboms) > 1 {
-						c.From = filepath.Base(path) // several images: each finding names its own
-					}
+					c.From = filepath.Base(path) // each finding names its image: its tools are not the project's lockfile
 					if !slices.Contains(components, c) {
 						components = append(components, c)
 					}
@@ -659,7 +657,7 @@ func affected(it news.Item) string {
 		}
 		part := af.Package + " " + cmp.Or(af.Versions, "all versions")
 		switch {
-		case af.Fixed != "" && af.Status == news.StatusAffected && otherBranch(af.InUse, af.Fixed):
+		case af.Fixed != "" && af.Status == news.StatusAffected && otherBranch(af.InUse, af.Fixed) && !fixedOnBranch(it.Affected, af.InUse):
 			// node 20 against a fix in 22.23.4: no patch release of 20 will come
 			part += " (fixed in " + af.Fixed + ", not on the " + branchOf(af.InUse) + " branch: upgrade the branch)"
 		case af.Fixed != "":
@@ -686,6 +684,14 @@ func affected(it news.Item) string {
 func branchOf(v string) string {
 	major, _, _ := strings.Cut(strings.TrimPrefix(v, "v"), ".")
 	return major
+}
+
+// fixedOnBranch tells whether one of the ranges gives a fix on the major
+// version in use: redis < 6.2.20 next to redis < 8.2.2.
+func fixedOnBranch(ranges []news.Affected, inUse string) bool {
+	return slices.ContainsFunc(ranges, func(a news.Affected) bool {
+		return a.Fixed != "" && branchOf(a.Fixed) == branchOf(inUse)
+	})
 }
 
 // otherBranch tells whether the first fixed version is on a later major

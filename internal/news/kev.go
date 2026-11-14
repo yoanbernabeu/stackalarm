@@ -429,7 +429,7 @@ func (f *Fetcher) freshOfProducts(ctx context.Context, entries []entry, precise 
 				continue
 			}
 			n, ok := precise[matched[j]]
-			if !ok {
+			if !ok || n == nil {
 				loose = true // an ordinary word matched it too: kept as before
 				break
 			}

@@ -135,7 +135,7 @@ func (a *App) printCVE(r news.CVERecord) {
 			}
 		}
 		if len(r.NotNamed) > 0 {
-			fmt.Fprintf(w, "\nNamed in no range: %s. Not a sign of safety: a product that bundles another's code (Next.js bundles React) may still be hit; read its own advisory.\n", strings.Join(r.NotNamed, ", "))
+			fmt.Fprintf(w, "\nNamed in no range: %s. No sign of safety: the record may name the product otherwise, or the product may bundle another's code (Next.js bundles React's); read the product's own advisory.\n", strings.Join(r.NotNamed, ", "))
 		}
 		if len(r.Advisories) > 0 {
 			fmt.Fprintln(w, "\nAdvisories:")

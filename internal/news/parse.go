@@ -31,6 +31,7 @@ type entry struct {
 	Current   bool         // hits a version in use now: kept whatever its date
 	Exploit   bool         // an entry of a catalog of public exploits: it marks its CVE
 	Product   string       // the vendor and product a KEV entry names, matched against the tags with a version
+	Alone     bool         // never merged with another item of its CVE (a package of one image among several)
 	Related   []string     // upstream CVEs an advisory is about besides its own id: they carry the marks of exploitation
 	// Rank orders the entry among those of its source in place of Score, when a
 	// distribution rates the flaw itself (Ubuntu's priority, Debian's "unimportant").
@@ -175,11 +176,18 @@ func parseGitHubMalware(data []byte) ([]entry, error) {
 }
 
 // parseGitHubAdvisories reads GET /repos/{owner}/{repo}/security-advisories.
+// parseGitHubAdvisories reads the advisories of a repository. One with a CVE
+// updated well after its publication is dated by the update: React's RSC flaw
+// was published on October 14 and got its CVE, and its audience, on November 10.
 func parseGitHubAdvisories(data []byte) ([]entry, error) {
-	return parseGitHub(data, func(string) bool { return true })
+	return parseGitHubDated(data, func(string) bool { return true }, true)
 }
 
 func parseGitHub(data []byte, keepSeverity func(string) bool) ([]entry, error) {
+	return parseGitHubDated(data, keepSeverity, false)
+}
+
+func parseGitHubDated(data []byte, keepSeverity func(string) bool, cveDate bool) ([]entry, error) {
 	type score struct {
 		Score float64 `json:"score"`
 	}
@@ -191,6 +199,7 @@ func parseGitHub(data []byte, keepSeverity func(string) bool) ([]entry, error) {
 		Description    string           `json:"description"`
 		Severity       string           `json:"severity"`
 		PublishedAt    string           `json:"published_at"`
+		UpdatedAt      string           `json:"updated_at"`
 		CVSS           score            `json:"cvss"`
 		CVSSSeverities map[string]score `json:"cvss_severities"`
 		EPSS           struct {
@@ -230,6 +239,10 @@ func parseGitHub(data []byte, keepSeverity func(string) bool) ([]entry, error) {
 			}
 		}
 		e.Published, _ = parseDate(a.PublishedAt)
+		if updated, err := parseDate(a.UpdatedAt); cveDate && err == nil && a.CVE != "" && updated.Sub(e.Published) > 24*time.Hour {
+			e.Title += " [published " + e.Published.Format(time.DateOnly) + ", updated " + updated.Format(time.DateOnly) + "]"
+			e.Published = updated
+		}
 		out = append(out, e)
 	}
 	return out, nil

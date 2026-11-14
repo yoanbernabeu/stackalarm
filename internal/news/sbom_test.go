@@ -35,11 +35,11 @@ func TestSBOMCycloneDX(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Component{
-		{"Debian:12", "zlib", "1:1.2.13.dfsg-1"}, // the source package, with its epoch
-		{"Go", "golang.org/x/net", "0.30.0"},     // nested, and without the v of go.mod
-		{"Maven", "org.apache.logging.log4j:log4j-core", "2.14.1"},
-		{"PyPI", "flask-login", "0.6.3"},
-		{"npm", "@isaacs/cliui", "8.0.2"},
+		{Ecosystem: "Debian:12", Name: "zlib", Version: "1:1.2.13.dfsg-1"}, // the source package, with its epoch
+		{Ecosystem: "Go", Name: "golang.org/x/net", Version: "0.30.0"},     // nested, and without the v of go.mod
+		{Ecosystem: "Maven", Name: "org.apache.logging.log4j:log4j-core", Version: "2.14.1"},
+		{Ecosystem: "PyPI", Name: "flask-login", Version: "0.6.3"},
+		{Ecosystem: "npm", Name: "@isaacs/cliui", Version: "8.0.2"},
 	}
 	if !slices.Equal(sbom.Components, want) {
 		t.Fatalf("got %+v", sbom.Components)
@@ -64,11 +64,11 @@ func TestSBOMSPDXAndSyftQualifiers(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Component{
-		{"Alpine:v3.19", "busybox", "1.36.1-r20"},
-		{"Debian:12", "glibc", "2.36-9+deb12u1"},
-		{"Rocky Linux:9", "bash", "5.1.8-6.el9_1"},
-		{"Ubuntu:22.04", "openssl", "3.0.2-0ubuntu1.18"},
-		{"Wolfi", "glibc", "2.44-r17"},
+		{Ecosystem: "Alpine:v3.19", Name: "busybox", Version: "1.36.1-r20"},
+		{Ecosystem: "Debian:12", Name: "glibc", Version: "2.36-9+deb12u1"},
+		{Ecosystem: "Rocky Linux:9", Name: "bash", Version: "5.1.8-6.el9_1"},
+		{Ecosystem: "Ubuntu:22.04", Name: "openssl", Version: "3.0.2-0ubuntu1.18"},
+		{Ecosystem: "Wolfi", Name: "glibc", Version: "2.44-r17"},
 	}
 	if !slices.Equal(sbom.Components, want) || len(sbom.Skipped) != 0 {
 		t.Fatalf("got %+v, skipped %v", sbom.Components, sbom.Skipped)
@@ -131,7 +131,7 @@ func TestSBOMComponentsAreAskedInTheirOwnEcosystem(t *testing.T) {
 		{ID: "php-news", Type: source.TypeFeed, URL: srv.URL + "/none", Tags: []string{"php"}, Stage: source.StageRelease},
 	}
 	res := f.Fetch(context.Background(), sources, Query{Since: now.Add(-7 * 24 * time.Hour), ComponentsOnly: true, Components: []Component{
-		{"Debian:12", "zlib", "1:1.2.13.dfsg-1"}, {"Debian:12", "dpkg", "1.21.22"}, {"Debian:12", "tar", "1.34"},
+		{Ecosystem: "Debian:12", Name: "zlib", Version: "1:1.2.13.dfsg-1"}, {Ecosystem: "Debian:12", Name: "dpkg", Version: "1.21.22"}, {Ecosystem: "Debian:12", Name: "tar", Version: "1.34"},
 	}})
 	slices.Sort(asked)
 	if strings.Join(asked, " ") != "Debian:12/dpkg@1.21.22 Debian:12/tar@1.34 Debian:12/zlib@1:1.2.13.dfsg-1" {

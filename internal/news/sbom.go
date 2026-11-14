@@ -18,6 +18,9 @@ type Component struct {
 	Ecosystem string `json:"ecosystem"`
 	Name      string `json:"name"`
 	Version   string `json:"version"`
+	// From names the SBOM the component comes from (its file), so a finding
+	// says which image to rebuild when several are checked.
+	From string `json:"from,omitempty"`
 }
 
 // SBOM is what a software bill of materials gives to look up.

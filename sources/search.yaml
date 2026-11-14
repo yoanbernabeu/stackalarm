@@ -58,6 +58,10 @@ skip:
   - pip
   - maven
   - nuget
+  # CI: its advisories are in its own sources (ghsa-actions, osv-actions, the
+  # GitHub changelog); the word in the CVE databases brings every project
+  # whose workflows mention it.
+  - github-actions
   # Frameworks the CVE databases name in the description of every app built
   # with them. Their GitHub advisories source covers their own flaws.
   - fastapi

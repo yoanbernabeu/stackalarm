@@ -125,8 +125,32 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 		}
 		return err
 	})
+	var composer []string // the Composer packages given: Packagist knows their ranges under their own name
+	for _, p := range inUse {
+		if name := packageName(p); strings.Count(name, "/") == 1 && !strings.HasPrefix(name, "@") {
+			composer = append(composer, name)
+		}
+	}
+	var packagist []Affected
 	for _, s := range sources {
 		switch {
+		case s.Type == source.TypePackagist && len(composer) > 0:
+			run(s.ID, func() error {
+				q := neturl.Values{}
+				for _, n := range composer {
+					q.Add("packages[]", n)
+				}
+				entries, err := f.packagistAdvisories(ctx, s.URL+"?"+q.Encode(), nil, nil)
+				mu.Lock()
+				defer mu.Unlock()
+				for _, e := range entries {
+					if cveID.FindString(e.Title) == id {
+						found(s.ID)
+						packagist = append(packagist, e.Affected...)
+					}
+				}
+				return err
+			})
 		case s.Type == source.TypeNVD:
 			run(s.ID, func() error {
 				data, _, err := f.get(ctx, s.URL+"?cveId="+id, "nvd")
@@ -183,7 +207,7 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 	// Package ranges first (they name what a lockfile holds), then the vendor's
 	// own, then the NVD products. The databases repeat each other under other
 	// names (next, next.js): a range already listed is not listed again.
-	for _, a := range slices.Concat(github, program, nvd) {
+	for _, a := range slices.Concat(github, packagist, program, nvd) {
 		if !slices.ContainsFunc(rec.Affected, func(b Affected) bool {
 			return a == b || a.Versions != "" && a.Versions == b.Versions && sameProduct(a.Package, b.Package)
 		}) {

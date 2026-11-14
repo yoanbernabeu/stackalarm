@@ -313,7 +313,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 						// tied to any: the others only share its name ("php" in a
 						// WordPress plugin). The EUVD names no product: the NVD covers it.
 						names, ok := precise[matched[i]]
-						if !ok || s.Type == source.TypeNVD && (len(e.Affected) == 0 || slices.ContainsFunc(e.Affected, func(a Affected) bool { return slices.Contains(names, normalName(a.Package)) })) {
+						if !ok || s.Type == source.TypeNVD && (names == nil || len(e.Affected) == 0 || slices.ContainsFunc(e.Affected, func(a Affected) bool { return slices.Contains(names, normalName(a.Package)) })) {
 							return false
 						}
 					}
@@ -356,10 +356,10 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				item := Item{
 					Source: s.ID, Tags: s.Tags, Stage: stage, Title: e.Title, URL: absolute(s.URL, e.URL),
 					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language, EPSS: e.EPSS, Affected: e.Affected,
-					related: e.Related,
+					related: e.Related, alone: e.Alone,
 				}
 				if mergeable(s.Type) {
-					item.cve = cveID.FindString(e.Title)
+					item.cve = titleCVE(e.Title)
 					item.dup = ghsaID.FindString(e.Title + " " + e.URL)
 				}
 				item.ID = itemID(item)
@@ -481,6 +481,16 @@ func allPackages(q Query) []string {
 	return out
 }
 
+// versionOfSource gives the first tag of a source given with a version.
+func versionOfSource(s source.Source, q Query) (tag, version string) {
+	for _, t := range s.Tags {
+		if v := q.Versions[t]; v != "" {
+			return t, v
+		}
+	}
+	return "", ""
+}
+
 // packagesFor gives the packages a source of an ecosystem reads: those given
 // without an ecosystem, and those given with this one.
 func packagesFor(q Query, ecosystem string) []string {
@@ -512,6 +522,21 @@ func withComponents(packages []string, components []Component, ecosystem string)
 		}
 	}
 	return out
+}
+
+// titleCVE gives the CVE a title is about: the one it starts with (a KEV
+// alert), otherwise the last one, the id written at its end. A title can
+// name another CVE before its own ("incomplete fix for CVE-2024-45411
+// (CVE-2026-46638)"), and taking that one merged two flaws into one.
+func titleCVE(title string) string {
+	ids := cveID.FindAllString(title, -1)
+	switch {
+	case len(ids) == 0:
+		return ""
+	case strings.HasPrefix(title, ids[0]):
+		return ids[0]
+	}
+	return ids[len(ids)-1]
 }
 
 // mergeable tells whether the entries of a source are vulnerability records
@@ -872,18 +897,26 @@ const MaxTerms = 8
 
 // preciseTerms maps the match terms of the tags given with a version and a
 // product of the NVD dictionary to the names of that product.
+//
+// Every tag or keyword given with a version is in it: the EUVD, which names no
+// product, does not count for them. The names are nil for a word without a
+// product in the dictionary: the NVD records it finds are then all kept.
 func (f *Fetcher) preciseTerms(q Query, terms []string) map[string][]string {
 	out := map[string][]string{}
-	for _, t := range q.Tags {
+	for _, t := range append(slices.Clone(q.Tags), q.Keywords...) {
 		t = strings.ToLower(strings.TrimSpace(t))
-		if q.Versions[t] == "" || f.Search.CPE[t] == "" {
+		if q.Versions[t] == "" {
 			continue
 		}
 		term := t
 		if alias, ok := f.Search.Aliases[t]; ok {
 			term = alias
 		}
-		if slices.Contains(terms, term) {
+		if !slices.Contains(terms, term) {
+			continue
+		}
+		out[term] = nil
+		if f.Search.CPE[t] != "" {
 			out[term] = append(f.productNames(t), normalName(t))
 		}
 	}
@@ -977,7 +1010,27 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 	now := f.Now().UTC()
 	switch s.Type {
 	case source.TypeGitHubAdvisories:
-		return f.readGitHub(ctx, github+"/repos/"+s.Repo+"/security-advisories?per_page=100&sort=published&direction=desc", since, parseGitHubAdvisories)
+		u := github + "/repos/" + s.Repo + "/security-advisories?per_page=100&sort=published&direction=desc"
+		tag, version := versionOfSource(s, q)
+		if version == "" {
+			return f.readGitHub(ctx, u, since, parseGitHubAdvisories)
+		}
+		// With the version of the project, every advisory of the repository
+		// hitting it is kept whatever its date, like OSV: the project's own
+		// advisories reach OSV.dev days later, if ever.
+		entries, err := f.readGitHub(ctx, u, time.Time{}, parseGitHubAdvisories)
+		for i := range entries {
+			for j, a := range entries[i].Affected {
+				if !sameProduct(a.Package, tag) {
+					continue
+				}
+				if status, ok := versionStatus(version, a.Versions); ok {
+					entries[i].Affected[j].InUse, entries[i].Affected[j].Status = version, status
+					entries[i].Current = entries[i].Current || status == StatusAffected
+				}
+			}
+		}
+		return entries, err
 	case source.TypeGitHubAdvisoryDatabase:
 		u := github + "/advisories?per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
 			"&published=" + neturl.QueryEscape(">="+since.UTC().Format(time.DateOnly))

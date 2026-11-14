@@ -94,13 +94,15 @@ func (f *Fetcher) packagistAdvisories(ctx context.Context, url string, versions 
 		}
 		for _, a := range list {
 			version, given := versions[pkg]
-			var ranges []Affected
+			var all []string
 			for _, alt := range strings.Split(a.Affected, "|") {
-				rng, ok := composerRange(alt)
-				if !ok {
-					continue
+				if rng, ok := composerRange(alt); ok {
+					all = append(all, rng)
 				}
-				af := Affected{Package: pkg, Versions: rng, Fixed: fixedIn(rng)}
+			}
+			var ranges []Affected
+			for _, rng := range all {
+				af := Affected{Package: pkg, Versions: rng, Fixed: chainedFix(rng, all)}
 				if given {
 					status, ok := versionStatus(version, rng)
 					if !ok || status != StatusAffected {
@@ -125,6 +127,27 @@ func (f *Fetcher) packagistAdvisories(ctx context.Context, url string, versions 
 	}
 	slices.SortFunc(out, func(a, b entry) int { return b.Published.Compare(a.Published) })
 	return out, nil
+}
+
+// chainedFix gives the first fixed version of a range among the ranges of an
+// advisory. FriendsOfPHP cuts its ranges at every branch: ">= 6.3.0, < 6.4.0"
+// then ">= 6.4.0, < 6.4.50" means 6.4.0 is still affected, and the fix is
+// 6.4.50, at the end of the chain.
+func chainedFix(rng string, all []string) string {
+	fix := fixedIn(rng)
+	for range all { // a chain is never longer than the ranges
+		next := ""
+		for _, other := range all {
+			if fix != "" && strings.HasPrefix(other, ">= "+fix+",") {
+				next = fixedIn(other)
+			}
+		}
+		if next == "" {
+			return fix
+		}
+		fix = next
+	}
+	return fix
 }
 
 // composerRange turns one alternative of a Composer constraint (">=6.3.0,<6.4.0")

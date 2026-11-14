@@ -30,7 +30,7 @@ func TestPackagistGivesTheAdvisoriesOfTheVersionsInUse(t *testing.T) {
 		t.Fatalf("only Composer packages are asked about: %q", asked)
 	}
 	if len(res.Items) != 1 || res.Items[0].Title != "HEAD Requests Bypass access_control (CVE-2026-118514)" ||
-		affectedLine(res.Items[0]) != "symfony/http-foundation >= 6.3.0, < 6.4.0 fixed 6.4.0 [6.3.0 affected]" {
+		affectedLine(res.Items[0]) != "symfony/http-foundation >= 6.3.0, < 6.4.0 fixed 6.4.50 [6.3.0 affected]" {
 		t.Fatalf("the advisory hitting 6.3.0, whatever its date, and not the one of 2.x: %+v", res.Items)
 	}
 
@@ -55,5 +55,15 @@ func TestComposerRange(t *testing.T) {
 		if _, ok := composerRange(in); ok {
 			t.Errorf("composerRange(%q) should not be read", in)
 		}
+	}
+}
+
+func TestChainedFix(t *testing.T) {
+	all := []string{">= 6.3.0, < 6.4.0", ">= 6.4.0, < 6.4.50", ">= 7.0.0, < 7.4.23"}
+	if got := chainedFix(all[0], all); got != "6.4.50" {
+		t.Fatalf("an abandoned branch is fixed on the next one's patch: %q", got)
+	}
+	if got := chainedFix(all[2], all); got != "7.4.23" {
+		t.Fatalf("got %q", got)
 	}
 }

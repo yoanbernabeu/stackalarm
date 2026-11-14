@@ -232,6 +232,9 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					return fmt.Errorf("--sbom %s: %w", path, err)
 				}
 				for _, c := range sbom.Components {
+					if len(sboms) > 1 {
+						c.From = filepath.Base(path) // several images: each finding names its own
+					}
 					if !slices.Contains(components, c) {
 						components = append(components, c)
 					}
@@ -477,7 +480,37 @@ func (a *App) printNews(r newsReport) {
 // printSummary writes one line per item, fields separated by " | ", then the
 // failures, truncations and warnings: compact for agents, easy to grep.
 func (a *App) printSummary(r newsReport) {
-	for _, it := range r.Items {
+	// Three sections, each in the order of the items: what hits the versions
+	// given (KEV alerts, CVE records), the news, then the known flaws of the
+	// locked packages and images, which read like an audit.
+	sections := []string{
+		"in use: flaws exploited or exploitable, and records whose range holds a version given",
+		"news of the period",
+		"packages and images: the known flaws of the versions locked, whatever their date",
+	}
+	types := map[string]source.Type{}
+	for _, s := range a.Sources {
+		types[s.ID] = s.Type
+	}
+	section := func(it news.Item) int {
+		if types[it.Source].IsPackageDatabase() {
+			return 2
+		}
+		if slices.ContainsFunc(it.Affected, func(af news.Affected) bool {
+			return af.Status == news.StatusAffected || af.Status == news.StatusPossiblyAffected
+		}) {
+			return 0
+		}
+		return 1
+	}
+	items := slices.Clone(r.Items)
+	slices.SortStableFunc(items, func(x, y news.Item) int { return cmp.Compare(section(x), section(y)) })
+	current := -1
+	for _, it := range items {
+		if s := section(it); s != current {
+			current = s
+			fmt.Fprintf(a.Out, "SECTION | %s\n", sections[s])
+		}
 		score := "-"
 		if it.Score > 0 {
 			score = fmt.Sprintf("%.1f", it.Score)

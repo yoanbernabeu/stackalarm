@@ -30,6 +30,7 @@ type osvQuery struct {
 		Ecosystem string `json:"ecosystem"`
 	} `json:"package"`
 	Version string `json:"version"`
+	From    string `json:"-"` // the SBOM of the component, never sent
 }
 
 // readOSV asks OSV.dev which known vulnerabilities hit the packages given
@@ -48,7 +49,7 @@ func (f *Fetcher) readOSV(ctx context.Context, ecosystem string, packages []stri
 	for _, c := range components {
 		if inEcosystem(c.Ecosystem, ecosystem) {
 			var q osvQuery
-			q.Package.Name, q.Package.Ecosystem, q.Version = c.Name, c.Ecosystem, c.Version
+			q.Package.Name, q.Package.Ecosystem, q.Version, q.From = c.Name, c.Ecosystem, c.Version, c.From
 			queries = append(queries, q)
 		}
 	}
@@ -237,6 +238,10 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	// package, and say when the distribution judges the flaw harmless there.
 	if len(asked) > 0 && isDistribution(asked[0].Package.Ecosystem) {
 		title = asked[0].Package.Name + ": " + title
+		if asked[0].From != "" { // which image to rebuild, when several are checked
+			title = asked[0].From + ", " + title
+			e.Alone = true
+		}
 		matched, harmless := false, true
 		for _, a := range v.Affected {
 			if inEcosystem(a.Package.Ecosystem, asked[0].Package.Ecosystem) && strings.EqualFold(a.Package.Name, asked[0].Package.Name) {

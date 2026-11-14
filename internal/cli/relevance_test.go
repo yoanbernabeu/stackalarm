@@ -241,7 +241,7 @@ func TestSBOMAloneListsOnlyItsVulnerabilities(t *testing.T) {
 	if code := app.Execute(context.Background()); code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	lines := slices.DeleteFunc(strings.Split(strings.TrimSpace(out.String()), "\n"), func(l string) bool { return strings.HasPrefix(l, "SECTION |") })
 	if len(lines) != 2 || !strings.Contains(lines[0], "osv-alpine") || !strings.Contains(lines[0], "musl < 1.2.4-r6 (fixed in 1.2.4-r6) [1.2.4-r3 in use: AFFECTED]") ||
 		!strings.Contains(lines[0], "EXPLOITED in the wild (cisa-kev)") {
 		t.Fatalf("the source package is looked up, marked by the exploited list, and nothing else is listed:\n%s", out)

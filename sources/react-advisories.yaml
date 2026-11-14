@@ -2,5 +2,5 @@ id: react-advisories
 name: React security advisories (GitHub)
 type: github-advisories
 repo: facebook/react
-tags: [react]
+tags: [react, nextjs]
 stage: advisory

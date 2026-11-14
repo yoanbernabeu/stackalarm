@@ -61,6 +61,9 @@ type Affected struct {
 	Package  string `json:"package"`
 	Versions string `json:"versions"`
 	Fixed    string `json:"fixed,omitempty"`
+	// FixUnknown tells that the record names the last affected release, not
+	// the fixed one (the NVD's "<= 1.25.2"): a fix may well exist.
+	FixUnknown bool `json:"fix_unknown,omitempty"`
 	// InUse is the version the query gave for the package, and Status whether
 	// it is in the vulnerable range: StatusAffected, StatusPossiblyAffected (a
 	// branch partly in the range) or StatusNotAffected. Both are empty when no
@@ -231,14 +234,15 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	}
 	// The KEV flaws of the products given with a version, alongside the sources.
 	var (
-		kevNVD  map[string]map[string][]Affected
-		kevErr  error
-		kevDone = make(chan struct{})
+		kevNVD     map[string]map[string][]Affected
+		nvdRecords map[string][]entry
+		kevErr     error
+		kevDone    = make(chan struct{})
 	)
 	go func() {
 		defer close(kevDone)
 		if !q.ComponentsOnly && len(q.Versions) > 0 && slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type == source.TypeKEV }) {
-			kevNVD, kevErr = f.nvdKEVRanges(ctx, selected, q, nvd)
+			kevNVD, nvdRecords, kevErr = f.nvdKnown(ctx, selected, q, nvd)
 		}
 	}()
 	for _, s := range selected {
@@ -338,6 +342,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	if !q.ComponentsOnly {
 		found, checks := f.kevInUse(ctx, kevSource, kevCatalog, q, sources, nvd, kevNVD, res.Items)
 		res.Items, res.Exploited = append(res.Items, found...), checks
+		if i := slices.IndexFunc(selected, func(s source.Source) bool { return s.Type == source.TypeNVD }); i >= 0 {
+			res.Items = append(res.Items, exploitableInUse(nvdRecords, q, exploits, exploited, res.Items, selected[i])...)
+		}
 	}
 	slices.SortFunc(res.Items, func(a, b Item) int {
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))

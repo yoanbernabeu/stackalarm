@@ -15,3 +15,13 @@ func TestTagsAndKeywordsShareOneOrder(t *testing.T) {
 		t.Fatalf("order %v, tags %v, keywords %v", order, tags, keywords)
 	}
 }
+
+func TestCloseTags(t *testing.T) {
+	known := []string{"gitlab", "github-actions", "node", "nodemailer", "php"}
+	if got := closeTags("gitlab-runner", known); got != "close tags: gitlab; run stackalarm sources to see them all" {
+		t.Fatalf("got %q", got)
+	}
+	if got := closeTags("zz", known); got != "run stackalarm sources to see the tags" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -33,7 +33,7 @@ func TestNVDRangesAreComparedWithTheVersionInUse(t *testing.T) {
 	if got[0] != (Affected{Package: "php", Versions: ">= 8.3.0, < 8.3.35", Fixed: "8.3.35", InUse: "8.3.20", Status: StatusAffected}) {
 		t.Fatalf("the range holding the version in use comes first, named after the tag: %+v", got)
 	}
-	if got[1].Status != StatusNotAffected || got[2] != (Affected{Package: "thing", Versions: "1.2.3"}) {
+	if got[1].Status != StatusNotAffected || got[2] != (Affected{Package: "thing", Versions: "1.2.3", FixUnknown: true}) {
 		t.Fatalf("the other branch is not affected, an unwatched product has no status: %+v", got)
 	}
 }

@@ -187,6 +187,18 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 			rec.Affected = append(rec.Affected, a)
 		}
 	}
+	// The products the description names first: CVE-2023-4863 is a libwebp
+	// flaw, and the NVD lists dozens of products that bundle it before it.
+	text := normalName(rec.Title + " " + rec.Description)
+	slices.SortStableFunc(rec.Affected, func(a, b Affected) int {
+		named := func(x Affected) int {
+			if n := normalName(x.Package); len(n) > 2 && strings.Contains(text, n) {
+				return 0
+			}
+			return 1
+		}
+		return cmp.Compare(named(a), named(b))
+	})
 	q := Query{Packages: inUse, Versions: map[string]string{}}
 	for _, p := range inUse {
 		if name := packageName(p); name != p {
@@ -317,12 +329,15 @@ func parseCVEProgram(data []byte) (cveProgram, error) {
 			case v.LessThan != "" && v.LessThan != "*":
 				af.Versions, af.Fixed = osvRange(from, "< "+v.LessThan), v.LessThan
 			case v.LessThanOrEqual != "" && v.LessThanOrEqual != "*":
-				af.Versions = osvRange(from, "<= "+v.LessThanOrEqual)
+				af.Versions, af.FixUnknown = osvRange(from, "<= "+v.LessThanOrEqual), true
 			case v.LessThan == "*" || v.LessThanOrEqual == "*":
 				af.Versions = osvRange(from, "")
 			case strings.ContainsAny(v.Version, "<>"): // the range written as text: ">= 15.0.0, < 15.2.3"
 				af.Versions = tidyRange(v.Version)
 				af.Fixed = fixedIn(af.Versions)
+				af.FixUnknown = af.Fixed == ""
+			default: // one release
+				af.FixUnknown = true
 			}
 			if !slices.Contains(p.Affected, af) {
 				p.Affected = append(p.Affected, af)

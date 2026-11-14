@@ -187,12 +187,16 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			}
 			// A tag may carry the version in use (php@8.3.20): the ranges of the
 			// CVE records are compared with it.
+			// So may a keyword (libwebp@1.3.1, a library copied into the repository):
+			// the flaws exploited in the wild that hit it are then looked for.
 			versions := map[string]string{}
-			for i, t := range tags {
-				if name, version, ok := strings.Cut(strings.TrimSpace(t), "@"); ok && name != "" {
-					tags[i] = name
-					if version != "" {
-						versions[strings.ToLower(name)] = version
+			for _, words := range [][]string{tags, keywords} {
+				for i, t := range words {
+					if name, version, ok := strings.Cut(strings.TrimSpace(t), "@"); ok && name != "" {
+						words[i] = name
+						if version != "" {
+							versions[strings.ToLower(name)] = version
+						}
 					}
 				}
 			}
@@ -258,7 +262,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 					return false
 				}
 				keywords = append(keywords, t)
-				warnings = append(warnings, fmt.Sprintf("no source is tagged %q: searched as a keyword in the general sources instead (known tags: %s)", t, strings.Join(known, ", ")))
+				warnings = append(warnings, fmt.Sprintf("no source is tagged %q: searched as a keyword in the general sources instead (%s)", t, closeTags(t, known)))
 				return true
 			})
 			f := *a.Fetcher
@@ -607,9 +611,12 @@ func affected(it news.Item) string {
 			break
 		}
 		part := af.Package + " " + cmp.Or(af.Versions, "all versions")
-		if af.Fixed != "" {
+		switch {
+		case af.Fixed != "":
 			part += " (fixed in " + af.Fixed + ")"
-		} else {
+		case af.FixUnknown:
+			part += " (fixed version not given)" // "<= 1.25.2" names the last affected release, not the fix
+		default:
 			part += " (no fix yet)"
 		}
 		switch af.Status {
@@ -631,6 +638,21 @@ func epss(p float64) string {
 		return fmt.Sprintf("%.1f%%", p*100)
 	}
 	return fmt.Sprintf("%.0f%%", p*100)
+}
+
+// closeTags suggests the known tags close to an unknown one, rather than
+// listing the hundreds of them.
+func closeTags(tag string, known []string) string {
+	var close []string
+	for _, k := range known {
+		if len(close) < 5 && (strings.Contains(k, tag) || strings.Contains(tag, k) && len(k) > 2) {
+			close = append(close, k)
+		}
+	}
+	if len(close) == 0 {
+		return "run stackalarm sources to see the tags"
+	}
+	return "close tags: " + strings.Join(close, ", ") + "; run stackalarm sources to see them all"
 }
 
 func lower(s []string) []string {

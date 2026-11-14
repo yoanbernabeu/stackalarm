@@ -122,6 +122,14 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 			r = &releases[i]
 		}
 	}
+	if r == nil && v != "" { // docker-engine@24 names the 24.0 cycle
+		for i, rel := range releases {
+			if strings.HasPrefix(rel.Name, v+".") {
+				r = &releases[i]
+				break // the releases come newest first
+			}
+		}
+	}
 	if r == nil {
 		var maintained []string
 		for _, rel := range releases {
@@ -138,7 +146,9 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 	}
 	eol, _ := time.Parse(time.DateOnly, r.EOLFrom)
 	now := f.Now()
-	behind := s.Latest != "" && v != r.Name && compareVersions(v, s.Latest) < 0
+	// A branch (node@22, docker-engine@24) follows its latest release: only a
+	// release can be behind.
+	behind := s.Latest != "" && v != r.Name && !isBranch(v) && compareVersions(v, s.Latest) < 0
 	// An old cycle still gets its last fixes: being behind on them is said
 	// too, since the upgrade to the latest patch release is the quick step.
 	behindNote := ""

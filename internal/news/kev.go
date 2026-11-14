@@ -75,7 +75,7 @@ func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, 
 		}
 		extra := 0 // found by the NVD only
 		for id := range known {
-			if !slices.ContainsFunc(hits, func(h entry) bool { return cveID.FindString(h.Title) == id }) {
+			if _, inKEV := byCVE[id]; inKEV && !slices.ContainsFunc(hits, func(h entry) bool { return cveID.FindString(h.Title) == id }) {
 				extra++
 			}
 		}
@@ -258,51 +258,110 @@ func (f *Fetcher) programRanges(ctx context.Context, id string, names []string) 
 	return rangesOf(p.Affected, names)
 }
 
-// nvdKEVRanges asks the NVD, for each tag given with a version and known in
-// its dictionary (cpe in sources/search.yaml), which CVEs of the product are
-// in the KEV catalog, whatever their date, with their ranges: tag, then CVE.
-// A failed search is reported and the catalog is still searched by name.
-func (f *Fetcher) nvdKEVRanges(ctx context.Context, sources []source.Source, q Query, nvd *gate) (map[string]map[string][]Affected, error) {
+// nvdKnown asks the NVD, for each tag or keyword given with a version, about
+// the flaws of that version whatever their date, in one request each:
+//   - a release of a product of its dictionary (cpe in sources/search.yaml):
+//     every CVE whose ranges hold that release;
+//   - a branch of such a product: the CVEs of the product in the KEV catalog;
+//   - a word without a product (a bundled library such as libwebp): the CVEs
+//     of the KEV catalog that mention it.
+//
+// It returns the ranges of the product in each CVE (word, then CVE), which
+// the KEV search compares, and the records of each release, among which those
+// with a public exploit are listed. A failed search is reported, and the KEV
+// catalog is still searched by name.
+func (f *Fetcher) nvdKnown(ctx context.Context, sources []source.Source, q Query, nvd *gate) (map[string]map[string][]Affected, map[string][]entry, error) {
 	var nvdURL string
 	for _, s := range sources {
 		if s.Type == source.TypeNVD {
 			nvdURL = s.URL
 		}
 	}
-	out := map[string]map[string][]Affected{}
+	ranges, records := map[string]map[string][]Affected{}, map[string][]entry{}
 	if nvdURL == "" {
-		return out, nil
+		return ranges, records, nil
 	}
-	tags := slices.Sorted(maps.Keys(q.Versions)) // a stable order, for the cache and the errors
+	words := slices.Sorted(maps.Keys(q.Versions)) // a stable order, for the cache and the errors
 	var errs []error
-	for _, tag := range tags {
-		cpe := f.Search.CPE[tag]
-		if cpe == "" {
-			continue
+	for _, word := range words {
+		version, cpe := q.Versions[word], f.Search.CPE[word]
+		var u string
+		switch {
+		case cpe != "" && !isBranch(version):
+			u = nvdURL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+cpe+":"+version)
+		case cpe != "":
+			u = nvdURL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+cpe) + "&hasKev"
+		default:
+			u = nvdURL + "?keywordSearch=" + neturl.QueryEscape(word) + "&hasKev"
 		}
-		u := nvdURL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+cpe) + "&hasKev"
 		if nvd != nil && !f.isCached(u) {
 			if err := nvd.wait(ctx); err != nil {
-				return out, err
+				return ranges, records, err
 			}
 		}
 		data, _, err := f.get(ctx, u, "nvd")
 		if err == nil {
+			cpes := map[string]string{}
+			if cpe != "" {
+				cpes[word] = cpe
+			}
 			var entries []entry
-			if entries, err = parseNVD(data, map[string]string{tag: cpe}, 0); err == nil {
-				out[tag] = map[string][]Affected{}
+			if entries, err = parseNVD(data, cpes, 0); err == nil {
+				ranges[word] = map[string][]Affected{}
 				for _, e := range entries {
 					if id := cveID.FindString(e.Title); id != "" {
-						out[tag][id] = rangesOf(e.Affected, []string{normalName(tag)})
+						ranges[word][id] = rangesOf(e.Affected, f.productNames(word))
 					}
+				}
+				if cpe != "" && !isBranch(version) {
+					records[word] = entries
 				}
 			}
 		}
 		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", tag, err))
+			errs = append(errs, fmt.Errorf("%s: %w", word, err))
 		}
 	}
-	return out, errors.Join(errs...)
+	return ranges, records, errors.Join(errs...)
+}
+
+// exploitableInUse lists the NVD records of a release in use that have a
+// public exploit (a Nuclei template, a Metasploit module), whatever their
+// date: anyone can run the attack, even if CISA has not seen it exploited.
+// The KEV ones are listed by the KEV search, and a CVE already listed is
+// left to its item.
+func exploitableInUse(records map[string][]entry, q Query, exploits, exploited map[string][]string, listed []Item, nvd source.Source) []Item {
+	var out []Item
+	for _, word := range slices.Sorted(maps.Keys(records)) {
+		for _, e := range records[word] {
+			id := cveID.FindString(e.Title)
+			if id == "" || len(exploits[id]) == 0 || len(exploited[id]) > 0 ||
+				slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id || cveID.FindString(it.Title) == id }) ||
+				slices.ContainsFunc(out, func(it Item) bool { return it.cve == id }) {
+				continue
+			}
+			var hit []Affected
+			for _, a := range e.Affected {
+				if normalName(a.Package) != normalName(word) {
+					continue
+				}
+				if status, ok := versionStatus(q.Versions[word], a.Versions); ok && status == StatusAffected {
+					a.InUse, a.Status = q.Versions[word], status
+					hit = append(hit, a)
+				}
+			}
+			if len(hit) == 0 {
+				continue
+			}
+			it := Item{
+				Source: nvd.ID, Tags: nvd.Tags, Stage: nvd.Stage, Title: e.Title, URL: e.URL, Published: e.Published,
+				Summary: e.Summary, Score: e.Score, Language: nvd.Language, Affected: hit, cve: id,
+			}
+			it.ID = itemID(it)
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // nvdRanges reads the ranges of the products named from the NVD record of a

@@ -371,7 +371,7 @@ func parseNVD(data []byte, cpes map[string]string, lowest float64) ([]entry, err
 							bounds = append(bounds, b[0]+b[1])
 						}
 					}
-					a := Affected{Package: parts[4], Versions: tidyRange(strings.Join(bounds, ", ")), Fixed: m.EndExcluding}
+					a := Affected{Package: parts[4], Versions: tidyRange(strings.Join(bounds, ", ")), Fixed: m.EndExcluding, FixUnknown: m.EndExcluding == ""}
 					if len(bounds) == 0 && parts[5] != "*" && parts[5] != "-" {
 						a.Versions = parts[5]
 					}

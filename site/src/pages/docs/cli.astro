@@ -59,7 +59,10 @@ const stageText: Record<string, string> = {
     it, and those the NVD links to it (Node.js reaches a Brotli flaw whose KEV entry never names Node.js). Each one whose CVE record holds
     the version in a vulnerable range is listed as an alert, marked <code>AFFECTED</code>. A flaw exploited in the wild last month on the PHP
     you deploy today is the first thing to fix, and a seven-day window would miss it. A <code>KEV</code> line then tells, for each tag with a
-    version, how many KEV entries name the product and how many hit the version: a silence reads as a check done.
+    version, how many KEV entries name the product and how many hit the version: a silence reads as a check done. For an exact release
+    of a product of the NVD dictionary (<code>--tag redis@6.2.6</code>), the CVEs that hit it and have a public exploit (a Nuclei template, a
+    Metasploit module) are listed too, whatever their date. A keyword takes a version the same way (<code>--keyword libwebp@1.3.1</code>, a
+    library copied into the repository): its KEV flaws are found by word.
   </p>
   <p>
     The CVE databases are searched for the first 8 tags and keywords, in the order given on the command line, tags and keywords mixed.

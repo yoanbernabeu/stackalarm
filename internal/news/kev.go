@@ -3,6 +3,7 @@ package news
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -71,7 +72,9 @@ func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, 
 			}
 		}
 		for _, e := range hits {
-			candidates = append(candidates, candidate{e: e, tag: tag, version: version, names: append(slices.Clone(names), normalName(e.Product)), ranges: known[cveID.FindString(e.Title)]})
+			// Only the ranges of the tag's own product count: the KEV entry may name
+			// another one (React Native Community CLI, whose 19.x is not React's).
+			candidates = append(candidates, candidate{e: e, tag: tag, version: version, names: names, ranges: known[cveID.FindString(e.Title)]})
 		}
 		extra := 0 // found by the NVD only
 		for id := range known {
@@ -397,4 +400,114 @@ func (f *Fetcher) nvdRanges(ctx context.Context, nvdURL, id string, names []stri
 		out = append(out, rangesOf(e.Affected, names)...)
 	}
 	return out
+}
+
+// freshOfProducts checks the NVD records of the day, not yet tied to any
+// product, that only the word of a tag with a version found: their CVE
+// Program record names the product from the start, and the record is kept
+// when it is the tag's ("react-server-dom-webpack" for react), dropped when
+// it only shares the word ("The Streamit plugin for WordPress… PHP"). A
+// record that cannot be read is kept: a doubt never hides a flaw.
+func (f *Fetcher) freshOfProducts(ctx context.Context, entries []entry, precise map[string][]string, matched []string, words []*regexp.Regexp) []entry {
+	if f.CVEAPI == "" {
+		return entries
+	}
+	type check struct {
+		i     int
+		names []string
+	}
+	var checks []check
+	for i, e := range entries {
+		if len(e.Affected) > 0 || e.Exact {
+			continue
+		}
+		text := matchText(e)
+		var names []string
+		loose := false
+		for j, re := range words {
+			if !re.MatchString(text) {
+				continue
+			}
+			n, ok := precise[matched[j]]
+			if !ok {
+				loose = true // an ordinary word matched it too: kept as before
+				break
+			}
+			names = append(names, n...)
+		}
+		if !loose && len(names) > 0 {
+			checks = append(checks, check{i, names})
+		}
+	}
+	drop := make([]bool, len(entries))
+	var (
+		wg  sync.WaitGroup
+		sem = make(chan struct{}, kevConcurrency)
+	)
+	for _, c := range checks {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			id := cveID.FindString(entries[c.i].Title)
+			data, _, err := f.get(ctx, f.CVEAPI+"/"+id, "")
+			if err != nil {
+				return
+			}
+			products, err := cnaProducts(data)
+			if err != nil || len(products) == 0 {
+				return
+			}
+			drop[c.i] = !slices.ContainsFunc(products, func(p string) bool { return ofProduct(p, c.names) })
+		})
+	}
+	wg.Wait()
+	out := entries[:0]
+	for i, e := range entries {
+		if !drop[i] {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// cnaProducts reads the products the publisher of a CVE record names.
+func cnaProducts(data []byte) ([]string, error) {
+	var r struct {
+		Containers struct {
+			CNA struct {
+				Affected []struct {
+					Product     string `json:"product"`
+					PackageName string `json:"packageName"`
+				} `json:"affected"`
+			} `json:"cna"`
+		} `json:"containers"`
+	}
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, a := range r.Containers.CNA.Affected {
+		for _, p := range []string{a.Product, a.PackageName} {
+			if p != "" && p != "n/a" {
+				out = append(out, p)
+			}
+		}
+	}
+	return out, nil
+}
+
+// ofProduct tells whether a product a CVE record names is one of the names,
+// or a package of it ("react-server-dom-webpack" of react), never a product
+// that only starts with the name ("NginxPulse").
+func ofProduct(product string, names []string) bool {
+	lower := strings.ToLower(product) // a scope (@react-native/cli) is another product
+	for _, n := range names {
+		if n == "" {
+			continue
+		}
+		if normalName(product) == n || strings.HasPrefix(lower, n+"-") || strings.HasPrefix(lower, n+"/") || strings.HasPrefix(lower, n+" ") {
+			return true
+		}
+	}
+	return false
 }

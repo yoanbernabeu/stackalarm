@@ -203,7 +203,17 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	}
 	for _, s := range sources {
 		marks := s.Type == source.TypeKEV || s.Type == source.TypeEUVD && s.Stage == source.StageAlert || s.Type.IsExploitCatalog()
-		inSBOM := s.Type == source.TypeOSV && slices.ContainsFunc(q.Components, func(c Component) bool { return inEcosystem(c.Ecosystem, s.Ecosystem) })
+		inSBOM := slices.ContainsFunc(q.Components, func(c Component) bool {
+			switch s.Type {
+			case source.TypeOSV:
+				return inEcosystem(c.Ecosystem, s.Ecosystem)
+			case source.TypePackagist:
+				return c.Ecosystem == "Packagist"
+			case source.TypeRubySec:
+				return c.Ecosystem == "RubyGems"
+			}
+			return false
+		})
 		if (inSBOM || marks && q.ComponentsOnly) && !slices.ContainsFunc(selected, func(o source.Source) bool { return o.ID == s.ID }) {
 			selected = append(selected, s)
 		}
@@ -213,7 +223,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		f.nvdRejected = new(atomic.Bool)
 	}
 	terms, left := searchTerms(q, f.Search)
-	words := matchers(matchTerms(q, f.Search))
+	matched := matchTerms(q, f.Search)
+	words := matchers(matched)
+	precise := f.preciseTerms(q, matched)
 	if f.nvdGate == nil {
 		f.nvdGate, f.euvdGate = &gate{delay: f.NVDDelay}, &gate{delay: f.EUVDDelay}
 	}
@@ -276,7 +288,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 			}
 			entries = slices.DeleteFunc(entries, func(e entry) bool {
-				if q.ComponentsOnly && s.Type != source.TypeOSV {
+				if q.ComponentsOnly && !s.Type.IsPackageDatabase() {
 					return true // read for its marks only
 				}
 				if e.Published.IsZero() || !e.Current && e.Published.Before(q.Since) {
@@ -287,10 +299,26 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 						return false // found by product, not by word
 					}
 					text := matchText(e)
-					return !slices.ContainsFunc(words, func(re *regexp.Regexp) bool { return re.MatchString(text) })
+					for i, re := range words {
+						if !re.MatchString(text) {
+							continue
+						}
+						// A tag with a version and a product of the dictionary keeps
+						// the NVD records of its product, and the fresh ones not yet
+						// tied to any: the others only share its name ("php" in a
+						// WordPress plugin). The EUVD names no product: the NVD covers it.
+						names, ok := precise[matched[i]]
+						if !ok || s.Type == source.TypeNVD && (len(e.Affected) == 0 || slices.ContainsFunc(e.Affected, func(a Affected) bool { return slices.Contains(names, normalName(a.Package)) })) {
+							return false
+						}
+					}
+					return true
 				}
 				return !keep(s, e, words)
 			})
+			if s.Type == source.TypeNVD && len(precise) > 0 {
+				entries = f.freshOfProducts(ctx, entries, precise, matched, words)
+			}
 			for i := range entries {
 				entries[i].Affected = annotate(entries[i].Affected, q)
 			}
@@ -439,12 +467,24 @@ func inTurns(entries []entry) []entry {
 	return out
 }
 
+// withComponents adds to the packages given the components of an SBOM in one
+// ecosystem, as name@version.
+func withComponents(packages []string, components []Component, ecosystem string) []string {
+	out := slices.Clone(packages)
+	for _, c := range components {
+		if p := c.Name + "@" + c.Version; c.Ecosystem == ecosystem && !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // mergeable tells whether the entries of a source are vulnerability records
 // that other databases may repeat. Alerts (KEV, exploited lists) and feeds are
 // never merged: their own wording carries information.
 func mergeable(t source.Type) bool {
 	switch t {
-	case source.TypeNVD, source.TypeNVDProduct, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV, source.TypePackagist:
+	case source.TypeNVD, source.TypeNVDProduct, source.TypeEUVDSearch, source.TypeGitHubAdvisories, source.TypeGitHubAdvisoryDatabase, source.TypeOSV, source.TypePackagist, source.TypeRubySec:
 		return true
 	}
 	return false
@@ -795,6 +835,26 @@ func priority(e entry) float64 {
 // NVD allows one every 6 seconds.
 const MaxTerms = 8
 
+// preciseTerms maps the match terms of the tags given with a version and a
+// product of the NVD dictionary to the names of that product.
+func (f *Fetcher) preciseTerms(q Query, terms []string) map[string][]string {
+	out := map[string][]string{}
+	for _, t := range q.Tags {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if q.Versions[t] == "" || f.Search.CPE[t] == "" {
+			continue
+		}
+		term := t
+		if alias, ok := f.Search.Aliases[t]; ok {
+			term = alias
+		}
+		if slices.Contains(terms, term) {
+			out[term] = append(f.productNames(t), normalName(t))
+		}
+	}
+	return out
+}
+
 // matchTerms returns the words entries of general sources are matched
 // against: every tag and keyword, with the aliases of sources/search.yaml.
 func matchTerms(q Query, s source.Search) []string {
@@ -832,10 +892,7 @@ func searchTerms(q Query, s source.Search) (searched terms, left []string) {
 	var cpes []string
 	tags := slices.DeleteFunc(slices.Clone(q.Tags), func(t string) bool {
 		t = strings.ToLower(strings.TrimSpace(t))
-		// A tag given with its version and known in the dictionary is searched
-		// by product instead: the word "php" brings every WordPress plugin of the
-		// week, the product only PHP's own records.
-		if !slices.Contains(s.Skip, t) && (q.Versions[t] == "" || s.CPE[t] == "") {
+		if !slices.Contains(s.Skip, t) {
 			return false
 		}
 		if cpe := s.CPE[t]; cpe != "" && !slices.Contains(cpes, cpe) {
@@ -953,7 +1010,9 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 	case source.TypeOSV:
 		return f.readOSV(ctx, s.Ecosystem, q.Packages, q.Components)
 	case source.TypePackagist:
-		return f.readPackagist(ctx, s.URL, q.Packages, since)
+		return f.readPackagist(ctx, s.URL, withComponents(q.Packages, q.Components, "Packagist"), since)
+	case source.TypeRubySec:
+		return f.readRubySec(ctx, s.URL, withComponents(q.Packages, q.Components, "RubyGems"), q.Versions, since)
 	case source.TypeNuclei:
 		return f.readOne(ctx, s.URL, "", parseNuclei)
 	case source.TypeMetasploit:

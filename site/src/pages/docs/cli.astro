@@ -46,11 +46,17 @@ const stageText: Record<string, string> = {
     <code>STACKALARM_NO_OSV</code> variable) turns it off.
   </p>
   <p>
+    Two ecosystems have an audit database OSV.dev does not mirror in full, and both are read too. Composer packages are asked about on
+    the Packagist API, the one <code>composer audit</code> reads, which holds the FriendsOfPHP database: it often lists a flaw days before
+    OSV.dev. Gems are looked up in the Ruby Advisory Database, the one <code>bundle audit</code> reads, read as one archive; a version on the
+    <code>ruby</code> tag also gets the flaws of the interpreter. The other ecosystems' audits read databases OSV.dev already mirrors.
+  </p>
+  <p>
     A tag takes a version too: <code>--tag php@8.3.20</code>. The NVD records give the vulnerable ranges of a product; each is compared with
     the version and marked <code>affected</code> or <code>not-affected</code> (<code>[8.3.20 in use: AFFECTED]</code> in the text formats),
     and the records that hit the version come first under the cap. A branch works too (<code>--tag node@20</code>): a range covering the whole
     branch is <code>affected</code>, since no release of it is fixed, and one covering part of it <code>possibly-affected</code>, the patch level
-    deciding. Never give a range (<code>&gt;=8.2</code>). With a version, a tag of the NVD dictionary is searched there by product rather than by word: the word <code>php</code> brings every WordPress plugin of the week. The products known for each tag are
+    deciding. Never give a range (<code>&gt;=8.2</code>). With a version, the NVD records a tag's word finds are kept only when they name its product, or none yet (a CVE of the day): the word <code>php</code> otherwise brings every WordPress plugin of the week. The products known for each tag are
     listed under <code>cpe</code> in <a href={`${repo}/blob/main/sources/search.yaml`}><code>sources/search.yaml</code></a>; a tag too
     ambiguous to be searched by word (<code>composer</code>, <code>flask</code>, <code>npm</code>…) is searched in the NVD by product instead.
   </p>

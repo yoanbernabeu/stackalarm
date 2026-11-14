@@ -55,6 +55,10 @@ type eolRelease struct {
 	} `json:"latest"`
 }
 
+// eolNames maps the names a project uses to the products of endoflife.date
+// that know them under another name.
+var eolNames = map[string]string{"docker": "docker-engine", "moby": "docker-engine"}
+
 // Support looks up the support status of components given as name@version
 // (php@8.3.35, node@22, gitlab). One failure fails the whole lookup: a
 // partial answer would read as "the others are fine".
@@ -76,7 +80,10 @@ func (f *Fetcher) Support(ctx context.Context, components []string) ([]Support, 
 		return nil, fmt.Errorf("endoflife.date: unexpected product list: %w", err)
 	}
 	product := func(name string) string {
-		for _, n := range []string{name, strings.NewReplacer(".", "", " ", "-").Replace(name)} {
+		for _, n := range []string{name, strings.NewReplacer(".", "", " ", "-").Replace(name), eolNames[name]} {
+			if n == "" {
+				continue
+			}
 			for _, p := range list.Result {
 				if p.Name == n || slices.Contains(p.Aliases, n) {
 					return p.Name

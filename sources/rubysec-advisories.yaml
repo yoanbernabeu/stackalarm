@@ -1,0 +1,6 @@
+id: rubysec-advisories
+name: Ruby Advisory Database (bundler-audit), for the gems in use and the Ruby interpreter
+type: rubysec
+url: https://codeload.github.com/rubysec/ruby-advisory-db/tar.gz/refs/heads/master
+tags: [ruby]
+stage: advisory

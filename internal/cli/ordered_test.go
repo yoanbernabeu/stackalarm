@@ -3,6 +3,8 @@ package cli
 import (
 	"strings"
 	"testing"
+
+	"github.com/yoanbernabeu/stackalarm/internal/news"
 )
 
 func TestTagsAndKeywordsShareOneOrder(t *testing.T) {
@@ -23,5 +25,16 @@ func TestCloseTags(t *testing.T) {
 	}
 	if got := closeTags("zz", known); got != "run stackalarm sources to see the tags" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAFixOnALaterMajorVersionIsSaid(t *testing.T) {
+	it := news.Item{Affected: []news.Affected{{Package: "node", Versions: "< 22.23.4", Fixed: "22.23.4", InUse: "20.20.2", Status: news.StatusAffected}}}
+	if got := affected(it); got != "node < 22.23.4 (fixed in 22.23.4, not on the 20 branch: upgrade the branch) [20.20.2 in use: AFFECTED]" {
+		t.Fatalf("got %q", got)
+	}
+	it.Affected[0].InUse, it.Affected[0].Fixed = "22.20.0", "22.23.4"
+	if got := affected(it); strings.Contains(got, "branch") {
+		t.Fatalf("a fix on the same major version is a patch: %q", got)
 	}
 }

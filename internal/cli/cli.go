@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -612,6 +613,9 @@ func affected(it news.Item) string {
 		}
 		part := af.Package + " " + cmp.Or(af.Versions, "all versions")
 		switch {
+		case af.Fixed != "" && af.Status == news.StatusAffected && otherBranch(af.InUse, af.Fixed):
+			// node 20 against a fix in 22.23.4: no patch release of 20 will come
+			part += " (fixed in " + af.Fixed + ", not on the " + branchOf(af.InUse) + " branch: upgrade the branch)"
 		case af.Fixed != "":
 			part += " (fixed in " + af.Fixed + ")"
 		case af.FixUnknown:
@@ -630,6 +634,20 @@ func affected(it news.Item) string {
 		parts = append(parts, part)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// branchOf gives the major version of a version in use: "20" for 20.20.2.
+func branchOf(v string) string {
+	major, _, _ := strings.Cut(strings.TrimPrefix(v, "v"), ".")
+	return major
+}
+
+// otherBranch tells whether the first fixed version is on a later major
+// version than the one in use, with numbers on both sides.
+func otherBranch(inUse, fixed string) bool {
+	a, errA := strconv.Atoi(branchOf(inUse))
+	b, errB := strconv.Atoi(branchOf(fixed))
+	return errA == nil && errB == nil && b > a
 }
 
 // epss writes a probability as a percentage: "0.4%", "37%".

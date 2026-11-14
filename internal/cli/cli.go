@@ -298,7 +298,20 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				}
 				order[i] = strings.ToLower(strings.TrimSpace(w))
 			}
-			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Order: order, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
+			// A package may name its ecosystem (pip:redis@4.5.1): only that
+			// ecosystem's sources read it, where a name exists in several.
+			var plain []string
+			scoped := map[string][]string{}
+			for _, p := range packages {
+				if eco, rest, ok := strings.Cut(p, ":"); ok && knownEcosystem(eco) {
+					e := news.NormalEcosystem(eco)
+					scoped[e] = append(scoped[e], rest)
+					continue
+				}
+				plain = append(plain, p)
+			}
+			packages = plain
+			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Order: order, PackagesIn: scoped, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
 			<-eolDone
 			if eolErr != nil {
 				res.Failures = append(res.Failures, news.Failure{Source: news.SupportSource, Error: eolErr.Error()})
@@ -656,6 +669,11 @@ func epss(p float64) string {
 		return fmt.Sprintf("%.1f%%", p*100)
 	}
 	return fmt.Sprintf("%.0f%%", p*100)
+}
+
+// knownEcosystem tells whether a prefix names a package ecosystem.
+func knownEcosystem(e string) bool {
+	return slices.Contains([]string{"npm", "pip", "composer", "rubygems", "go", "rust", "maven", "nuget", "pub", "erlang", "swift", "actions"}, news.NormalEcosystem(e))
 }
 
 // closeTags suggests the known tags close to an unknown one, rather than

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	neturl "net/url"
 	"os"
@@ -129,7 +130,7 @@ const MaxOSVPerSource = 100
 // caps gives the sources whose cap is not MaxPerSource.
 func caps(sources []source.Source, q Query) map[string]int {
 	out := map[string]int{}
-	if len(q.Packages) == 0 && len(q.Components) == 0 {
+	if len(allPackages(q)) == 0 && len(q.Components) == 0 {
 		return out
 	}
 	for _, s := range sources {
@@ -152,6 +153,10 @@ type Query struct {
 	// Packages narrow the GitHub Advisory Database sources to these package
 	// names (the agent reads them from the lockfile). Empty: the whole ecosystem.
 	Packages []string
+	// PackagesIn holds the packages given with an ecosystem (pip:redis@4.5.1),
+	// by ecosystem as normalEcosystem writes it: only that ecosystem's sources
+	// read them. The packages without one are in Packages and not here.
+	PackagesIn map[string][]string
 	// Versions gives the version in use of a tag (php: 8.3.20). It never
 	// filters: the ranges of the CVE records are compared with it.
 	Versions map[string]string
@@ -467,6 +472,36 @@ func inTurns(entries []entry) []entry {
 	return out
 }
 
+// allPackages gives every package given, with an ecosystem or not.
+func allPackages(q Query) []string {
+	out := slices.Clone(q.Packages)
+	for _, e := range slices.Sorted(maps.Keys(q.PackagesIn)) {
+		out = append(out, q.PackagesIn[e]...)
+	}
+	return out
+}
+
+// packagesFor gives the packages a source of an ecosystem reads: those given
+// without an ecosystem, and those given with this one.
+func packagesFor(q Query, ecosystem string) []string {
+	return append(slices.Clone(q.Packages), q.PackagesIn[NormalEcosystem(ecosystem)]...)
+}
+
+// normalEcosystem writes the names of an ecosystem one way, those of the
+// GitHub Advisory Database: PyPI and python are pip, Packagist is composer.
+func NormalEcosystem(e string) string {
+	e = strings.ToLower(strings.TrimSpace(e))
+	if n, ok := ecosystemNames[e]; ok {
+		return n
+	}
+	return e
+}
+
+var ecosystemNames = map[string]string{
+	"pypi": "pip", "packagist": "composer", "gem": "rubygems", "gems": "rubygems", "crates.io": "rust", "cargo": "rust",
+	"golang": "go", "github actions": "actions", "github-actions": "actions", "hex": "erlang", "swifturl": "swift",
+}
+
 // withComponents adds to the packages given the components of an SBOM in one
 // ecosystem, as name@version.
 func withComponents(packages []string, components []Component, ecosystem string) []string {
@@ -605,7 +640,7 @@ func annotate(affected []Affected, q Query) []Affected {
 			continue // the source already told
 		}
 		version := q.Versions[strings.ToLower(a.Package)]
-		for _, p := range q.Packages {
+		for _, p := range allPackages(q) {
 			if packageName(p) == a.Package {
 				_, version, _ = strings.Cut(strings.TrimPrefix(p, a.Package), "@")
 			}
@@ -614,7 +649,7 @@ func annotate(affected []Affected, q Query) []Affected {
 			affected[i].InUse, affected[i].Status = version, status
 		}
 	}
-	watched := slices.Clone(q.Packages)
+	watched := allPackages(q)
 	for name, version := range q.Versions {
 		watched = append(watched, name+"@"+version)
 	}
@@ -946,10 +981,16 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 	case source.TypeGitHubAdvisoryDatabase:
 		u := github + "/advisories?per_page=100&ecosystem=" + neturl.QueryEscape(s.Ecosystem) +
 			"&published=" + neturl.QueryEscape(">="+since.UTC().Format(time.DateOnly))
-		if len(q.Packages) == 0 {
+		packages := packagesFor(q, s.Ecosystem)
+		if len(packages) == 0 {
+			// The whole ecosystem only for its package manager's tag (pip, npm):
+			// the runtime's (python, node) would bring every library's advisory.
+			if len(q.Tags) > 0 && !slices.ContainsFunc(q.Tags, func(t string) bool { return NormalEcosystem(t) == NormalEcosystem(s.Ecosystem) }) {
+				return nil, nil
+			}
 			return f.readGitHub(ctx, u+"&type=reviewed", since, parseGitHubAdvisoryDatabase)
 		}
-		u += "&affects=" + neturl.QueryEscape(strings.Join(q.Packages, ","))
+		u += "&affects=" + neturl.QueryEscape(strings.Join(packages, ","))
 		reviewed, err := f.readGitHub(ctx, u+"&type=reviewed", since, parseGitHubAdvisoryDatabase)
 		// Malicious versions of the project's packages: a thousand a month in npm,
 		// so they are only read for the packages given.
@@ -1008,11 +1049,11 @@ func (f *Fetcher) read(ctx context.Context, s source.Source, terms terms, q Quer
 			return parseNVD(data, map[string]string{s.Tags[0]: s.Product}, 0)
 		})
 	case source.TypeOSV:
-		return f.readOSV(ctx, s.Ecosystem, q.Packages, q.Components)
+		return f.readOSV(ctx, s.Ecosystem, packagesFor(q, s.Ecosystem), q.Components)
 	case source.TypePackagist:
-		return f.readPackagist(ctx, s.URL, withComponents(q.Packages, q.Components, "Packagist"), since)
+		return f.readPackagist(ctx, s.URL, withComponents(packagesFor(q, "composer"), q.Components, "Packagist"), since)
 	case source.TypeRubySec:
-		return f.readRubySec(ctx, s.URL, withComponents(q.Packages, q.Components, "RubyGems"), q.Versions, since)
+		return f.readRubySec(ctx, s.URL, withComponents(packagesFor(q, "rubygems"), q.Components, "RubyGems"), q.Versions, since)
 	case source.TypeNuclei:
 		return f.readOne(ctx, s.URL, "", parseNuclei)
 	case source.TypeMetasploit:

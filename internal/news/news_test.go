@@ -240,7 +240,9 @@ func TestSearchSources(t *testing.T) {
 	queries = nil
 	res = f.Fetch(context.Background(), sources, Query{Tags: []string{"php"}, Keywords: []string{"GitLab", "broken"}, Since: now.Add(-7 * 24 * time.Hour)})
 	slices.Sort(queries)
-	if strings.Join(queries, ",") != "ghad:composer:>=2026-10-16,nvd:broken,nvd:gitlab,nvd:php" {
+	// The runtime's tag (php) does not read the whole Composer ecosystem: only
+	// the package manager's tag (composer) or the packages given do.
+	if strings.Join(queries, ",") != "nvd:broken,nvd:gitlab,nvd:php" {
 		t.Fatalf("queries: %v", queries)
 	}
 	var nvdItems int

@@ -34,9 +34,12 @@ type CVERecord struct {
 	PublicExploitIn []string   `json:"public_exploit_in,omitempty"`
 	Affected        []Affected `json:"affected,omitempty"`
 	Advisories      []string   `json:"advisories,omitempty"` // GitHub advisories
-	References      []string   `json:"references,omitempty"`
-	FoundIn         []string   `json:"found_in"` // the databases that know the CVE
-	Failures        []Failure  `json:"failures"`
+	// NotNamed lists the packages given with a version that no range names: a
+	// product bundling another's code (Next.js and React) may still be hit.
+	NotNamed   []string  `json:"not_named,omitempty"`
+	References []string  `json:"references,omitempty"`
+	FoundIn    []string  `json:"found_in"` // the databases that know the CVE
+	Failures   []Failure `json:"failures"`
 }
 
 // maxReferences keeps a record readable: some CVEs carry dozens of links.
@@ -206,6 +209,12 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 		}
 	}
 	rec.Affected = annotate(rec.Affected, q)
+	for _, p := range inUse {
+		name := packageName(p)
+		if name != p && len(rec.Affected) > 0 && !slices.ContainsFunc(rec.Affected, func(a Affected) bool { return sameProduct(a.Package, name) }) {
+			rec.NotNamed = append(rec.NotNamed, name)
+		}
+	}
 	slices.Sort(rec.FoundIn)
 	slices.Sort(rec.ExploitedIn)
 	slices.Sort(rec.PublicExploitIn)

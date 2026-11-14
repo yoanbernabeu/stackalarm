@@ -134,6 +134,9 @@ func (a *App) printCVE(r news.CVERecord) {
 				fmt.Fprintf(w, "  %s\n", affected(news.Item{Affected: []news.Affected{af}}))
 			}
 		}
+		if len(r.NotNamed) > 0 {
+			fmt.Fprintf(w, "\nNamed in no range: %s. Not a sign of safety: a product that bundles another's code (Next.js bundles React) may still be hit; read its own advisory.\n", strings.Join(r.NotNamed, ", "))
+		}
 		if len(r.Advisories) > 0 {
 			fmt.Fprintln(w, "\nAdvisories:")
 			for _, u := range r.Advisories {

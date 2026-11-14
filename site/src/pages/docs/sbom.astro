@@ -5,7 +5,7 @@ import { latestTag } from "../../lib/version";
 
 const output = `2026-11-05 | advisory | osv-alpine | 8.1 | [high] musl: musl libc before 1.2.7, when an untrusted regular expression is used with regcomp… (CVE-2026-107891) | https://osv.dev/vulnerability/ALPINE-CVE-2026-107891 | affects musl < 1.2.5-r24 (fixed in 1.2.5-r24) [1.2.5-r21 in use: AFFECTED]
 2026-09-29 | advisory | osv-npm | 7.5 | [high] brace-expansion: DoS via uncontrolled recursion on nested brace groups… (CVE-2026-102278) | https://osv.dev/vulnerability/GHSA-qhr7-859c-m2p7 | affects brace-expansion >= 2.0.0, < 2.1.6 (fixed in 2.1.6) [2.0.2 in use: AFFECTED]
-TRUNCATED | osv-alpine | 9 older entries left out`;
+TRUNCATED | osv-alpine | 9 more entries left out, the least severe or the oldest`;
 
 const workflow = `      - uses: anchore/sbom-action@v0 # or any tool that writes CycloneDX or SPDX
         with:

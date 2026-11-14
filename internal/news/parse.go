@@ -30,6 +30,7 @@ type entry struct {
 	Exact     bool         // found by product in a search source: kept whatever its wording
 	Current   bool         // hits a version in use now: kept whatever its date
 	Exploit   bool         // an entry of a catalog of public exploits: it marks its CVE
+	Product   string       // the vendor and product a KEV entry names, matched against the tags with a version
 	// Rank orders the entry among those of its source in place of Score, when a
 	// distribution rates the flaw itself (Ubuntu's priority, Debian's "unimportant").
 	Rank float64
@@ -256,6 +257,7 @@ func parseKEV(data []byte) ([]entry, error) {
 			Title:   fmt.Sprintf("%s exploited in the wild: %s %s, %s", v.CVE, v.Vendor, v.Product, v.Name),
 			URL:     "https://nvd.nist.gov/vuln/detail/" + v.CVE,
 			Summary: clean(v.Description + " Required action: " + v.Action),
+			Product: v.Vendor + " " + v.Product,
 		}
 		if v.Ransomware == "Known" {
 			e.Summary += " Used in ransomware campaigns."
@@ -368,7 +370,7 @@ func parseNVD(data []byte, cpes map[string]string, lowest float64) ([]entry, err
 							bounds = append(bounds, b[0]+b[1])
 						}
 					}
-					a := Affected{Package: parts[4], Versions: strings.Join(bounds, ", "), Fixed: m.EndExcluding}
+					a := Affected{Package: parts[4], Versions: tidyRange(strings.Join(bounds, ", ")), Fixed: m.EndExcluding}
 					if len(bounds) == 0 && parts[5] != "*" && parts[5] != "-" {
 						a.Versions = parts[5]
 					}

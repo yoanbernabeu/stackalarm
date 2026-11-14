@@ -292,12 +292,12 @@ var ubuntuPriorities = map[string]float64{"critical": 9.5, "high": 8, "medium": 
 // osvRange writes ">= 13.0.0, < 13.5.9" from the events of an OSV range.
 func osvRange(introduced, end string) string {
 	if introduced == "" || introduced == "0" {
-		return end
+		return tidyRange(end)
 	}
 	if end == "" {
-		return ">= " + introduced
+		return tidyRange(">= " + introduced)
 	}
-	return ">= " + introduced + ", " + end
+	return tidyRange(">= " + introduced + ", " + end)
 }
 
 func lastFixed(ranges []Affected) string {

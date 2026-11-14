@@ -3,5 +3,5 @@ name: Symfony blog, security posts
 type: feed
 url: https://feeds.feedburner.com/symfony/blog
 tags: [symfony]
-stage: advisory
+stage: news
 keywords: [security, CVE, vulnerability]

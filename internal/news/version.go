@@ -43,6 +43,45 @@ func inRange(version, rng string) (in, ok bool) {
 	return true, true
 }
 
+// tidyRange repairs the ranges some records write wrongly: a wildcard bound
+// (">= 8.3.*" is ">= 8.3"), and a lower bound that excludes every version
+// below the upper one (">= 1.3.2, < 1.3.2", a frequent slip of the NVD for
+// "< 1.3.2"): read literally, such a range holds nothing and hides the flaw.
+func tidyRange(rng string) string {
+	var lower, upper []string
+	for _, c := range strings.Split(rng, ",") {
+		c = strings.TrimSpace(c)
+		c = strings.TrimSuffix(strings.TrimSuffix(c, ".*"), ".x")
+		switch {
+		case c == "":
+		case strings.HasPrefix(c, ">"):
+			lower = append(lower, c)
+		default:
+			upper = append(upper, c)
+		}
+	}
+	if len(lower) == 1 && len(upper) == 1 && strings.HasPrefix(upper[0], "<") {
+		lo := strings.TrimSpace(strings.TrimLeft(lower[0], ">="))
+		up := strings.TrimSpace(strings.TrimLeft(upper[0], "<="))
+		if d := compareVersions(lo, up); d > 0 || d == 0 && !(strings.HasPrefix(lower[0], ">=") && strings.HasPrefix(upper[0], "<=")) {
+			lower = nil
+		}
+	}
+	return strings.Join(append(lower, upper...), ", ")
+}
+
+// fixedIn reads the first fixed version of a range whose upper bound excludes
+// it ("< 15.2.3"), or "" when the range gives none.
+func fixedIn(rng string) string {
+	for _, c := range strings.Split(rng, ",") {
+		c = strings.TrimSpace(c)
+		if v, ok := strings.CutPrefix(c, "<"); ok && !strings.HasPrefix(v, "=") {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
 // compareVersions compares dotted versions part by part, numbers as numbers:
 // 1.10.0 > 1.9.0, 1.0.0 > 1.0.0-rc.1. Good enough for ordering.
 func compareVersions(a, b string) int {

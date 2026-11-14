@@ -53,6 +53,14 @@ const stageText: Record<string, string> = {
     ambiguous to be searched by word (<code>composer</code>, <code>flask</code>, <code>npm</code>…) is searched in the NVD by product instead.
   </p>
   <p>
+    With a version, the CISA KEV catalog is also searched for the product, whatever the date its flaws were added: each entry whose CVE
+    record (the CVE Program, or the NVD) holds the version in a vulnerable range is listed as an alert, marked <code>AFFECTED</code>. A flaw
+    exploited in the wild last month on the PHP you deploy today is the first thing to fix, and a seven-day window would miss it.
+  </p>
+  <p>
+    The CVE databases are searched for the first 8 tags and keywords, in the order given on the command line, tags and keywords mixed.
+  </p>
+  <p>
     With <code>--package</code>, the GitHub malware advisories of those packages are read too, as alerts: a version published with malicious
     code, the mark of a compromised maintainer account. They are not read without packages: npm alone gets about a thousand a month.
   </p>

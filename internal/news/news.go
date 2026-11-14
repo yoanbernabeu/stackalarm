@@ -110,9 +110,13 @@ const MaxPerSource = 30
 
 // Query selects what to fetch.
 type Query struct {
-	Tags     []string  // empty: every source
-	Keywords []string  // extra words that select entries of general sources
-	Since    time.Time // entries published before are dropped
+	Tags     []string // empty: every source
+	Keywords []string // extra words that select entries of general sources
+	// Order lists the tags and keywords in the order they were given, mixed:
+	// the CVE databases are searched for the first MaxTerms of them. Empty:
+	// the tags, then the keywords.
+	Order []string
+	Since time.Time // entries published before are dropped
 	// Packages narrow the GitHub Advisory Database sources to these package
 	// names (the agent reads them from the lockfile). Empty: the whole ecosystem.
 	Packages []string
@@ -140,6 +144,7 @@ type Fetcher struct {
 	CVEAPI      string        // CVE Program API, for the record of one CVE
 	NVDDelay    time.Duration // pause between two NVD requests (the API allows 5 per 30 s without key)
 	EUVDDelay   time.Duration // pause between two EUVD search requests, which answer HTTP 429 to bursts
+	RetryDelay  time.Duration // pause before trying an NVD request again, doubled the second time
 	CacheDir    string        // empty disables the cache
 	CacheTTL    time.Duration // how long a cached response is reused
 	Search      source.Search // how tags become CVE database search terms
@@ -177,6 +182,10 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	nvd, euvd := f.nvdGate, f.euvdGate
 	exploited := map[string][]string{} // CVE: the sources reporting it exploited
 	exploits := map[string][]string{}  // CVE: the catalogs holding a public exploit
+	var (
+		kevSource  source.Source
+		kevCatalog []entry // the whole catalog, whatever the dates: searched for the versions in use
+	)
 
 	var (
 		mu  sync.Mutex
@@ -199,6 +208,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 			}
 			if oldest := oldestEntry(entries); s.Type == source.TypeFeed && err == nil && oldest.After(q.Since) {
 				res.Short = append(res.Short, Coverage{Source: s.ID, Since: oldest})
+			}
+			if s.Type == source.TypeKEV {
+				kevSource, kevCatalog = s, slices.Clone(entries)
 			}
 			for _, e := range entries { // the whole catalog, before the date and word filters
 				if e.Exploit {
@@ -249,6 +261,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				}
 				return b.Published.Compare(a.Published)
 			})
+			if s.Type == source.TypeOSV {
+				entries = inTurns(entries)
+			}
 			for rank, e := range entries {
 				stage := cmp.Or(e.Stage, s.Stage)
 				if stage == source.StageHeadsUp && releasedTitle.MatchString(e.Title) {
@@ -269,6 +284,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		})
 	}
 	wg.Wait()
+	if !q.ComponentsOnly {
+		res.Items = append(res.Items, f.kevInUse(ctx, kevSource, kevCatalog, q, sources, nvd, res.Items)...)
+	}
 	slices.SortFunc(res.Items, func(a, b Item) int {
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))
 	})
@@ -305,6 +323,42 @@ var (
 	cveID          = regexp.MustCompile(`CVE-\d{4}-\d+`)
 	ghsaID         = regexp.MustCompile(`GHSA(-[23456789cfghjmpqrvwx]{4}){3}`)
 )
+
+// inTurns orders sorted OSV entries package by package, in turns: the most
+// severe flaw of each package, then the second of each, and so on. The cap of
+// a source then drops the minor flaws of the most exposed packages, never a
+// whole package: a lockfile with one package holding forty advisories would
+// otherwise hide every other package.
+func inTurns(entries []entry) []entry {
+	var (
+		order []string
+		lists = map[string][]entry{}
+	)
+	for _, e := range entries {
+		key := ""
+		for _, a := range e.Affected {
+			if key == "" || a.Status == StatusAffected {
+				key = a.Package
+			}
+			if a.Status == StatusAffected {
+				break
+			}
+		}
+		if _, seen := lists[key]; !seen {
+			order = append(order, key)
+		}
+		lists[key] = append(lists[key], e)
+	}
+	out := make([]entry, 0, len(entries))
+	for turn := 0; len(out) < len(entries); turn++ {
+		for _, key := range order {
+			if turn < len(lists[key]) {
+				out = append(out, lists[key][turn])
+			}
+		}
+	}
+	return out
+}
 
 // mergeable tells whether the entries of a source are vulnerability records
 // that other databases may repeat. Alerts (KEV, exploited lists) and feeds are
@@ -654,7 +708,17 @@ const MaxTerms = 8
 // against: every tag and keyword, with the aliases of sources/search.yaml.
 func matchTerms(q Query, s source.Search) []string {
 	var out []string
-	for _, w := range append(slices.Clone(q.Tags), q.Keywords...) {
+	words := append(slices.Clone(q.Tags), q.Keywords...)
+	if len(q.Order) > 0 { // the order given on the command line, tags and keywords mixed
+		at := func(w string) int {
+			if i := slices.Index(q.Order, strings.ToLower(strings.TrimSpace(w))); i >= 0 {
+				return i
+			}
+			return len(q.Order) // from a profile: after what was given
+		}
+		slices.SortStableFunc(words, func(a, b string) int { return cmp.Compare(at(a), at(b)) })
+	}
+	for _, w := range words {
 		w = strings.ToLower(strings.TrimSpace(w))
 		if alias, ok := s.Aliases[w]; ok {
 			w = alias
@@ -689,7 +753,7 @@ func searchTerms(q Query, s source.Search) (searched terms, left []string) {
 		}
 		return true
 	})
-	out := matchTerms(Query{Tags: tags, Keywords: q.Keywords}, s)
+	out := matchTerms(Query{Tags: tags, Keywords: q.Keywords, Order: q.Order}, s)
 	n := min(len(out), MaxTerms)
 	return terms{words: out[:n], cpes: cpes}, append(out[n:], left...)
 }
@@ -963,9 +1027,22 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 	if api == "nvd" && f.NVDAPIKey != "" {
 		req.Header.Set("apiKey", f.NVDAPIKey)
 	}
-	resp, err := f.Client.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("unreachable: %w", err)
+	var resp *http.Response
+	for attempt := 1; ; attempt++ {
+		resp, err = f.Client.Do(req)
+		if err != nil {
+			return nil, "", fmt.Errorf("unreachable: %w", err)
+		}
+		// The NVD often answers 502 to 504 for a moment: a second try usually works.
+		if api != "nvd" || attempt == nvdAttempts || resp.StatusCode < 502 || resp.StatusCode > 504 {
+			break
+		}
+		resp.Body.Close()
+		select {
+		case <-ctx.Done():
+			return nil, "", ctx.Err()
+		case <-time.After(time.Duration(attempt) * f.RetryDelay):
+		}
 	}
 	defer resp.Body.Close()
 	data, err = io.ReadAll(io.LimitReader(resp.Body, maxBody))
@@ -999,6 +1076,9 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 	}
 	return data, next, nil
 }
+
+// nvdAttempts bounds the tries of one NVD request answering 502 to 504.
+const nvdAttempts = 3
 
 var nextLink = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
 

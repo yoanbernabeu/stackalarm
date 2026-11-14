@@ -51,16 +51,17 @@ func Default(version string) (*App, error) {
 		Out: os.Stdout, Err: os.Stderr, Sources: srcs, Now: time.Now, Version: version,
 		Getenv: os.Getenv, CacheRoot: os.UserCacheDir,
 		Fetcher: &news.Fetcher{
-			Client:    &http.Client{Timeout: 45 * time.Second}, // the NVD API is often slow
-			UserAgent: "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
-			CacheTTL:  time.Hour,
-			NVDDelay:  6 * time.Second, // 5 requests per 30 s without a key
-			EUVDDelay: time.Second,
-			EPSSAPI:   "https://api.first.org/data/v1/epss",
-			EOLAPI:    "https://endoflife.date/api/v1",
-			OSVAPI:    "https://api.osv.dev/v1",
-			CVEAPI:    "https://cveawg.mitre.org/api/cve",
-			Search:    search,
+			Client:     &http.Client{Timeout: 45 * time.Second}, // the NVD API is often slow
+			UserAgent:  "stackalarm/" + version + " (+https://github.com/yoanbernabeu/stackalarm)",
+			CacheTTL:   time.Hour,
+			NVDDelay:   6 * time.Second, // 5 requests per 30 s without a key
+			EUVDDelay:  time.Second,
+			RetryDelay: 3 * time.Second,
+			EPSSAPI:    "https://api.first.org/data/v1/epss",
+			EOLAPI:     "https://endoflife.date/api/v1",
+			OSVAPI:     "https://api.osv.dev/v1",
+			CVEAPI:     "https://cveawg.mitre.org/api/cve",
+			Search:     search,
 		},
 	}, nil
 }
@@ -127,6 +128,7 @@ type ignoredItem struct {
 func (a *App) newsCommand() *cobra.Command {
 	var (
 		tags, keywords []string
+		order          []string // tags and keywords as given, for the limit of the CVE database searches
 		packages       []string
 		sboms          []string
 		since, format  string
@@ -282,7 +284,13 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				defer close(eolDone)
 				eol, eolErr = f.SupportItems(cmd.Context(), stack)
 			}()
-			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
+			for i, w := range order { // php@8.3.20 is searched as php
+				if at := strings.Index(w, "@"); at > 0 {
+					w = w[:at]
+				}
+				order[i] = strings.ToLower(strings.TrimSpace(w))
+			}
+			res := f.Fetch(cmd.Context(), a.Sources, news.Query{Tags: tags, Keywords: keywords, Order: order, Since: now.Add(-window), Packages: packages, Versions: versions, Components: components, ComponentsOnly: sbomOnly})
 			<-eolDone
 			if eolErr != nil {
 				res.Failures = append(res.Failures, news.Failure{Source: news.SupportSource, Error: eolErr.Error()})
@@ -369,8 +377,8 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			return nil
 		},
 	}
-	cmd.Flags().StringSliceVarP(&tags, "tag", "t", nil, "technology to watch, repeatable (php, node, gitlab…); with its exact version (php@8.3.20), the version ranges of the CVE records are compared with it")
-	cmd.Flags().StringSliceVarP(&keywords, "keyword", "k", nil, "extra word to look for in general sources, repeatable (roadrunner, htmx…)")
+	cmd.Flags().VarP(orderedList{&tags, &order}, "tag", "t", "technology to watch, repeatable (php, node, gitlab…); with its exact version (php@8.3.20), the version ranges of the CVE records are compared with it, and the flaws exploited in the wild that hit it are listed whatever their date")
+	cmd.Flags().VarP(orderedList{&keywords, &order}, "keyword", "k", "extra word to look for in general sources, repeatable (roadrunner, htmx…); the CVE databases are searched for the first 8 tags and keywords, in the order given")
 	cmd.Flags().StringSliceVarP(&packages, "package", "p", nil, "packages from the lockfile, repeatable, with their version or not (next@15.1.0, dompurify): the GitHub Advisory Database sources then return only their recent advisories, for that version, and OSV.dev every known vulnerability of that version")
 	cmd.Flags().StringSliceVar(&sboms, "sbom", nil, "SBOM of the project or of its container image, repeatable (CycloneDX or SPDX, in JSON): OSV.dev is asked for every known vulnerability of its packages, system packages included")
 	cmd.Flags().StringVar(&since, "since", "7d", "how far back to look: 24h, 7d, 2w…")
@@ -422,7 +430,7 @@ func (a *App) printNews(r newsReport) {
 	if len(r.Truncated) > 0 {
 		fmt.Fprintf(a.Out, "\nOnly the %d most recent entries are shown for:\n", news.MaxPerSource)
 		for _, t := range r.Truncated {
-			fmt.Fprintf(a.Out, "  %s: %d older entries left out (narrow with --since or more precise keywords)\n", t.Source, t.Dropped)
+			fmt.Fprintf(a.Out, "  %s: %d more entries left out, the least severe or the oldest (narrow with --since, more precise keywords or fewer packages)\n", t.Source, t.Dropped)
 		}
 	}
 	if len(r.Short) > 0 {
@@ -469,7 +477,7 @@ func (a *App) printSummary(r newsReport) {
 		fmt.Fprintf(a.Out, "FAILED | %s | %s\n", f.Source, f.Error)
 	}
 	for _, t := range r.Truncated {
-		fmt.Fprintf(a.Out, "TRUNCATED | %s | %d older entries left out\n", t.Source, t.Dropped)
+		fmt.Fprintf(a.Out, "TRUNCATED | %s | %d more entries left out, the least severe or the oldest\n", t.Source, t.Dropped)
 	}
 	for _, c := range r.Short {
 		fmt.Fprintf(a.Out, "SHORT | %s | its feed only goes back to %s\n", c.Source, c.Since.Format("2006-01-02 15:04"))

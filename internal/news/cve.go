@@ -175,7 +175,7 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 	// names (next, next.js): a range already listed is not listed again.
 	for _, a := range slices.Concat(github, program, nvd) {
 		if !slices.ContainsFunc(rec.Affected, func(b Affected) bool {
-			return a == b || a.Versions != "" && a.Versions == b.Versions
+			return a == b || a.Versions != "" && a.Versions == b.Versions && sameProduct(a.Package, b.Package)
 		}) {
 			rec.Affected = append(rec.Affected, a)
 		}
@@ -194,6 +194,14 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 	rec.Advisories = slices.Compact(rec.Advisories)
 	slices.SortFunc(rec.Failures, func(a, b Failure) int { return cmp.Compare(a.Source, b.Source) })
 	return rec
+}
+
+// sameProduct tells whether two databases name one product: "next" and
+// "next.js", "PHP" and "php". react-server-dom-webpack and
+// react-server-dom-parcel are two packages, even with the same ranges.
+func sameProduct(a, b string) bool {
+	x, y := normalName(a), normalName(b)
+	return x == y || x+"js" == y || y+"js" == x
 }
 
 type cveProgram struct {
@@ -305,6 +313,9 @@ func parseCVEProgram(data []byte) (cveProgram, error) {
 				af.Versions = osvRange(from, "<= "+v.LessThanOrEqual)
 			case v.LessThan == "*" || v.LessThanOrEqual == "*":
 				af.Versions = osvRange(from, "")
+			case strings.ContainsAny(v.Version, "<>"): // the range written as text: ">= 15.0.0, < 15.2.3"
+				af.Versions = tidyRange(v.Version)
+				af.Fixed = fixedIn(af.Versions)
 			}
 			if !slices.Contains(p.Affected, af) {
 				p.Affected = append(p.Affected, af)

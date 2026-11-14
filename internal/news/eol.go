@@ -138,12 +138,19 @@ func (f *Fetcher) judge(s *Support, releases []eolRelease) {
 	}
 	eol, _ := time.Parse(time.DateOnly, r.EOLFrom)
 	now := f.Now()
+	behind := s.Latest != "" && v != r.Name && compareVersions(v, s.Latest) < 0
+	// An old cycle still gets its last fixes: being behind on them is said
+	// too, since the upgrade to the latest patch release is the quick step.
+	behindNote := ""
+	if behind {
+		behindNote = "; also behind: the latest " + r.Name + " release is " + s.Latest + " (" + r.Latest.Date + "), update to it first"
+	}
 	switch {
 	case r.IsEOL || !eol.IsZero() && !now.Before(eol): // the date passed before the data says so
-		s.Status, s.Note = StatusEOL, "no security fixes since "+r.EOLFrom+": upgrade to a maintained cycle"
+		s.Status, s.Note = StatusEOL, "no security fixes since "+r.EOLFrom+": upgrade to a maintained cycle"+behindNote
 	case !eol.IsZero() && eol.Sub(now) < EndingWithin:
-		s.Status, s.Note = StatusEnding, fmt.Sprintf("security fixes stop on %s, in %d days: plan the upgrade", r.EOLFrom, int(eol.Sub(now).Hours()/24)+1)
-	case s.Latest != "" && v != r.Name && compareVersions(v, s.Latest) < 0:
+		s.Status, s.Note = StatusEnding, fmt.Sprintf("security fixes stop on %s, in %d days: plan the upgrade%s", r.EOLFrom, int(eol.Sub(now).Hours()/24)+1, behindNote)
+	case behind:
 		s.Status, s.Note = StatusBehind, "the latest "+r.Name+" release is "+s.Latest+" ("+r.Latest.Date+"): patch releases often carry security fixes"
 	default:
 		s.Status, s.Note = StatusSupported, "supported"

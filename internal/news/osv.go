@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	neturl "net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -160,6 +161,10 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		Specific struct {
 			Severity string `json:"severity"`
 		} `json:"database_specific"`
+		References []struct {
+			Type string `json:"type"`
+			URL  string `json:"url"`
+		} `json:"references"`
 		Affected []struct {
 			Package struct {
 				Name      string `json:"name"`
@@ -207,6 +212,17 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 		if strings.HasPrefix(a, "CVE-") {
 			id = a
 			break
+		}
+	}
+	// The CVE an advisory is about can be another project's: Next.js bundles
+	// the React code of CVE-2025-55182, and its advisory names that CVE only as
+	// an advisory reference. The lists of exploited flaws know the upstream id.
+	for _, r := range v.References {
+		if r.Type != "ADVISORY" || !upstreamCVELink.MatchString(r.URL) {
+			continue
+		}
+		if c := cveID.FindString(r.URL); c != "" && c != id && !slices.Contains(e.Related, c) {
+			e.Related = append(e.Related, c)
 		}
 	}
 	title := firstNonEmpty(v.Summary, v.Details)
@@ -285,6 +301,9 @@ func parseOSV(data []byte, asked []osvQuery, returned []string) (*entry, error) 
 	}
 	return &e, nil
 }
+
+// upstreamCVELink is a link to the record of a CVE, at the NVD or the CVE Program.
+var upstreamCVELink = regexp.MustCompile(`^https://(nvd\.nist\.gov/vuln/detail/|www\.cve\.org/CVERecord\?id=)CVE-\d{4}-\d+$`)
 
 // ubuntuPriorities places the priorities Ubuntu gives on the scale of the scores.
 var ubuntuPriorities = map[string]float64{"critical": 9.5, "high": 8, "medium": 5.5, "low": 2, "negligible": 0.5}

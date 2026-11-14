@@ -1,7 +1,12 @@
 package news
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"fmt"
+	"maps"
+	neturl "net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -23,10 +28,11 @@ const kevConcurrency = 8
 // month, and it is the first thing to fix. An entry is kept only when the
 // ranges of its CVE record (the CVE Program, or the NVD when the record has
 // none for the product) hold the version: a name alone proves nothing.
-func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, sources []source.Source, nvd *gate) []entry {
+func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, sources []source.Source, nvd *gate, nvdKEV map[string]map[string][]Affected) ([]entry, []ExploitedCheck) {
 	if len(q.Versions) == 0 || len(catalog) == 0 {
-		return nil
+		return nil, nil
 	}
+	checks := map[string]*ExploitedCheck{}
 	var nvdURL string
 	for _, s := range sources {
 		if s.Type == source.TypeNVD {
@@ -37,7 +43,12 @@ func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, 
 		e       entry
 		tag     string
 		version string
-		names   []string // the product names its ranges may carry
+		names   []string   // the product names its ranges may carry
+		ranges  []Affected // already known, from the NVD search of the product's KEV flaws
+	}
+	byCVE := map[string]entry{}
+	for _, e := range catalog {
+		byCVE[cveID.FindString(e.Title)] = e
 	}
 	var candidates []candidate
 	for tag, version := range q.Versions {
@@ -49,9 +60,26 @@ func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, 
 			}
 		}
 		slices.SortStableFunc(hits, func(a, b entry) int { return b.Published.Compare(a.Published) })
-		for _, e := range hits[:min(len(hits), maxKEVPerTag)] {
-			candidates = append(candidates, candidate{e: e, tag: tag, version: version, names: append(slices.Clone(names), normalName(e.Product))})
+		named := len(hits)
+		hits = hits[:min(len(hits), maxKEVPerTag)]
+		// The NVD knows the products a flaw reaches through a bundled library:
+		// Node.js through Brotli, a KEV entry that never names Node.js.
+		known := nvdKEV[tag]
+		for id, ranges := range known {
+			if e, ok := byCVE[id]; ok && !slices.ContainsFunc(hits, func(h entry) bool { return cveID.FindString(h.Title) == id }) {
+				candidates = append(candidates, candidate{e: e, tag: tag, version: version, names: names, ranges: ranges})
+			}
 		}
+		for _, e := range hits {
+			candidates = append(candidates, candidate{e: e, tag: tag, version: version, names: append(slices.Clone(names), normalName(e.Product)), ranges: known[cveID.FindString(e.Title)]})
+		}
+		extra := 0 // found by the NVD only
+		for id := range known {
+			if !slices.ContainsFunc(hits, func(h entry) bool { return cveID.FindString(h.Title) == id }) {
+				extra++
+			}
+		}
+		checks[tag] = &ExploitedCheck{Tag: tag, Version: version, Entries: named + extra, Checked: len(hits) + extra}
 	}
 	var (
 		mu  sync.Mutex
@@ -67,41 +95,87 @@ func (f *Fetcher) exploitedInUse(ctx context.Context, catalog []entry, q Query, 
 			if id == "" {
 				return
 			}
-			ranges := f.programRanges(ctx, id, c.names)
+			ranges := c.ranges
+			if len(ranges) == 0 {
+				ranges = f.programRanges(ctx, id, c.names)
+			}
 			if len(ranges) == 0 && nvdURL != "" {
 				ranges = f.nvdRanges(ctx, nvdURL, id, c.names, nvd)
 			}
 			var hit []Affected
 			for _, a := range ranges {
-				if in, ok := inRange(c.version, a.Versions); ok && in {
-					a.Package, a.InUse, a.Status = c.tag, c.version, StatusAffected
+				if status, ok := versionStatus(c.version, a.Versions); ok && status != StatusNotAffected {
+					a.Package, a.InUse, a.Status = c.tag, c.version, status
 					if !slices.Contains(hit, a) {
 						hit = append(hit, a)
 					}
 				}
 			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(ranges) == 0 {
+				checks[c.tag].Unproven++
+			}
 			if len(hit) == 0 {
 				return // another branch, a version already fixed, or no range to prove it
 			}
+			slices.SortStableFunc(hit, func(a, b Affected) int { return cmp.Compare(statusOrder(a.Status), statusOrder(b.Status)) })
 			e := c.e
 			e.Affected, e.Current = hit, true
-			mu.Lock()
 			out = append(out, e)
-			mu.Unlock()
+			checks[c.tag].Hits++
 		})
 	}
 	wg.Wait()
 	slices.SortFunc(out, func(a, b entry) int { return b.Published.Compare(a.Published) })
-	return out
+	var list []ExploitedCheck
+	for _, c := range checks {
+		list = append(list, *c)
+	}
+	slices.SortFunc(list, func(a, b ExploitedCheck) int { return cmp.Compare(a.Tag, b.Tag) })
+	return out, list
+}
+
+// ExploitedCheck tells what the KEV catalog holds for a tag given with its
+// version: a silence must read as "checked, nothing hits it", never as a
+// product the catalog does not know, nor as a check that was not done.
+type ExploitedCheck struct {
+	Tag     string `json:"tag"`
+	Version string `json:"version"`
+	Entries int    `json:"kev_entries"` // the KEV entries naming the product
+	Checked int    `json:"checked"`     // the most recent ones, whose ranges were compared
+	Hits    int    `json:"hits"`        // those that hit the version (or possibly, for a branch)
+	// Unproven counts the entries whose CVE record gives no range for the
+	// product: they could not be compared, and are not listed.
+	Unproven int `json:"unproven,omitempty"`
+}
+
+// Note says the outcome in one line.
+func (c ExploitedCheck) Note() string {
+	switch {
+	case c.Entries == 0:
+		return "no KEV entry names this product: no flaw of it is known to be exploited"
+	case c.Hits > 0:
+		return fmt.Sprintf("%d of its %d KEV entries hit this version (listed as cisa-kev alerts)", c.Hits, c.Entries)
+	}
+	note := fmt.Sprintf("none of its %d KEV entries hits this version", c.Entries)
+	if c.Checked < c.Entries {
+		note = fmt.Sprintf("none of the %d most recent of its %d KEV entries hits this version", c.Checked, c.Entries)
+	}
+	if c.Unproven > 0 {
+		note += fmt.Sprintf(" (%d without a range to compare: check them by hand with stackalarm cve)", c.Unproven)
+	}
+	return note
 }
 
 // kevInUse turns the KEV entries that hit a version in use into items. A CVE
 // a vulnerability database already listed in the period is left to it: that
 // record proves the version, and the KEV mark reaches it. A KEV alert the
 // period listed alone gets the ranges that prove it, instead of a second item.
-func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []entry, q Query, sources []source.Source, nvd *gate, listed []Item) []Item {
+func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []entry, q Query, sources []source.Source, nvd *gate, nvdKEV map[string]map[string][]Affected, listed []Item) ([]Item, []ExploitedCheck) {
 	var out []Item
-	for _, e := range f.exploitedInUse(ctx, catalog, q, sources, nvd) {
+	found, checks := f.exploitedInUse(ctx, catalog, q, sources, nvd, nvdKEV)
+	for _, e := range found {
 		id := cveID.FindString(e.Title)
 		if slices.ContainsFunc(listed, func(it Item) bool { return it.cve == id }) {
 			continue
@@ -117,7 +191,7 @@ func (f *Fetcher) kevInUse(ctx context.Context, kev source.Source, catalog []ent
 		it.ID = itemID(it)
 		out = append(out, it)
 	}
-	return out
+	return out, checks
 }
 
 // productNames returns the names a tag's product goes by in the CVE records:
@@ -182,6 +256,53 @@ func (f *Fetcher) programRanges(ctx context.Context, id string, names []string) 
 		return nil
 	}
 	return rangesOf(p.Affected, names)
+}
+
+// nvdKEVRanges asks the NVD, for each tag given with a version and known in
+// its dictionary (cpe in sources/search.yaml), which CVEs of the product are
+// in the KEV catalog, whatever their date, with their ranges: tag, then CVE.
+// A failed search is reported and the catalog is still searched by name.
+func (f *Fetcher) nvdKEVRanges(ctx context.Context, sources []source.Source, q Query, nvd *gate) (map[string]map[string][]Affected, error) {
+	var nvdURL string
+	for _, s := range sources {
+		if s.Type == source.TypeNVD {
+			nvdURL = s.URL
+		}
+	}
+	out := map[string]map[string][]Affected{}
+	if nvdURL == "" {
+		return out, nil
+	}
+	tags := slices.Sorted(maps.Keys(q.Versions)) // a stable order, for the cache and the errors
+	var errs []error
+	for _, tag := range tags {
+		cpe := f.Search.CPE[tag]
+		if cpe == "" {
+			continue
+		}
+		u := nvdURL + "?virtualMatchString=" + neturl.QueryEscape("cpe:2.3:a:"+cpe) + "&hasKev"
+		if nvd != nil && !f.isCached(u) {
+			if err := nvd.wait(ctx); err != nil {
+				return out, err
+			}
+		}
+		data, _, err := f.get(ctx, u, "nvd")
+		if err == nil {
+			var entries []entry
+			if entries, err = parseNVD(data, map[string]string{tag: cpe}, 0); err == nil {
+				out[tag] = map[string][]Affected{}
+				for _, e := range entries {
+					if id := cveID.FindString(e.Title); id != "" {
+						out[tag][id] = rangesOf(e.Affected, []string{normalName(tag)})
+					}
+				}
+			}
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", tag, err))
+		}
+	}
+	return out, errors.Join(errs...)
 }
 
 // nvdRanges reads the ranges of the products named from the NVD record of a

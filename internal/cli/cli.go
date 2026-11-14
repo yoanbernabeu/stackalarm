@@ -108,7 +108,10 @@ type newsReport struct {
 	Failures   []news.Failure    `json:"failures"`
 	Truncated  []news.Truncation `json:"truncated"`
 	Short      []news.Coverage   `json:"short"` // feeds that do not reach back to Since
-	Warnings   []string          `json:"warnings"`
+	// Exploited tells, for each tag given with a version, what the KEV
+	// catalog holds for it: a silence then reads as a check done.
+	Exploited []news.ExploitedCheck `json:"exploited_checks,omitempty"`
+	Warnings  []string              `json:"warnings"`
 	// AlreadyReported counts the items left out because the state file says
 	// an earlier run reported them.
 	AlreadyReported int `json:"already_reported,omitempty"`
@@ -204,8 +207,8 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 				}
 				tags, keywords, packages = union(p.Tags, tags), union(p.Keywords, keywords), union(p.Packages, packages)
 				stack, ignores = p.Stack, p.Ignore
-				for _, c := range p.Stack { // a branch or a range would compare wrongly
-					if name := strings.ToLower(c.Name); c.Precision == "exact" && c.Version != "" && versions[name] == "" {
+				for _, c := range p.Stack { // a range would compare wrongly; a branch is compared as a branch
+					if name := strings.ToLower(c.Name); (c.Precision == "exact" || c.Precision == "branch") && c.Version != "" && versions[name] == "" {
 						versions[name] = c.Version
 					}
 				}
@@ -305,7 +308,7 @@ file the agent wrote, --state shows only the items no earlier run reported, and
 			}
 			report := newsReport{
 				GeneratedAt: now, Since: now.Add(-window), Tags: nonNil(tags), Keywords: nonNil(keywords), Packages: packages, Components: components, Stack: stack,
-				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Short: res.Short, Warnings: nonNil(warnings),
+				Items: res.Items, Failures: res.Failures, Truncated: res.Truncated, Short: res.Short, Warnings: nonNil(warnings), Exploited: res.Exploited,
 			}
 			for _, ig := range ignores {
 				if ig.Expired(now) {
@@ -427,8 +430,14 @@ func (a *App) printNews(r newsReport) {
 			fmt.Fprintf(a.Out, "%38s%s\n", "", it.URL)
 		}
 	}
+	if len(r.Exploited) > 0 {
+		fmt.Fprintln(a.Out, "\nFlaws exploited in the wild (CISA KEV), for the versions given:")
+		for _, c := range r.Exploited {
+			fmt.Fprintf(a.Out, "  %s@%s: %s\n", c.Tag, c.Version, c.Note())
+		}
+	}
 	if len(r.Truncated) > 0 {
-		fmt.Fprintf(a.Out, "\nOnly the %d most recent entries are shown for:\n", news.MaxPerSource)
+		fmt.Fprintf(a.Out, "\nSources with more entries than shown (%d per source, %d for the OSV sources asked about packages):\n", news.MaxPerSource, news.MaxOSVPerSource)
 		for _, t := range r.Truncated {
 			fmt.Fprintf(a.Out, "  %s: %d more entries left out, the least severe or the oldest (narrow with --since, more precise keywords or fewer packages)\n", t.Source, t.Dropped)
 		}
@@ -472,6 +481,9 @@ func (a *App) printSummary(r newsReport) {
 			line += " | EPSS " + epss(it.EPSS)
 		}
 		fmt.Fprintln(a.Out, line)
+	}
+	for _, c := range r.Exploited {
+		fmt.Fprintf(a.Out, "KEV | %s@%s | %s\n", c.Tag, c.Version, c.Note())
 	}
 	for _, f := range r.Failures {
 		fmt.Fprintf(a.Out, "FAILED | %s | %s\n", f.Source, f.Error)
@@ -603,6 +615,8 @@ func affected(it news.Item) string {
 		switch af.Status {
 		case news.StatusAffected:
 			part += " [" + af.InUse + " in use: AFFECTED]"
+		case news.StatusPossiblyAffected:
+			part += " [" + af.InUse + " in use: POSSIBLY AFFECTED, the patch level decides]"
 		case news.StatusNotAffected:
 			part += " [" + af.InUse + " in use: not affected]"
 		}

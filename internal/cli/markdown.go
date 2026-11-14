@@ -118,7 +118,7 @@ func (a *App) printMarkdown(r newsReport) {
 		}
 	}
 	if len(r.Truncated) > 0 {
-		fmt.Fprintf(w, "\n### Sources with more entries than shown\n\nOnly the %d most relevant entries of each are listed.\n\n", news.MaxPerSource)
+		fmt.Fprintf(w, "\n### Sources with more entries than shown\n\nOnly the %d most relevant entries of each are listed (%d for the OSV sources asked about packages).\n\n", news.MaxPerSource, news.MaxOSVPerSource)
 		for _, t := range r.Truncated {
 			fmt.Fprintf(w, "- %s: %d left out\n", t.Source, t.Dropped)
 		}

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/yoanbernabeu/stackalarm/internal/source"
 )
@@ -53,6 +54,9 @@ func ValidCVE(id string) bool { return cvePattern.MatchString(id) }
 // is reported in Failures, and the others still answer.
 func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, inUse []string) CVERecord {
 	rec := CVERecord{ID: id, FoundIn: []string{}, Failures: []Failure{}}
+	if f.nvdRejected == nil {
+		f.nvdRejected = new(atomic.Bool)
+	}
 	var (
 		mu sync.Mutex
 		wg sync.WaitGroup
@@ -161,6 +165,9 @@ func (f *Fetcher) CVE(ctx context.Context, id string, sources []source.Source, i
 		}
 	}
 	wg.Wait()
+	if f.nvdKeyRejected() {
+		rec.Failures = append(rec.Failures, Failure{Source: "nvd-api-key", Error: NVDKeyRejected})
+	}
 
 	if rec.EPSS == 0 && f.EPSSAPI != "" {
 		items := []Item{{cve: id}}

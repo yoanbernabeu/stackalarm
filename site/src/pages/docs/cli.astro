@@ -48,14 +48,18 @@ const stageText: Record<string, string> = {
   <p>
     A tag takes a version too: <code>--tag php@8.3.20</code>. The NVD records give the vulnerable ranges of a product; each is compared with
     the version and marked <code>affected</code> or <code>not-affected</code> (<code>[8.3.20 in use: AFFECTED]</code> in the text formats),
-    and the records that hit the version come first under the cap. Give a full version, never a branch. The products known for each tag are
+    and the records that hit the version come first under the cap. A branch works too (<code>--tag node@20</code>): a range covering the whole
+    branch is <code>affected</code>, since no release of it is fixed, and one covering part of it <code>possibly-affected</code>, the patch level
+    deciding. Never give a range (<code>&gt;=8.2</code>). The products known for each tag are
     listed under <code>cpe</code> in <a href={`${repo}/blob/main/sources/search.yaml`}><code>sources/search.yaml</code></a>; a tag too
     ambiguous to be searched by word (<code>composer</code>, <code>flask</code>, <code>npm</code>…) is searched in the NVD by product instead.
   </p>
   <p>
-    With a version, the CISA KEV catalog is also searched for the product, whatever the date its flaws were added: each entry whose CVE
-    record (the CVE Program, or the NVD) holds the version in a vulnerable range is listed as an alert, marked <code>AFFECTED</code>. A flaw
-    exploited in the wild last month on the PHP you deploy today is the first thing to fix, and a seven-day window would miss it.
+    With a version, the CISA KEV catalog is also searched for the product, whatever the date its flaws were added: the entries that name
+    it, and those the NVD links to it (Node.js reaches a Brotli flaw whose KEV entry never names Node.js). Each one whose CVE record holds
+    the version in a vulnerable range is listed as an alert, marked <code>AFFECTED</code>. A flaw exploited in the wild last month on the PHP
+    you deploy today is the first thing to fix, and a seven-day window would miss it. A <code>KEV</code> line then tells, for each tag with a
+    version, how many KEV entries name the product and how many hit the version: a silence reads as a check done.
   </p>
   <p>
     The CVE databases are searched for the first 8 tags and keywords, in the order given on the command line, tags and keywords mixed.

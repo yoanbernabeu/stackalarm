@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yoanbernabeu/stackalarm/internal/source"
@@ -48,9 +49,10 @@ type Item struct {
 	PublicExploitIn []string   `json:"public_exploit_in,omitempty"`
 	Affected        []Affected `json:"affected,omitempty"` // packages or products and their versions
 
-	cve  string // CVE id of a CVE database entry, used to merge duplicates
-	dup  string // GHSA id of an advisory without a CVE, used the same way
-	rank int    // order within its source, for the cap
+	cve     string   // CVE id of a CVE database entry, used to merge duplicates
+	related []string // upstream CVEs of the advisory: the lists of exploited flaws may name it by one of them
+	dup     string   // GHSA id of an advisory without a CVE, used the same way
+	rank    int      // order within its source, for the cap
 }
 
 // Affected is a package an advisory names, with the vulnerable versions and
@@ -60,8 +62,9 @@ type Affected struct {
 	Versions string `json:"versions"`
 	Fixed    string `json:"fixed,omitempty"`
 	// InUse is the version the query gave for the package, and Status whether
-	// it is in the vulnerable range: StatusAffected or StatusNotAffected. Both
-	// are empty when no version was given or the range could not be read.
+	// it is in the vulnerable range: StatusAffected, StatusPossiblyAffected (a
+	// branch partly in the range) or StatusNotAffected. Both are empty when no
+	// version was given or the range could not be read.
 	InUse  string `json:"in_use,omitempty"`
 	Status string `json:"status,omitempty"`
 }
@@ -70,6 +73,9 @@ type Affected struct {
 const (
 	StatusAffected    = "affected"
 	StatusNotAffected = "not-affected"
+	// StatusPossiblyAffected is a branch (node@20) of which some releases are
+	// in the range and others not: the patch level in use decides.
+	StatusPossiblyAffected = "possibly-affected"
 )
 
 // Failure is a source that could not be read. It is always reported: a
@@ -96,6 +102,9 @@ type Result struct {
 	// Short lists the feeds whose oldest entry is newer than the start of the
 	// period: they keep few entries, so older news may be missing.
 	Short []Coverage `json:"short"`
+	// Exploited tells, for each tag given with its version, what the KEV
+	// catalog holds for it and how much hits the version.
+	Exploited []ExploitedCheck `json:"exploited_checks,omitempty"`
 }
 
 // Coverage tells how far back a feed reaches.
@@ -107,6 +116,25 @@ type Coverage struct {
 // MaxPerSource keeps the output readable for a person or an agent: a CVE
 // database can return hundreds of records for a common word.
 const MaxPerSource = 30
+
+// MaxOSVPerSource is the cap of an OSV source asked about packages: these are
+// the known flaws of the versions the project locks, each one an update to
+// make, not news to skim.
+const MaxOSVPerSource = 100
+
+// caps gives the sources whose cap is not MaxPerSource.
+func caps(sources []source.Source, q Query) map[string]int {
+	out := map[string]int{}
+	if len(q.Packages) == 0 && len(q.Components) == 0 {
+		return out
+	}
+	for _, s := range sources {
+		if s.Type == source.TypeOSV {
+			out[s.ID] = MaxOSVPerSource
+		}
+	}
+	return out
+}
 
 // Query selects what to fetch.
 type Query struct {
@@ -151,6 +179,9 @@ type Fetcher struct {
 	Now         func() time.Time
 
 	github chan struct{} // bounds the GitHub requests in flight
+	// nvdRejected is set when the NVD refuses NVD_API_KEY: the requests then go
+	// without it. A pointer, so the copies of a Fetcher share it.
+	nvdRejected *atomic.Bool
 	// The pauses between two requests to the NVD and the EUVD, kept from one
 	// Fetch to the next: a program that fetches tag after tag stays in the limits.
 	nvdGate, euvdGate *gate
@@ -174,6 +205,9 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		}
 	}
 	f.github = make(chan struct{}, GitHubConcurrency)
+	if f.nvdRejected == nil {
+		f.nvdRejected = new(atomic.Bool)
+	}
 	terms, left := searchTerms(q, f.Search)
 	words := matchers(matchTerms(q, f.Search))
 	if f.nvdGate == nil {
@@ -195,6 +229,18 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 	if slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type.IsSearch() }) {
 		res.NotSearched = append(res.NotSearched, left...)
 	}
+	// The KEV flaws of the products given with a version, alongside the sources.
+	var (
+		kevNVD  map[string]map[string][]Affected
+		kevErr  error
+		kevDone = make(chan struct{})
+	)
+	go func() {
+		defer close(kevDone)
+		if !q.ComponentsOnly && len(q.Versions) > 0 && slices.ContainsFunc(selected, func(s source.Source) bool { return s.Type == source.TypeKEV }) {
+			kevNVD, kevErr = f.nvdKEVRanges(ctx, selected, q, nvd)
+		}
+	}()
 	for _, s := range selected {
 		if s.Type.IsSearch() && len(terms.words) == 0 && (s.Type != source.TypeNVD || len(terms.cpes) == 0) {
 			continue // nothing to search for
@@ -272,6 +318,7 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 				item := Item{
 					Source: s.ID, Tags: s.Tags, Stage: stage, Title: e.Title, URL: absolute(s.URL, e.URL),
 					Published: e.Published, Summary: e.Summary, Score: e.Score, Language: s.Language, EPSS: e.EPSS, Affected: e.Affected,
+					related: e.Related,
 				}
 				if mergeable(s.Type) {
 					item.cve = cveID.FindString(e.Title)
@@ -284,23 +331,47 @@ func (f *Fetcher) Fetch(ctx context.Context, sources []source.Source, q Query) R
 		})
 	}
 	wg.Wait()
+	<-kevDone
+	if kevErr != nil {
+		res.Failures = append(res.Failures, Failure{Source: "nvd-kev", Error: kevErr.Error()})
+	}
 	if !q.ComponentsOnly {
-		res.Items = append(res.Items, f.kevInUse(ctx, kevSource, kevCatalog, q, sources, nvd, res.Items)...)
+		found, checks := f.kevInUse(ctx, kevSource, kevCatalog, q, sources, nvd, kevNVD, res.Items)
+		res.Items, res.Exploited = append(res.Items, found...), checks
 	}
 	slices.SortFunc(res.Items, func(a, b Item) int {
 		return cmp.Or(b.Published.Compare(a.Published), cmp.Compare(a.Source, b.Source), cmp.Compare(a.Title, b.Title))
 	})
 	for i, it := range res.Items {
-		if sources := exploited[it.cve]; it.cve != "" && len(sources) > 0 {
-			res.Items[i].ExploitedIn = slices.Sorted(slices.Values(sources))
+		var lists, catalogs []string
+		for _, c := range append([]string{it.cve}, it.related...) {
+			if c == "" {
+				continue
+			}
+			for _, s := range exploited[c] {
+				if !slices.Contains(lists, s) {
+					lists = append(lists, s)
+				}
+			}
+			for _, s := range exploits[c] {
+				if !slices.Contains(catalogs, s) {
+					catalogs = append(catalogs, s)
+				}
+			}
+		}
+		if len(lists) > 0 {
+			res.Items[i].ExploitedIn = slices.Sorted(slices.Values(lists))
 			res.Items[i].rank -= 1 << 20 // kept first under the cap
 		}
-		if catalogs := exploits[it.cve]; it.cve != "" && len(catalogs) > 0 {
+		if len(catalogs) > 0 {
 			res.Items[i].PublicExploitIn = slices.Sorted(slices.Values(catalogs))
 			res.Items[i].rank -= 1 << 19 // then the ones anyone can exploit
 		}
 	}
-	res.Items, res.Truncated = mergeAndCap(res.Items)
+	if f.nvdKeyRejected() {
+		res.Failures = append(res.Failures, Failure{Source: "nvd-api-key", Error: NVDKeyRejected})
+	}
+	res.Items, res.Truncated = mergeAndCap(res.Items, caps(selected, q))
 	if err := f.addEPSS(ctx, res.Items); err != nil {
 		res.Failures = append(res.Failures, Failure{Source: "epss", Error: err.Error()})
 	}
@@ -390,10 +461,17 @@ func (f *Fetcher) addEPSS(ctx context.Context, items []Item) error {
 	if f.EPSSAPI == "" {
 		return nil
 	}
+	// An advisory without a CVE of its own is scored by its upstream CVE.
+	scored := func(it Item) string {
+		if it.cve == "" && len(it.related) > 0 {
+			return it.related[0]
+		}
+		return it.cve
+	}
 	var cves []string
 	for _, it := range items {
-		if it.cve != "" && it.EPSS == 0 {
-			cves = append(cves, it.cve)
+		if c := scored(it); c != "" && it.EPSS == 0 {
+			cves = append(cves, c)
 		}
 	}
 	slices.Sort(cves) // a stable URL, for the cache
@@ -421,7 +499,7 @@ func (f *Fetcher) addEPSS(ctx context.Context, items []Item) error {
 	}
 	for i := range items {
 		if items[i].EPSS == 0 {
-			items[i].EPSS = scores[items[i].cve]
+			items[i].EPSS = scores[scored(items[i])]
 		}
 	}
 	return nil
@@ -443,10 +521,12 @@ func statusOrder(status string) int {
 	switch status {
 	case StatusAffected:
 		return 0
+	case StatusPossiblyAffected:
+		return 1
 	case StatusNotAffected:
-		return 2
+		return 3
 	}
-	return 1
+	return 2
 }
 
 // relevance orders the entries of one source: 0 when a version in use is in
@@ -459,7 +539,7 @@ func relevance(e entry, q Query) int {
 	}
 	for _, a := range e.Affected {
 		switch {
-		case a.Status == StatusAffected:
+		case a.Status == StatusAffected, a.Status == StatusPossiblyAffected:
 			return 0
 		case slices.Contains(q.Tags, strings.ToLower(a.Package)), slices.ContainsFunc(q.Packages, func(p string) bool { return packageName(p) == a.Package }):
 			r = 1
@@ -482,11 +562,8 @@ func annotate(affected []Affected, q Query) []Affected {
 				_, version, _ = strings.Cut(strings.TrimPrefix(p, a.Package), "@")
 			}
 		}
-		if in, ok := inRange(version, a.Versions); ok {
-			affected[i].InUse, affected[i].Status = version, StatusNotAffected
-			if in {
-				affected[i].Status = StatusAffected
-			}
+		if status, ok := versionStatus(version, a.Versions); ok {
+			affected[i].InUse, affected[i].Status = version, status
 		}
 	}
 	watched := slices.Clone(q.Packages)
@@ -509,9 +586,9 @@ func watchedFirst(affected []Affected, packages []string) []Affected {
 				return 0
 			}
 			_, version, _ := strings.Cut(strings.TrimPrefix(p, a.Package), "@") // empty without a version
-			in, ok := inRange(version, a.Versions)
+			status, ok := versionStatus(version, a.Versions)
 			switch {
-			case in:
+			case status == StatusAffected, status == StatusPossiblyAffected:
 				return 0
 			case !ok:
 				return 1
@@ -539,7 +616,13 @@ func packageName(p string) string {
 // severe first for CVE databases). A merged CVE takes one place, in the
 // source that ranks it highest, or in another listing it when that source
 // is full: a CVE is dropped only when no source has room for it.
-func mergeAndCap(items []Item) ([]Item, []Truncation) {
+func mergeAndCap(items []Item, caps map[string]int) ([]Item, []Truncation) {
+	limit := func(src string) int {
+		if n, ok := caps[src]; ok {
+			return n
+		}
+		return MaxPerSource
+	}
 	key := func(i int) string {
 		if k := cmp.Or(items[i].cve, items[i].dup); k != "" {
 			return k
@@ -570,11 +653,11 @@ func mergeAndCap(items []Item) ([]Item, []Truncation) {
 	slices.SortStableFunc(byRank, func(a, b string) int { return cmp.Compare(items[owner[b]].rank, items[owner[a]].rank) })
 	for _, k := range byRank {
 		src := items[owner[k]].Source
-		if count[src] <= MaxPerSource {
+		if count[src] <= limit(src) {
 			continue
 		}
 		for _, h := range holders[k] {
-			if other := items[h].Source; other != src && count[other] < MaxPerSource {
+			if other := items[h].Source; other != src && count[other] < limit(other) {
 				owner[k] = h
 				count[src]--
 				count[other]++
@@ -592,14 +675,14 @@ func mergeAndCap(items []Item) ([]Item, []Truncation) {
 		truncated []Truncation
 	)
 	for src, ks := range owned {
-		if len(ks) <= MaxPerSource {
+		if len(ks) <= limit(src) {
 			continue
 		}
 		slices.SortStableFunc(ks, func(a, b string) int { return cmp.Compare(items[owner[a]].rank, items[owner[b]].rank) })
-		for _, k := range ks[MaxPerSource:] {
+		for _, k := range ks[limit(src):] {
 			dropped[k] = true
 		}
-		truncated = append(truncated, Truncation{Source: src, Dropped: len(ks) - MaxPerSource})
+		truncated = append(truncated, Truncation{Source: src, Dropped: len(ks) - limit(src)})
 	}
 	var out []Item
 	for _, k := range keys {
@@ -1024,7 +1107,7 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 			req.Header.Set("Authorization", "Bearer "+f.GitHubToken)
 		}
 	}
-	if api == "nvd" && f.NVDAPIKey != "" {
+	if api == "nvd" && f.NVDAPIKey != "" && !f.nvdKeyRejected() {
 		req.Header.Set("apiKey", f.NVDAPIKey)
 	}
 	var resp *http.Response
@@ -1045,6 +1128,19 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 		}
 	}
 	defer resp.Body.Close()
+	// A key the NVD does not know (a typo, a new key not yet activated from
+	// the link it emails) makes every request fail with 404: the searches run
+	// again without it, at the pace the NVD allows without a key, and the
+	// rejection is reported once.
+	if api == "nvd" && req.Header.Get("apiKey") != "" && resp.StatusCode == http.StatusNotFound && strings.Contains(strings.ToLower(resp.Header.Get("message")), "apikey") {
+		if f.nvdRejected != nil {
+			f.nvdRejected.Store(true)
+		}
+		if f.nvdGate != nil {
+			f.nvdGate.slowTo(nvdDelayWithoutKey)
+		}
+		return f.do(ctx, url, body, api)
+	}
 	data, err = io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
 		return nil, "", fmt.Errorf("read failed: %w", err)
@@ -1079,6 +1175,27 @@ func (f *Fetcher) do(ctx context.Context, url, body, api string) (data []byte, n
 
 // nvdAttempts bounds the tries of one NVD request answering 502 to 504.
 const nvdAttempts = 3
+
+// nvdDelayWithoutKey is the pause the NVD asks between two requests without a
+// key: 5 requests per 30 seconds.
+const nvdDelayWithoutKey = 6 * time.Second
+
+// NVDKeyRejected is the failure reported when the NVD refuses NVD_API_KEY.
+const NVDKeyRejected = "the NVD rejected NVD_API_KEY (HTTP 404, \"Invalid apiKey\"): its searches ran without the key, at the slower pace; check the key (a new one works once activated from the link the NVD emails) or unset it"
+
+// nvdKeyRejected tells whether the NVD refused the key during this run.
+func (f *Fetcher) nvdKeyRejected() bool {
+	return f.nvdRejected != nil && f.nvdRejected.Load()
+}
+
+// slowTo raises the pause of a gate that paces its requests, never lowers it.
+func (g *gate) slowTo(d time.Duration) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.delay > 0 {
+		g.delay = max(g.delay, d)
+	}
+}
 
 var nextLink = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
 

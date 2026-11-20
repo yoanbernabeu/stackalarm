@@ -1,0 +1,6 @@
+id: zdi-upcoming
+name: Zero Day Initiative upcoming advisories (reported to the vendor, not yet fixed)
+type: feed
+url: "https://www.zerodayinitiative.com/rss/upcoming/"
+tags: [general]
+stage: heads-up

@@ -1,0 +1,6 @@
+id: microsoft-threat-intelligence
+name: Microsoft Security blog (Microsoft Threat Intelligence)
+type: feed
+url: "https://www.microsoft.com/en-us/security/blog/feed/"
+tags: [general]
+stage: news

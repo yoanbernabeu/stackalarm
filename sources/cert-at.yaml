@@ -1,0 +1,7 @@
+id: cert-at
+name: CERT.at warnings (Austria)
+type: feed
+url: "https://cert.at/cert-at.de.warnings.rss_2.0.xml"
+tags: [general]
+stage: alert
+language: de

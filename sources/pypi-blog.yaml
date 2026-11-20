@@ -1,0 +1,6 @@
+id: pypi-blog
+name: PyPI blog (registry security, incidents, malware takedowns)
+type: feed
+url: "https://blog.pypi.org/feed_rss_created.xml"
+tags: [python, pip]
+stage: news

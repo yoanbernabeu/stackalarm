@@ -1,0 +1,6 @@
+id: symfony-ux-advisories
+name: Symfony UX security advisories (GitHub)
+type: github-advisories
+repo: symfony/ux
+tags: [symfony-ux]
+stage: advisory

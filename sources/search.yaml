@@ -15,6 +15,7 @@ aliases:
   consul: hashicorp consul
   # The tags are written with a dash, the texts with a space or another name.
   api-platform: api platform
+  symfony-ux: symfony ux
   anthropic-sdk: anthropic
   gcp: google cloud
   # Common words, or names shared with something else: Azure Synapse, Hyper-V,

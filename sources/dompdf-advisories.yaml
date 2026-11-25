@@ -1,0 +1,6 @@
+id: dompdf-advisories
+name: Dompdf security advisories (GitHub)
+type: github-advisories
+repo: dompdf/dompdf
+tags: [dompdf]
+stage: advisory

@@ -1,0 +1,6 @@
+id: amazon-linux-alas
+name: Amazon Linux 2023 Security Advisories (ALAS)
+type: feed
+url: "https://alas.aws.amazon.com/AL2023/alas.rss"
+tags: [amazon-linux]
+stage: advisory

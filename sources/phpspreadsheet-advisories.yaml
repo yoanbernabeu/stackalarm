@@ -1,0 +1,6 @@
+id: phpspreadsheet-advisories
+name: PhpSpreadsheet security advisories (GitHub)
+type: github-advisories
+repo: PHPOffice/PhpSpreadsheet
+tags: [phpspreadsheet]
+stage: advisory

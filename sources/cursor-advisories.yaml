@@ -1,0 +1,6 @@
+id: cursor-advisories
+name: Cursor security advisories (GitHub)
+type: github-advisories
+repo: cursor/cursor
+tags: [cursor]
+stage: advisory

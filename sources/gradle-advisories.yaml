@@ -1,0 +1,6 @@
+id: gradle-advisories
+name: Gradle security advisories (GitHub)
+type: github-advisories
+repo: gradle/gradle
+tags: [gradle]
+stage: advisory

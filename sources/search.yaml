@@ -41,6 +41,7 @@ aliases:
   rocketchat: rocket.chat
   uptime-kuma: uptime kuma
   argo-workflows: argo workflows
+  amazon-linux: amazon linux
 
 # Tags the CVE databases are not searched for by word. General sources (CERTs,
 # KEV, press) still match them, and an explicit --keyword is still searched.
@@ -83,6 +84,10 @@ skip:
   - uv
   - chi
   - zed
+  # "cursor" names database and file system cursors in kernel and driver
+  # CVEs. Its GitHub advisories source covers the editor, and the NVD is
+  # searched by product (see cpe).
+  - cursor
   # Every product of the vendor: hundreds of CVEs a month. The oracle-security
   # source carries its patch updates.
   - oracle
@@ -108,6 +113,7 @@ cpe:
   swift: apple:swift
   git: git-scm:git
   curl: haxx:curl
+  cursor: anysphere:cursor
   # Searched by word: only their version ranges are named after the tag.
   php: php:php
   node: nodejs:node.js

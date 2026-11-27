@@ -19,6 +19,19 @@ const githubSources = loadSources().filter((s) => s.type.startsWith("github-")).
     time you run <code>/stackalarm</code>, the skill checks for the CLI and, when it is missing, offers to install it with the command that
     fits your machine. Nothing runs before you agree.
   </p>
+
+  <h3 id="not-found"><code>/stackalarm</code> not found</h3>
+  <p>
+    The installer copies the skill into <code>~/.agents/skills/</code>, then links it into the folder of each agent it detects or you pick.
+    When it detects none, your agent never sees the skill. Name the agent with <code>-a</code>, add <code>-g</code> for every project rather
+    than the current one, then start a new session:
+  </p>
+  <Code code="npx skills add yoanbernabeu/stackalarm -g -a claude-code" />
+  <p>
+    <code>npx skills add --help</code> lists the other options. For a skill already in <code>~/.agents/skills/</code>, a link is enough:
+  </p>
+  <Code code="ln -s ~/.agents/skills/stackalarm ~/.claude/skills/stackalarm" />
+
   <p>To install the CLI yourself instead:</p>
   <Code label="Homebrew (macOS, Linux)" code="brew install yoanbernabeu/tap/stackalarm" />
   <Code label="Install script (macOS, Linux)" code={`curl -sSL ${raw}/install.sh | sh`} />
